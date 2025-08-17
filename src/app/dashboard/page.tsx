@@ -7,7 +7,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
 import { 
@@ -26,38 +26,14 @@ import {
   useRecentActivity, 
   useUserPerformance 
 } from '@/hooks/useDashboardData';
-import { supabase } from '@/lib/supabase/client';
-
-interface UserProfile {
-  display_name?: string;
-  preferred_position?: string;
-  location?: string;
-  avatar_url?: string;
-}
+import { useUserProfile } from '@/hooks';
 
 export default function DashboardPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   
-  // Fetch user profile
-  useEffect(() => {
-    if (user?.id) {
-      const fetchUserProfile = async () => {
-        const { data } = await supabase
-          .from('user_profiles')
-          .select('display_name, preferred_position, location, avatar_url')
-          .eq('id', user.id)
-          .single();
-        
-        if (data) {
-          setUserProfile(data);
-        }
-      };
-      
-      fetchUserProfile();
-    }
-  }, [user?.id]);
+  // Use custom hooks for data fetching
+  const { data: userProfile, loading: profileLoading } = useUserProfile();
   
   // Fetch dashboard data
   const { stats, loading: statsLoading } = useUserStats(user?.id || null);
@@ -65,7 +41,7 @@ export default function DashboardPage() {
   const { activity, loading: activityLoading } = useRecentActivity(user?.id || null, 5);
   const { performance } = useUserPerformance(user?.id || null);
 
-  if (isLoading) {
+  if (isLoading || profileLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>

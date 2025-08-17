@@ -27,14 +27,27 @@ export class UserService {
         .from('user_profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         return {
           data: null,
           error: {
-            code: 'PROFILE_NOT_FOUND',
+            code: 'PROFILE_FETCH_ERROR',
             message: error.message,
+            timestamp: new Date().toISOString()
+          },
+          success: false
+        };
+      }
+
+      // If no profile found, return success with null data
+      if (!data) {
+        return {
+          data: null,
+          error: {
+            code: 'PROFILE_NOT_FOUND',
+            message: 'User profile not found',
             timestamp: new Date().toISOString()
           },
           success: false

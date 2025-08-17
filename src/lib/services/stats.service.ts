@@ -272,15 +272,55 @@ export class StatsService {
       }
 
       // Get individual league stats for detailed analysis
-      const { data: leagueStats, error: leagueError } = await this.supabase
-        .from('player_stats')
-        .select(`
-          *,
-          league:leagues!inner(*),
-          team:teams!inner(*)
-        `)
-        .eq('player_id', userId)
-        .eq('season_year', seasonYear);
+      // Handle case where league_id foreign key might not exist yet
+      let leagueStats = null;
+      let leagueError = null;
+      
+      try {
+        const { data, error } = await this.supabase
+          .from('player_stats')
+          .select(`
+            *,
+            league:leagues!inner(*),
+            team:teams!inner(*)
+          `)
+          .eq('player_id', userId)
+          .eq('season_year', seasonYear);
+        
+        leagueStats = data;
+        leagueError = error;
+      } catch (error: any) {
+        // If the relationship doesn't exist, try alternative approach
+        if (error?.message?.includes('relationship') || error?.code === 'PGRST204') {
+          console.warn('Direct player_stats->leagues relationship not available, using fallback query');
+          
+          // Fallback: Get player stats and manually join with leagues through teams
+          const { data: statsData, error: statsError } = await this.supabase
+            .from('player_stats')
+            .select(`
+              *,
+              team:teams!inner(
+                *,
+                league:leagues!inner(*)
+              )
+            `)
+            .eq('player_id', userId)
+            .eq('season_year', seasonYear);
+          
+          if (statsError) {
+            leagueError = statsError;
+          } else {
+            // Transform the data to match expected structure
+            leagueStats = statsData?.map(stat => ({
+              ...stat,
+              league: stat.team?.league || null,
+              league_id: stat.team?.league?.id || stat.team?.league_id || null
+            })) || null;
+          }
+        } else {
+          leagueError = error;
+        }
+      }
 
       if (leagueError) throw leagueError;
 

@@ -19,6 +19,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
+import { UserService } from '@/lib/services/user.service';
 import type { User } from '@supabase/supabase-js';
 
 interface AuthContextType {
@@ -108,6 +109,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
 
       if (error) {
         return { success: false, error: error.message };
+      }
+
+      if (!authData.user) {
+        return { success: false, error: 'User creation failed' };
+      }
+
+      // Wait a moment for the trigger to create the basic profile
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Update the user profile with the provided data
+      const userService = UserService.getInstance();
+      const profileResult = await userService.updateUserProfile(authData.user.id, {
+        display_name: data.displayName,
+        preferred_position: data.preferredPosition,
+        location: data.location
+      });
+
+      if (!profileResult.success) {
+        console.warn('Profile update failed:', profileResult.error);
+        // Don't fail the signup if profile update fails - the trigger created a basic profile
       }
 
       return { success: true };

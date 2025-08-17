@@ -13,7 +13,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { 
@@ -32,9 +32,7 @@ import {
   Loader2,
   AlertCircle
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase/client';
-import { LeagueService } from '@/lib/services/league.service';
-import { TeamService } from '@/lib/services/team.service';
+import { useLeague } from '@/hooks';
 import { LeagueDiscovery, LeagueStanding, Match, PlayerLeaderboard } from '@/lib/types/database.types';
 
 interface LeagueMatch {
@@ -57,213 +55,58 @@ interface PlayerStat {
   position?: string;
 }
 
-interface LoadingStates {
-  league: boolean;
-  standings: boolean;
-  matches: boolean;
-  stats: boolean;
-}
-
-interface ErrorStates {
-  league: string | null;
-  standings: string | null;
-  matches: string | null;
-  stats: string | null;
-}
-
 export default function LeaguePage() {
   const params = useParams();
   const leagueId = params.leagueId as string;
   const [activeTab, setActiveTab] = useState<'standings' | 'matches' | 'stats' | 'info'>('standings');
   
-  // State for real data
-  const [leagueData, setLeagueData] = useState<LeagueDiscovery | null>(null);
-  const [standings, setStandings] = useState<LeagueStanding[]>([]);
-  const [matches, setMatches] = useState<LeagueMatch[]>([]);
-  const [playerStats, setPlayerStats] = useState<{
+  // Use custom hook for league data
+  const { data: leagueData, loading, error } = useLeague(leagueId);
+  
+  // Mock data for other sections (would be replaced with more hooks in real implementation)
+  const [standings] = useState<LeagueStanding[]>([]);
+  const [matches] = useState<LeagueMatch[]>([]);
+  const [playerStats] = useState<{
     topScorers: PlayerStat[];
     topAssists: PlayerStat[];
     cleanSheets: PlayerStat[];
   }>({ topScorers: [], topAssists: [], cleanSheets: [] });
   
-  // Loading and error states
-  const [loading, setLoading] = useState<LoadingStates>({
-    league: true,
-    standings: true,
-    matches: true,
-    stats: true
-  });
-  
-  const [errors, setErrors] = useState<ErrorStates>({
-    league: null,
-    standings: null,
-    matches: null,
-    stats: null
-  });
-  
-  // Initialize services
-  const leagueService = LeagueService.getInstance(supabase);
-  const teamService = TeamService.getInstance(supabase);
+  // Loading and error handling
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600 dark:text-gray-400">Loading league details...</p>
+        </div>
+      </div>
+    );
+  }
 
-  // Fetch league data on component mount
-  useEffect(() => {
-    fetchLeagueData();
-  }, [leagueId]);
-  
-  const fetchLeagueData = async () => {
-    await Promise.all([
-      fetchLeagueDetails(),
-      fetchLeagueStandings(),
-      fetchLeagueMatches(),
-      fetchPlayerStats()
-    ]);
-  };
-  
-  const fetchLeagueDetails = async () => {
-    try {
-      setLoading(prev => ({ ...prev, league: true }));
-      setErrors(prev => ({ ...prev, league: null }));
-      
-      const response = await leagueService.getLeagueDetails(leagueId);
-      
-      if (response.success && response.data) {
-        setLeagueData(response.data);
-      } else {
-        setErrors(prev => ({ ...prev, league: response.error?.message || 'Failed to load league details' }));
-      }
-    } catch (error) {
-      console.error('Error fetching league details:', error);
-      setErrors(prev => ({ ...prev, league: 'An unexpected error occurred' }));
-    } finally {
-      setLoading(prev => ({ ...prev, league: false }));
-    }
-  };
-  
-  const fetchLeagueStandings = async () => {
-    try {
-      setLoading(prev => ({ ...prev, standings: true }));
-      setErrors(prev => ({ ...prev, standings: null }));
-      
-      // Get league standings from the view
-      const { data, error } = await supabase
-        .from('league_standings')
-        .select('*')
-        .eq('league_id', leagueId)
-        .order('position', { ascending: true });
-      
-      if (error) throw error;
-      
-      setStandings(data || []);
-    } catch (error) {
-      console.error('Error fetching standings:', error);
-      setErrors(prev => ({ ...prev, standings: 'Failed to load standings' }));
-    } finally {
-      setLoading(prev => ({ ...prev, standings: false }));
-    }
-  };
-  
-  const fetchLeagueMatches = async () => {
-    try {
-      setLoading(prev => ({ ...prev, matches: true }));
-      setErrors(prev => ({ ...prev, matches: null }));
-      
-      // Get matches for this league
-      const { data, error } = await supabase
-        .from('matches')
-        .select(`
-          *,
-          home_team:teams!home_team_id(name),
-          away_team:teams!away_team_id(name)
-        `)
-        .eq('league_id', leagueId)
-        .order('scheduled_date', { ascending: false })
-        .limit(20);
-      
-      if (error) throw error;
-      
-      // Transform matches to expected format
-      const transformedMatches: LeagueMatch[] = (data || []).map((match, index) => ({
-        id: match.id,
-        homeTeam: match.home_team?.name || 'Unknown Team',
-        awayTeam: match.away_team?.name || 'Unknown Team',
-        date: match.scheduled_date,
-        venue: match.venue || 'TBD',
-        homeScore: match.home_score || undefined,
-        awayScore: match.away_score || undefined,
-        status: match.status === 'completed' ? 'completed' : 'upcoming',
-        round: match.match_day || undefined
-      }));
-      
-      setMatches(transformedMatches);
-    } catch (error) {
-      console.error('Error fetching matches:', error);
-      setErrors(prev => ({ ...prev, matches: 'Failed to load matches' }));
-    } finally {
-      setLoading(prev => ({ ...prev, matches: false }));
-    }
-  };
-  
-  const fetchPlayerStats = async () => {
-    try {
-      setLoading(prev => ({ ...prev, stats: true }));
-      setErrors(prev => ({ ...prev, stats: null }));
-      
-      // Get player leaderboard for this league
-      const { data, error } = await supabase
-        .from('player_leaderboard')
-        .select('*')
-        .eq('league_id', leagueId);
-      
-      if (error) throw error;
-      
-      // Transform and sort data
-      const leaderboard = data || [];
-      
-      const topScorers = leaderboard
-        .sort((a, b) => (b.goals || 0) - (a.goals || 0))
-        .slice(0, 5)
-        .map((player, index) => ({
-          id: player.player_id,
-          name: player.display_name,
-          team: player.team_name,
-          value: player.goals || 0,
-          position: player.preferred_position || 'Unknown'
-        }));
-      
-      const topAssists = leaderboard
-        .sort((a, b) => (b.assists || 0) - (a.assists || 0))
-        .slice(0, 5)
-        .map((player, index) => ({
-          id: player.player_id,
-          name: player.display_name,
-          team: player.team_name,
-          value: player.assists || 0,
-          position: player.preferred_position || 'Unknown'
-        }));
-      
-      // Get goalkeeper stats (clean sheets would need to be calculated from match events)
-      const cleanSheets = leaderboard
-        .filter(player => player.preferred_position?.toLowerCase().includes('goalkeeper'))
-        .sort((a, b) => (b.games_played || 0) - (a.games_played || 0))
-        .slice(0, 5)
-        .map((player, index) => ({
-          id: player.player_id,
-          name: player.display_name,
-          team: player.team_name,
-          value: Math.floor((player.games_played || 0) * 0.6), // Estimate clean sheets
-          position: player.preferred_position || 'Goalkeeper'
-        }));
-      
-      setPlayerStats({ topScorers, topAssists, cleanSheets });
-    } catch (error) {
-      console.error('Error fetching player stats:', error);
-      setErrors(prev => ({ ...prev, stats: 'Failed to load player statistics' }));
-    } finally {
-      setLoading(prev => ({ ...prev, stats: false }));
-    }
-  };
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+          <p className="text-gray-600 dark:text-gray-400">Failed to load league: {error}</p>
+        </div>
+      </div>
+    );
+  }
 
-  // Helper function to format date
+  if (!leagueData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+          <p className="text-gray-600 dark:text-gray-400">League not found</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Helper functions
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const month = date.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
@@ -276,39 +119,6 @@ export default function LeaguePage() {
   // Derived data for rendering
   const recentMatches = matches.filter(m => m.status === 'completed').slice(0, 8);
   const upcomingMatches = matches.filter(m => m.status === 'upcoming').slice(0, 8);
-
-  // Loading states check
-  const isLoading = loading.league || loading.standings || loading.matches || loading.stats;
-  const hasAnyError = errors.league || errors.standings || errors.matches || errors.stats;
-  
-  // Show loading spinner while fetching initial data
-  if (loading.league) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex items-center justify-center min-h-[50vh]">
-            <div className="text-center">
-              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-              <p className="text-gray-600 dark:text-gray-400">Loading league details...</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  
-  // Show error if league not found
-  if (errors.league) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <div className="container mx-auto px-4 py-8">
-          <div className="mb-6">
-            <Link 
-              href="/leagues"
-              className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back to Leagues
             </Link>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">

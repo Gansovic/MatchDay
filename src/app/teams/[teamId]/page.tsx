@@ -11,7 +11,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { 
@@ -32,9 +32,8 @@ import {
   AlertCircle,
   Loader2
 } from 'lucide-react';
-import { supabase, getCurrentUser } from '@/lib/supabase/client';
-import { TeamService, TeamWithDetails } from '@/lib/services/team.service';
-import { Database } from '@/lib/types/database.types';
+import { useTeam, useUserProfile } from '@/hooks';
+import { useAuth } from '@/components/auth/auth-provider';
 
 interface Match {
   id: string;
@@ -123,287 +122,56 @@ export default function TeamDashboard() {
   const teamId = params.teamId as string;
   const [activeTab, setActiveTab] = useState<'overview' | 'roster' | 'matches'>('overview');
   
-  // State for real data
-  const [team, setTeam] = useState<DisplayTeamData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [teamService, setTeamService] = useState<TeamService | null>(null);
+  // Use custom hooks for data fetching
+  const { user } = useAuth();
+  const { data: userProfile } = useUserProfile();
+  const { data: team, loading, error } = useTeam(teamId);
 
-  // Initialize and fetch real team data
-  useEffect(() => {
-    const initializeData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  // Return early if no team data available yet
+  if (!team && !loading && !error) {
+    return null;
+  }
 
-        // Get current user (optional for public team data viewing)
-        const user = await getCurrentUser();
-        setCurrentUser(user);
+  // Transform team data for display
+  const displayTeam: DisplayTeamData | null = team ? {
+    id: team.id,
+    name: team.name,
+    league: team.league?.name || 'Unknown League',
+    color: team.team_color || 'bg-blue-600',
+    description: team.team_bio || 'No description available',
+    founded: team.founded_year?.toString() || new Date(team.created_at).getFullYear().toString(),
+    location: team.location || team.league?.name || 'Unknown location',
+    memberCount: team.members?.length || 0,
+    maxMembers: team.max_players || 22,
+    isMember: team.user_membership ? true : false,
+    isUserCaptain: user ? team.captain_id === user.id : false,
+    userPosition: team.user_membership?.position || undefined,
+    stats: {
+      wins: team.wins || 0,
+      draws: team.draws || 0,
+      losses: team.losses || 0,
+      goals: team.goals_for || 0,
+      goalsAgainst: team.goals_against || 0,
+      position: team.league_position || 1,
+      totalTeams: 16, // Default
+      points: team.points || 0
+    },
+    members: (team.members || []).map(member => ({
+      id: member.id,
+      name: member.user?.display_name || member.user?.email?.split('@')[0] || 'Unknown',
+      position: member.position || 'Player',
+      isCaptain: member.user_id === team.captain_id,
+      isViceCaptain: false,
+      joinDate: member.joined_at,
+      gamesPlayed: 0, // TODO: Calculate from player_stats
+      goals: 0, // TODO: Calculate from player_stats
+      assists: 0 // TODO: Calculate from player_stats
+    })),
+    recentMatches: team.recent_matches || [],
+    upcomingMatches: team.upcoming_matches || []
+  } : null;
 
-        // Fetch team details directly from database
-        const { data: teamData, error: teamError } = await supabase
-          .from('teams')
-          .select(`
-            *,
-            leagues(*)
-          `)
-          .eq('id', teamId)
-          .single();
 
-        if (teamError || !teamData) {
-          setError('Team not found');
-          return;
-        }
-
-        // Fetch team members with user profiles
-        const { data: members, error: membersError } = await supabase
-          .from('team_members')
-          .select(`
-            *,
-            users(*)
-          `)
-          .eq('team_id', teamId)
-          .eq('is_active', true);
-
-        if (membersError) {
-          console.error('Error fetching team members:', membersError);
-        }
-
-        // Check if user is a member or has access
-        const userMember = user ? members?.find(member => member.user_id === user.id) : null;
-        const isMember = !!userMember;
-        const isUserCaptain = user ? teamData.captain_id === user.id : false;
-
-        // Get team statistics from league standings view if available
-        const { data: leagueStanding } = await supabase
-          .from('league_standings')
-          .select('*')
-          .eq('team_id', teamId)
-          .single();
-
-        // Calculate basic stats from matches if league standings not available
-        let stats = {
-          wins: 0,
-          draws: 0,
-          losses: 0,
-          goals: 0,
-          goalsAgainst: 0,
-          position: 1,
-          totalTeams: 1,
-          points: 0
-        };
-
-        if (leagueStanding) {
-          stats = {
-            wins: leagueStanding.wins || 0,
-            draws: leagueStanding.draws || 0,
-            losses: leagueStanding.losses || 0,
-            goals: leagueStanding.goals_for || 0,
-            goalsAgainst: leagueStanding.goals_against || 0,
-            position: leagueStanding.position || 1,
-            totalTeams: 1, // Will be updated when we get all teams
-            points: leagueStanding.points || 0
-          };
-        } else {
-          // Calculate from matches as fallback
-          const { data: matchesData } = await supabase
-            .from('matches')
-            .select('*')
-            .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
-            .eq('status', 'completed');
-
-          if (matchesData) {
-            let wins = 0, draws = 0, losses = 0, goals = 0, goalsAgainst = 0;
-            
-            matchesData.forEach(match => {
-              const isHome = match.home_team_id === teamId;
-              const teamScore = isHome ? match.home_score : match.away_score;
-              const oppScore = isHome ? match.away_score : match.home_score;
-              
-              goals += teamScore || 0;
-              goalsAgainst += oppScore || 0;
-              
-              if (teamScore > oppScore) wins++;
-              else if (teamScore === oppScore) draws++;
-              else losses++;
-            });
-            
-            stats = {
-              wins,
-              draws,
-              losses,
-              goals,
-              goalsAgainst,
-              position: 1,
-              totalTeams: 1,
-              points: wins * 3 + draws
-            };
-          }
-        }
-        
-        // Transform team members to display format
-        const displayMembers: DisplayTeamMember[] = (members || []).map(member => {
-          const userProfile = member.users;
-          return {
-            id: member.id,
-            name: userProfile?.full_name || 'Unknown',
-            position: member.position || 'player',
-            isCaptain: member.user_id === teamData.captain_id,
-            isViceCaptain: false, // TODO: Add vice captain logic
-            joinDate: member.joined_at,
-            gamesPlayed: 0, // TODO: Calculate from player_stats
-            goals: 0, // TODO: Calculate from player_stats
-            assists: 0 // TODO: Calculate from player_stats
-          };
-        });
-
-        // Get recent and upcoming matches
-        const recentMatches = await getRecentMatches(teamId);
-        const upcomingMatches = await getUpcomingMatches(teamId);
-
-        const displayTeam: DisplayTeamData = {
-          id: teamData.id,
-          name: teamData.name,
-          league: teamData.leagues?.name || 'Unknown League',
-          color: teamData.team_color || 'bg-blue-600',
-          description: teamData.team_bio || 'No description available',
-          founded: teamData.founded_year?.toString() || new Date(teamData.created_at).getFullYear().toString(),
-          location: teamData.location || teamData.leagues?.name || 'Unknown location',
-          memberCount: displayMembers.length,
-          maxMembers: teamData.max_players || 22,
-          isMember,
-          isUserCaptain,
-          userPosition: userMember?.position || undefined,
-          stats,
-          members: displayMembers,
-          recentMatches,
-          upcomingMatches
-        };
-
-        setTeam(displayTeam);
-      } catch (err) {
-        console.error('Error loading team data:', err);
-        setError('Failed to load team data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializeData();
-  }, [teamId]);
-
-  // Helper function to get recent matches
-  const getRecentMatches = async (teamId: string): Promise<Match[]> => {
-    try {
-      const { data: matches, error } = await supabase
-        .from('matches')
-        .select(`
-          id,
-          match_date,
-          venue,
-          status,
-          home_score,
-          away_score,
-          home_team_id,
-          away_team_id
-        `)
-        .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
-        .eq('status', 'completed')
-        .order('match_date', { ascending: false })
-        .limit(3);
-
-      if (error) throw error;
-
-      // Get team names for each match
-      const matchesWithTeams = await Promise.all((matches || []).map(async (match) => {
-        const isHome = match.home_team_id === teamId;
-        const opponentTeamId = isHome ? match.away_team_id : match.home_team_id;
-        
-        const { data: opponentTeam } = await supabase
-          .from('teams')
-          .select('name')
-          .eq('id', opponentTeamId)
-          .single();
-        
-        let result: 'win' | 'loss' | 'draw' | undefined;
-        if (match.status === 'completed' && match.home_score !== null && match.away_score !== null) {
-          if (match.home_score === match.away_score) {
-            result = 'draw';
-          } else if ((isHome && match.home_score > match.away_score) || (!isHome && match.away_score > match.home_score)) {
-            result = 'win';
-          } else {
-            result = 'loss';
-          }
-        }
-
-        return {
-          id: match.id,
-          opponent: opponentTeam?.name || 'Unknown Team',
-          date: match.match_date,
-          venue: match.venue || 'TBD',
-          result,
-          score: match.home_score !== null && match.away_score !== null ? {
-            home: match.home_score,
-            away: match.away_score
-          } : undefined,
-          isHome
-        };
-      }));
-
-      return matchesWithTeams;
-    } catch (error) {
-      console.error('Error fetching recent matches:', error);
-      return [];
-    }
-  };
-
-  // Helper function to get upcoming matches
-  const getUpcomingMatches = async (teamId: string): Promise<Match[]> => {
-    try {
-      const { data: matches, error } = await supabase
-        .from('matches')
-        .select(`
-          id,
-          match_date,
-          venue,
-          home_team_id,
-          away_team_id
-        `)
-        .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
-        .eq('status', 'scheduled')
-        .gte('match_date', new Date().toISOString())
-        .order('match_date', { ascending: true })
-        .limit(3);
-
-      if (error) throw error;
-
-      // Get team names for each match
-      const matchesWithTeams = await Promise.all((matches || []).map(async (match) => {
-        const isHome = match.home_team_id === teamId;
-        const opponentTeamId = isHome ? match.away_team_id : match.home_team_id;
-        
-        const { data: opponentTeam } = await supabase
-          .from('teams')
-          .select('name')
-          .eq('id', opponentTeamId)
-          .single();
-
-        return {
-          id: match.id,
-          opponent: opponentTeam?.name || 'Unknown Team',
-          date: match.match_date,
-          venue: match.venue || 'TBD',
-          isHome
-        };
-      }));
-
-      return matchesWithTeams;
-    } catch (error) {
-      console.error('Error fetching upcoming matches:', error);
-      return [];
-    }
-  };
 
   // Loading state
   if (loading) {
@@ -422,7 +190,7 @@ export default function TeamDashboard() {
   }
 
   // Error state
-  if (error || !team) {
+  if (error || (!loading && !displayTeam)) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
         <div className="container mx-auto px-4 py-8">
@@ -458,11 +226,41 @@ export default function TeamDashboard() {
     );
   }
 
+  // Return early if no team data after loading
+  if (!displayTeam) {
+    return null;
+  }
+
+  // Helper functions
+  const calculateWinRate = (wins: number, draws: number, losses: number) => {
+    const total = wins + draws + losses;
+    return total > 0 ? Math.round((wins / total) * 100) : 0;
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    // Use consistent UTC-based formatting to prevent hydration mismatches
+    const month = date.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+    const day = date.getUTCDate();
+    const hours = date.getUTCHours().toString().padStart(2, '0');
+    const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+    return `${month} ${day}, ${hours}:${minutes}`;
+  };
+
+  const getResultBadge = (result: 'win' | 'loss' | 'draw') => {
+    const badges = {
+      win: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
+      loss: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300',
+      draw: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300'
+    };
+    return badges[result];
+  };
+
   // Get league standings from real data (simplified for now)
   const getLeagueStandings = (teamName: string, league: string): LeagueStanding[] => {
     if (league === 'Metropolitan Football League') {
       const standings = [
-        { position: 1, teamName: team.name, played: 17, wins: team.stats.wins, draws: team.stats.draws, losses: team.stats.losses, goalsFor: team.stats.goals, goalsAgainst: team.stats.goalsAgainst, goalDifference: team.stats.goals - team.stats.goalsAgainst, points: team.stats.points },
+        { position: 1, teamName: displayTeam.name, played: 17, wins: displayTeam.stats.wins, draws: displayTeam.stats.draws, losses: displayTeam.stats.losses, goalsFor: displayTeam.stats.goals, goalsAgainst: displayTeam.stats.goalsAgainst, goalDifference: displayTeam.stats.goals - displayTeam.stats.goalsAgainst, points: displayTeam.stats.points },
         { position: 2, teamName: 'Other Team 1', played: 17, wins: 12, draws: 3, losses: 2, goalsFor: 45, goalsAgainst: 18, goalDifference: 27, points: 39 },
         { position: 3, teamName: 'Mountain Lions', played: 17, wins: 11, draws: 4, losses: 2, goalsFor: 38, goalsAgainst: 16, goalDifference: 22, points: 37 },
         { position: 4, teamName: 'Storm Riders', played: 17, wins: 10, draws: 5, losses: 2, goalsFor: 35, goalsAgainst: 20, goalDifference: 15, points: 35 },
@@ -485,7 +283,7 @@ export default function TeamDashboard() {
         { position: 1, teamName: 'Velocity United', played: 14, wins: 10, draws: 3, losses: 1, goalsFor: 35, goalsAgainst: 12, goalDifference: 23, points: 33 },
         { position: 2, teamName: 'Coastal Rovers', played: 14, wins: 9, draws: 2, losses: 3, goalsFor: 28, goalsAgainst: 15, goalDifference: 13, points: 29 },
         { position: 3, teamName: 'Rapid Strikers', played: 14, wins: 8, draws: 4, losses: 2, goalsFor: 30, goalsAgainst: 18, goalDifference: 12, points: 28 },
-        { position: team.stats.position, teamName: team.name, played: 14, wins: team.stats.wins, draws: team.stats.draws, losses: team.stats.losses, goalsFor: team.stats.goals, goalsAgainst: team.stats.goalsAgainst, goalDifference: team.stats.goals - team.stats.goalsAgainst, points: team.stats.points },
+        { position: displayTeam.stats.position, teamName: displayTeam.name, played: 14, wins: displayTeam.stats.wins, draws: displayTeam.stats.draws, losses: displayTeam.stats.losses, goalsFor: displayTeam.stats.goals, goalsAgainst: displayTeam.stats.goalsAgainst, goalDifference: displayTeam.stats.goals - displayTeam.stats.goalsAgainst, points: displayTeam.stats.points },
         { position: 5, teamName: 'Thunder FC', played: 14, wins: 7, draws: 3, losses: 4, goalsFor: 25, goalsAgainst: 20, goalDifference: 5, points: 24 },
         { position: 6, teamName: 'Elite Warriors', played: 14, wins: 6, draws: 4, losses: 4, goalsFor: 22, goalsAgainst: 19, goalDifference: 3, points: 22 },
         { position: 7, teamName: 'Metro United', played: 14, wins: 5, draws: 5, losses: 4, goalsFor: 20, goalsAgainst: 18, goalDifference: 2, points: 20 },
@@ -500,12 +298,12 @@ export default function TeamDashboard() {
     
     // Default fallback for other leagues
     return [
-      { position: team.stats.position, teamName: team.name, played: team.stats.wins + team.stats.draws + team.stats.losses, wins: team.stats.wins, draws: team.stats.draws, losses: team.stats.losses, goalsFor: team.stats.goals, goalsAgainst: team.stats.goalsAgainst, goalDifference: team.stats.goals - team.stats.goalsAgainst, points: team.stats.points, isCurrentTeam: true }
+      { position: displayTeam.stats.position, teamName: displayTeam.name, played: displayTeam.stats.wins + displayTeam.stats.draws + displayTeam.stats.losses, wins: displayTeam.stats.wins, draws: displayTeam.stats.draws, losses: displayTeam.stats.losses, goalsFor: displayTeam.stats.goals, goalsAgainst: displayTeam.stats.goalsAgainst, goalDifference: displayTeam.stats.goals - displayTeam.stats.goalsAgainst, points: displayTeam.stats.points, isCurrentTeam: true }
     ];
   };
 
-  const leagueStandings = getLeagueStandings(team.name, team.league);
-  const leagueId = getLeagueId(team.league);
+  const leagueStandings = getLeagueStandings(displayTeam.name, displayTeam.league);
+  const leagueId = getLeagueId(displayTeam.league);
 
   // Create compact league preview (top 5 + current team if not in top 5)
   const getCompactStandings = (standings: LeagueStanding[], currentTeam: string): LeagueStanding[] => {
@@ -542,7 +340,7 @@ export default function TeamDashboard() {
     return top5;
   };
 
-  const compactStandings = getCompactStandings(leagueStandings, team.name);
+  const compactStandings = getCompactStandings(leagueStandings, displayTeam.name);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -608,7 +406,7 @@ export default function TeamDashboard() {
             </div>
             {team.isMember && (
               <div className="flex items-center gap-2">
-                {team.isUserCaptain && (
+                {displayTeam.isUserCaptain && (
                   <div className="flex items-center gap-1 px-3 py-1 bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300 rounded-full text-sm font-medium">
                     <Crown className="w-4 h-4" />
                     Captain
@@ -620,7 +418,7 @@ export default function TeamDashboard() {
                     {team.userPosition}
                   </div>
                 )}
-                {team.isUserCaptain && (
+                {displayTeam.isUserCaptain && (
                   <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                     <Settings className="w-5 h-5" />
                   </button>
@@ -834,7 +632,7 @@ export default function TeamDashboard() {
                   <Trophy className="w-5 h-5 text-gray-400" />
                 </div>
                 <div className="space-y-3">
-                  {team.recentMatches.slice(0, 3).map((match) => (
+                  {displayTeam.recentMatches.slice(0, 3).map((match) => (
                     <div key={match.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                       <div className="flex items-center gap-3">
                         <div className={`px-2 py-1 rounded text-xs font-medium ${getResultBadge(match.result!)}`}>
@@ -871,7 +669,7 @@ export default function TeamDashboard() {
                   <Clock className="w-5 h-5 text-gray-400" />
                 </div>
                 <div className="space-y-3">
-                  {team.upcomingMatches.slice(0, 3).map((match) => (
+                  {displayTeam.upcomingMatches.slice(0, 3).map((match) => (
                     <div key={match.id} className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">
@@ -904,7 +702,7 @@ export default function TeamDashboard() {
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Team Roster
               </h3>
-              {team.isUserCaptain && (
+              {displayTeam.isUserCaptain && (
                 <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors text-sm">
                   <UserPlus className="w-4 h-4" />
                   Add Member
@@ -912,7 +710,7 @@ export default function TeamDashboard() {
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {team.members.map((member) => (
+              {displayTeam.members.map((member) => (
                 <div key={member.id} className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
@@ -935,7 +733,7 @@ export default function TeamDashboard() {
                       {member.isViceCaptain && (
                         <Star className="w-4 h-4 text-blue-500" />
                       )}
-                      {team.isUserCaptain && (
+                      {displayTeam.isUserCaptain && (
                         <button className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
                           <MoreVertical className="w-4 h-4" />
                         </button>
@@ -970,7 +768,7 @@ export default function TeamDashboard() {
                 Recent Matches
               </h3>
               <div className="space-y-4">
-                {team.recentMatches.map((match) => (
+                {displayTeam.recentMatches.map((match) => (
                   <div key={match.id} className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
                     <div className="flex items-center gap-4">
                       <div className={`px-3 py-1 rounded text-sm font-medium ${getResultBadge(match.result!)}`}>
@@ -1008,7 +806,7 @@ export default function TeamDashboard() {
                 Upcoming Matches
               </h3>
               <div className="space-y-4">
-                {team.upcomingMatches.map((match) => (
+                {displayTeam.upcomingMatches.map((match) => (
                   <div key={match.id} className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                     <div>
                       <div className="font-medium text-gray-900 dark:text-white mb-1">
