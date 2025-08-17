@@ -154,7 +154,6 @@ export class LeagueService {
           teams (
             id,
             name,
-            logo_url,
             team_color,
             captain_id,
             max_players,
@@ -183,7 +182,8 @@ export class LeagueService {
 
       if (filters.seasonActive) {
         const now = new Date().toISOString();
-        query = query.gte('season_end', now);
+        // Include leagues where season_end is null (ongoing/no end date) OR season_end is in the future
+        query = query.or(`season_end.gte.${now},season_end.is.null`);
       }
 
       if (filters.search) {
@@ -626,25 +626,60 @@ export class LeagueService {
    */
   private async getLeaguePlayerCount(leagueId: string): Promise<ServiceResponse<number>> {
     try {
-      const { data, error } = await this.supabase
-        .rpc('get_league_player_count', { league_id: leagueId });
+      // Get all teams in the league first
+      const { data: teams, error: teamsError } = await this.supabase
+        .from('teams')
+        .select('id')
+        .eq('league_id', leagueId);
+
+      if (teamsError) throw teamsError;
+      
+      if (!teams || teams.length === 0) {
+        return { data: 0, error: null, success: true };
+      }
+
+      // Get count of active team members for those teams
+      const { count, error } = await this.supabase
+        .from('team_members')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true)
+        .in('team_id', teams.map(t => t.id));
 
       if (error) throw error;
-      return { data: data || 0, error: null, success: true };
+      return { data: count || 0, error: null, success: true };
     } catch (error) {
-      return { data: null, error: this.handleError(error, 'getLeaguePlayerCount'), success: false };
+      return { data: 0, error: this.handleError(error, 'getLeaguePlayerCount'), success: false };
     }
   }
 
   private async getLeagueAvailableSpots(leagueId: string): Promise<ServiceResponse<number>> {
     try {
-      const { data, error } = await this.supabase
-        .rpc('get_league_available_spots', { league_id: leagueId });
+      // Get all teams in the league with their member counts
+      const { data: teams, error } = await this.supabase
+        .from('teams')
+        .select(`
+          id,
+          max_players,
+          team_members(id, is_active)
+        `)
+        .eq('league_id', leagueId);
 
       if (error) throw error;
-      return { data: data || 0, error: null, success: true };
+      
+      if (!teams || teams.length === 0) {
+        return { data: 0, error: null, success: true };
+      }
+
+      // Calculate available spots across all teams
+      const availableSpots = teams.reduce((total, team) => {
+        const activeMembers = team.team_members?.filter(member => member.is_active).length || 0;
+        const maxPlayers = team.max_players || 11;
+        return total + Math.max(0, maxPlayers - activeMembers);
+      }, 0);
+
+      return { data: availableSpots, error: null, success: true };
     } catch (error) {
-      return { data: null, error: this.handleError(error, 'getLeagueAvailableSpots'), success: false };
+      return { data: 0, error: this.handleError(error, 'getLeagueAvailableSpots'), success: false };
     }
   }
 

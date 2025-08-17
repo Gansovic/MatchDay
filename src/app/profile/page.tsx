@@ -7,7 +7,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   User, 
   Settings, 
@@ -18,18 +18,22 @@ import {
   Save,
   Edit,
   Camera,
-  Trash2
+  Trash2,
+  Loader2
 } from 'lucide-react';
+import { useAuth } from '@/components/auth/auth-provider';
+import { UserService } from '@/lib/services/user.service';
+import type { UserProfile } from '@/lib/types/database.types';
 
-interface UserProfile {
-  displayName: string;
+interface ProfileFormData {
+  display_name: string;
   email: string;
   phone: string;
-  dateOfBirth: string;
+  date_of_birth: string;
   location: string;
-  preferredPosition: string;
+  preferred_position: string;
   bio: string;
-  avatar?: string;
+  avatar_url?: string;
 }
 
 interface NotificationSettings {
@@ -49,20 +53,80 @@ interface PrivacySettings {
 }
 
 export default function ProfileSettingsPage() {
+  const { user, isLoading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'privacy' | 'account'>('profile');
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
-  // Mock user data
-  const [profile, setProfile] = useState<UserProfile>({
-    displayName: 'Alex Thompson',
-    email: 'alex.thompson@email.com',
-    phone: '+1 (555) 123-4567',
-    dateOfBirth: '1995-06-15',
-    location: 'San Francisco, CA',
-    preferredPosition: 'Midfielder',
-    bio: 'Passionate football player with 10+ years of experience. Love playing in competitive leagues and always looking to improve my game.'
+  const [profile, setProfile] = useState<ProfileFormData>({
+    display_name: '',
+    email: '',
+    phone: '',
+    date_of_birth: '',
+    location: '',
+    preferred_position: '',
+    bio: ''
   });
+
+  const [originalProfile, setOriginalProfile] = useState<ProfileFormData | null>(null);
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      loadUserProfile();
+    } else if (!authLoading && !user) {
+      setError('Please sign in to view your profile');
+      setIsLoading(false);
+    }
+  }, [user, authLoading]);
+
+  const loadUserProfile = async () => {
+    if (!user) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const userService = UserService.getInstance();
+      const result = await userService.getUserProfile(user.id);
+      
+      if (result.success && result.data) {
+        const profileData: ProfileFormData = {
+          display_name: result.data.display_name || '',
+          email: user.email || '',
+          phone: user.phone || '',
+          date_of_birth: result.data.date_of_birth || '',
+          location: result.data.location || '',
+          preferred_position: result.data.preferred_position || '',
+          bio: result.data.bio || '',
+          avatar_url: result.data.avatar_url || undefined
+        };
+        setProfile(profileData);
+        setOriginalProfile({ ...profileData });
+      } else {
+        // Profile doesn't exist, create with user email data
+        const defaultProfile: ProfileFormData = {
+          display_name: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User',
+          email: user.email || '',
+          phone: user.phone || '',
+          date_of_birth: '',
+          location: '',
+          preferred_position: '',
+          bio: ''
+        };
+        setProfile(defaultProfile);
+        setOriginalProfile({ ...defaultProfile });
+      }
+    } catch (err) {
+      console.error('Error loading profile:', err);
+      setError('Failed to load profile data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const [notifications, setNotifications] = useState<NotificationSettings>({
     matchReminders: true,
@@ -85,10 +149,46 @@ export default function ProfileSettingsPage() {
     'Center', 'Guard', 'Point Guard', 'Shooting Guard'
   ];
 
-  const handleProfileSave = () => {
-    // In a real app, this would save to the backend
+  const handleProfileSave = async () => {
+    if (!user) return;
+    
+    setIsSaving(true);
+    setError(null);
+    setSaveMessage(null);
+    
+    try {
+      const userService = UserService.getInstance();
+      const result = await userService.updateUserProfile(user.id, {
+        display_name: profile.display_name,
+        preferred_position: profile.preferred_position,
+        bio: profile.bio,
+        date_of_birth: profile.date_of_birth,
+        location: profile.location,
+        avatar_url: profile.avatar_url
+      });
+      
+      if (result.success) {
+        setIsEditing(false);
+        setSaveMessage('Profile updated successfully!');
+        setOriginalProfile({ ...profile });
+        setTimeout(() => setSaveMessage(null), 3000);
+      } else {
+        setError(result.error?.message || 'Failed to update profile');
+      }
+    } catch (err) {
+      console.error('Error saving profile:', err);
+      setError('Failed to save profile changes');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    if (originalProfile) {
+      setProfile({ ...originalProfile });
+    }
     setIsEditing(false);
-    // Show success message
+    setError(null);
   };
 
   const handleNotificationChange = (key: keyof NotificationSettings) => {
@@ -111,6 +211,32 @@ export default function ProfileSettingsPage() {
     { id: 'privacy', label: 'Privacy', icon: Shield },
     { id: 'account', label: 'Account', icon: Settings }
   ];
+
+  if (authLoading || isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600 dark:text-gray-400">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+            Authentication Required
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            Please sign in to access your profile settings.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
@@ -169,11 +295,23 @@ export default function ProfileSettingsPage() {
                     </button>
                   </div>
 
+                  {/* Success/Error Messages */}
+                  {saveMessage && (
+                    <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                      <p className="text-green-700 dark:text-green-300 text-sm">{saveMessage}</p>
+                    </div>
+                  )}
+                  {error && (
+                    <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                      <p className="text-red-700 dark:text-red-300 text-sm">{error}</p>
+                    </div>
+                  )}
+
                   {/* Profile Photo */}
                   <div className="flex items-center gap-6 mb-8">
                     <div className="relative">
                       <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-3xl font-bold">
-                        {profile.displayName.charAt(0)}
+                        {profile.display_name.charAt(0) || 'U'}
                       </div>
                       {isEditing && (
                         <button className="absolute -bottom-2 -right-2 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors">
@@ -183,10 +321,13 @@ export default function ProfileSettingsPage() {
                     </div>
                     <div>
                       <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                        {profile.displayName}
+                        {profile.display_name || 'User'}
                       </h3>
                       <p className="text-gray-600 dark:text-gray-400">
-                        {profile.preferredPosition}
+                        {profile.preferred_position || 'No position set'}
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-500">
+                        {user.email}
                       </p>
                     </div>
                   </div>
@@ -199,8 +340,8 @@ export default function ProfileSettingsPage() {
                       </label>
                       <input
                         type="text"
-                        value={profile.displayName}
-                        onChange={(e) => setProfile(prev => ({ ...prev, displayName: e.target.value }))}
+                        value={profile.display_name}
+                        onChange={(e) => setProfile(prev => ({ ...prev, display_name: e.target.value }))}
                         disabled={!isEditing}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
@@ -213,9 +354,9 @@ export default function ProfileSettingsPage() {
                       <input
                         type="email"
                         value={profile.email}
-                        onChange={(e) => setProfile(prev => ({ ...prev, email: e.target.value }))}
-                        disabled={!isEditing}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={true}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
+                        title="Email cannot be changed from this page"
                       />
                     </div>
 
@@ -238,8 +379,8 @@ export default function ProfileSettingsPage() {
                       </label>
                       <input
                         type="date"
-                        value={profile.dateOfBirth}
-                        onChange={(e) => setProfile(prev => ({ ...prev, dateOfBirth: e.target.value }))}
+                        value={profile.date_of_birth}
+                        onChange={(e) => setProfile(prev => ({ ...prev, date_of_birth: e.target.value }))}
                         disabled={!isEditing}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
@@ -263,11 +404,12 @@ export default function ProfileSettingsPage() {
                         Preferred Position
                       </label>
                       <select
-                        value={profile.preferredPosition}
-                        onChange={(e) => setProfile(prev => ({ ...prev, preferredPosition: e.target.value }))}
+                        value={profile.preferred_position}
+                        onChange={(e) => setProfile(prev => ({ ...prev, preferred_position: e.target.value }))}
                         disabled={!isEditing}
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
+                        <option value="">Select a position</option>
                         {positions.map(position => (
                           <option key={position} value={position}>{position}</option>
                         ))}
@@ -293,14 +435,20 @@ export default function ProfileSettingsPage() {
                     <div className="flex gap-3 mt-6">
                       <button
                         onClick={handleProfileSave}
-                        className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                        disabled={isSaving}
+                        className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors"
                       >
-                        <Save className="w-4 h-4" />
-                        Save Changes
+                        {isSaving ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4" />
+                        )}
+                        {isSaving ? 'Saving...' : 'Save Changes'}
                       </button>
                       <button
-                        onClick={() => setIsEditing(false)}
-                        className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                        onClick={handleCancelEdit}
+                        disabled={isSaving}
+                        className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 rounded-lg transition-colors"
                       >
                         Cancel
                       </button>

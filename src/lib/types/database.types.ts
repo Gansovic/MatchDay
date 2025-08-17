@@ -11,33 +11,39 @@ export interface Database {
       user_profiles: {
         Row: {
           id: string;
-          display_name: string;
+          full_name: string | null;
+          display_name: string | null;
           avatar_url: string | null;
-          preferred_position: string | null;
           bio: string | null;
+          phone: string | null;
           date_of_birth: string | null;
+          preferred_position: string | null;
           location: string | null;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           id: string;
-          display_name: string;
+          full_name?: string | null;
+          display_name?: string | null;
           avatar_url?: string | null;
-          preferred_position?: string | null;
           bio?: string | null;
+          phone?: string | null;
           date_of_birth?: string | null;
+          preferred_position?: string | null;
           location?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           id?: string;
-          display_name?: string;
+          full_name?: string | null;
+          display_name?: string | null;
           avatar_url?: string | null;
-          preferred_position?: string | null;
           bio?: string | null;
+          phone?: string | null;
           date_of_birth?: string | null;
+          preferred_position?: string | null;
           location?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -56,6 +62,9 @@ export interface Database {
           max_teams: number | null;
           entry_fee: number | null;
           created_by: string | null;
+          is_active: boolean | null;
+          is_public: boolean | null;
+          season: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -71,6 +80,9 @@ export interface Database {
           max_teams?: number | null;
           entry_fee?: number | null;
           created_by?: string | null;
+          is_active?: boolean | null;
+          is_public?: boolean | null;
+          season?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -86,6 +98,9 @@ export interface Database {
           max_teams?: number | null;
           entry_fee?: number | null;
           created_by?: string | null;
+          is_active?: boolean | null;
+          is_public?: boolean | null;
+          season?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -93,31 +108,49 @@ export interface Database {
       teams: {
         Row: {
           id: string;
-          league_id: string;
+          league_id: string | null;
           name: string;
           logo_url: string | null;
           team_color: string | null;
           captain_id: string | null;
+          max_players: number | null;
+          min_players: number | null;
+          is_recruiting: boolean | null;
+          team_bio: string | null;
+          is_archived: boolean | null;
+          previous_league_name: string | null;
           created_at: string;
           updated_at: string;
         };
         Insert: {
           id?: string;
-          league_id: string;
+          league_id?: string | null;
           name: string;
           logo_url?: string | null;
           team_color?: string | null;
           captain_id?: string | null;
+          max_players?: number | null;
+          min_players?: number | null;
+          is_recruiting?: boolean | null;
+          team_bio?: string | null;
+          is_archived?: boolean | null;
+          previous_league_name?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: {
           id?: string;
-          league_id?: string;
+          league_id?: string | null;
           name?: string;
           logo_url?: string | null;
           team_color?: string | null;
           captain_id?: string | null;
+          max_players?: number | null;
+          min_players?: number | null;
+          is_recruiting?: boolean | null;
+          team_bio?: string | null;
+          is_archived?: boolean | null;
+          previous_league_name?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -596,13 +629,7 @@ export type ActiveMatch = Database['public']['Views']['active_matches']['Row'];
 
 // Enums for type safety
 export enum SportType {
-  FOOTBALL = 'football',
-  BASKETBALL = 'basketball',
-  VOLLEYBALL = 'volleyball',
-  TENNIS = 'tennis',
-  BADMINTON = 'badminton',
-  CRICKET = 'cricket',
-  RUGBY = 'rugby'
+  FOOTBALL = 'football'
 }
 
 export enum LeagueType {
@@ -705,6 +732,18 @@ export interface CreateLeagueForm {
   season_end?: string;
   max_teams?: number;
   entry_fee?: number;
+}
+
+export interface CreateTeamForm {
+  name: string;
+  league_id: string;
+  sport: string;
+  league: string;
+  description?: string;
+  max_players?: number;
+  min_players?: number;
+  location?: string;
+  team_color?: string;
 }
 
 export interface JoinTeamForm {

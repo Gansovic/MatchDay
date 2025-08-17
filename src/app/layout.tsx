@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/layout/header";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { AuthProvider } from "@/components/auth/auth-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,9 +16,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MatchDay - Amateur Sports League Platform",
-  description: "Professional-grade platform for amateur sports leagues. Join, compete, and track your performance like a pro.",
-  keywords: "sports, league, amateur, football, soccer, basketball, competition, tournaments",
+  title: "MatchDay - Football League Platform",
+  description: "Professional-grade platform for amateur football leagues. Join teams, compete in matches, and track your football performance like a pro.",
+  keywords: "football, soccer, league, amateur, competition, tournaments, teams",
   authors: [{ name: "MatchDay Team" }],
   creator: "MatchDay",
   publisher: "MatchDay",
@@ -39,10 +40,12 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <QueryProvider>
-          <Header />
-          <main>
-            {children}
-          </main>
+          <AuthProvider>
+            <Header />
+            <main>
+              {children}
+            </main>
+          </AuthProvider>
         </QueryProvider>
       </body>
     </html>

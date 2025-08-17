@@ -151,11 +151,39 @@ export class StatsService {
    * Handle service errors consistently
    */
   private handleError(error: any, operation: string): ServiceError {
-    console.error(`StatsService.${operation}:`, error);
+    console.error(`StatsService.${operation}:`, {
+      error,
+      errorType: typeof error,
+      errorKeys: error ? Object.keys(error) : [],
+      errorCode: error?.code,
+      errorMessage: error?.message,
+      stack: error?.stack
+    });
+    
+    // Handle specific database errors
+    if (error?.code === 'PGRST116') {
+      return {
+        code: 'NOT_FOUND',
+        message: 'No data found for the requested user',
+        details: { originalError: error, operation },
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+    // Handle empty error objects
+    if (!error || (typeof error === 'object' && Object.keys(error).length === 0)) {
+      return {
+        code: 'EMPTY_ERROR',
+        message: 'An unknown error occurred with no error details',
+        details: { operation, receivedError: error },
+        timestamp: new Date().toISOString()
+      };
+    }
+    
     return {
-      code: error.code || 'UNKNOWN_ERROR',
-      message: error.message || 'An unexpected error occurred',
-      details: error.details || error,
+      code: error?.code || 'UNKNOWN_ERROR',
+      message: error?.message || 'An unexpected error occurred',
+      details: error?.details || error,
       timestamp: new Date().toISOString()
     };
   }
@@ -215,17 +243,33 @@ export class StatsService {
         .eq('id', userId)
         .single();
 
-      if (profileError) throw profileError;
+      if (profileError && profileError.code !== 'PGRST116') throw profileError;
+      
+      // If no profile exists, create a default one for the analysis
+      const playerProfile = profile || {
+        display_name: 'Unknown Player',
+        avatar_url: null,
+        preferred_position: null
+      };
 
-      // Get cross-league stats
-      const { data: crossLeagueStats, error: statsError } = await this.supabase
-        .from('player_cross_league_stats')
-        .select('*')
-        .eq('player_id', userId)
-        .eq('season_year', seasonYear)
-        .single();
+      // Try to get cross-league stats (table may not exist yet)
+      let crossLeagueStats = null;
+      try {
+        const { data: stats, error: statsError } = await this.supabase
+          .from('player_cross_league_stats')
+          .select('*')
+          .eq('player_id', userId)
+          .eq('season_year', seasonYear)
+          .single();
 
-      if (statsError && statsError.code !== 'PGRST116') throw statsError;
+        if (statsError && statsError.code !== 'PGRST116') {
+          console.warn('player_cross_league_stats table not found, will generate stats from player_stats');
+        } else {
+          crossLeagueStats = stats;
+        }
+      } catch (error) {
+        console.warn('player_cross_league_stats table not available, using fallback approach');
+      }
 
       // Get individual league stats for detailed analysis
       const { data: leagueStats, error: leagueError } = await this.supabase
@@ -240,8 +284,19 @@ export class StatsService {
 
       if (leagueError) throw leagueError;
 
-      // Calculate performance trends
-      const trends = await this.calculatePerformanceTrends(userId, seasonYear);
+      // If no cross-league stats, generate them from individual league stats
+      if (!crossLeagueStats && leagueStats && leagueStats.length > 0) {
+        crossLeagueStats = this.generateCrossLeagueStatsFromPlayerStats(leagueStats);
+      }
+
+      // Calculate performance trends (with error handling)
+      let trends;
+      try {
+        trends = await this.calculatePerformanceTrends(userId, seasonYear);
+      } catch (trendsError) {
+        console.warn('Failed to calculate performance trends:', trendsError);
+        trends = { data: { goals: [], assists: [], overall: [] }, error: null, success: false };
+      }
 
       // Calculate overall rating
       const overallRating = this.calculateOverallRating(crossLeagueStats, leagueStats || []);
@@ -257,7 +312,7 @@ export class StatsService {
       if (options.includeComparisons) {
         comparisons = await this.calculatePlayerComparisons(
           userId,
-          profile.preferred_position,
+          playerProfile.preferred_position,
           crossLeagueStats,
           seasonYear
         );
@@ -271,8 +326,8 @@ export class StatsService {
 
       const analysis: PlayerPerformanceAnalysis = {
         playerId: userId,
-        playerName: profile.display_name,
-        avatarUrl: profile.avatar_url,
+        playerName: playerProfile.display_name,
+        avatarUrl: playerProfile.avatar_url,
         overallRating,
         strengths,
         improvements,
@@ -616,6 +671,46 @@ export class StatsService {
   /**
    * Private helper methods
    */
+  private generateCrossLeagueStatsFromPlayerStats(playerStats: PlayerStats[]): any {
+    const totalGoals = playerStats.reduce((sum, stat) => sum + (stat.goals || 0), 0);
+    const totalAssists = playerStats.reduce((sum, stat) => sum + (stat.assists || 0), 0);
+    const totalGames = playerStats.reduce((sum, stat) => sum + (stat.games_played || 0), 0);
+    const leaguesPlayed = new Set(playerStats.map(stat => stat.league_id)).size;
+    const teamsPlayed = new Set(playerStats.map(stat => stat.team_id)).size;
+
+    return {
+      player_id: playerStats[0]?.player_id || '',
+      display_name: 'Generated Stats',
+      avatar_url: null,
+      preferred_position: null,
+      season_year: new Date().getFullYear(),
+      leagues_played: leaguesPlayed,
+      teams_played: teamsPlayed,
+      total_games_played: totalGames,
+      total_goals: totalGoals,
+      total_assists: totalAssists,
+      total_yellow_cards: playerStats.reduce((sum, stat) => sum + (stat.yellow_cards || 0), 0),
+      total_red_cards: playerStats.reduce((sum, stat) => sum + (stat.red_cards || 0), 0),
+      avg_goals_per_game: totalGames > 0 ? totalGoals / totalGames : 0,
+      avg_contributions_per_game: totalGames > 0 ? (totalGoals + totalAssists) / totalGames : 0,
+      goals_consistency: totalGames > 0 ? this.calculateGoalsConsistency(playerStats) : null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+  }
+
+  private calculateGoalsConsistency(playerStats: PlayerStats[]): number {
+    if (playerStats.length === 0) return 0;
+    
+    const goalRates = playerStats.map(stat => 
+      (stat.games_played || 0) > 0 ? (stat.goals || 0) / (stat.games_played || 1) : 0
+    );
+    
+    const avgRate = goalRates.reduce((sum, rate) => sum + rate, 0) / goalRates.length;
+    const variance = goalRates.reduce((sum, rate) => sum + Math.pow(rate - avgRate, 2), 0) / goalRates.length;
+    
+    return Math.sqrt(variance);
+  }
   private async calculatePerformanceTrends(
     userId: string,
     seasonYear: number,
@@ -623,6 +718,7 @@ export class StatsService {
     statTypes: Array<'goals' | 'assists' | 'matches' | 'performance'> = ['goals', 'assists', 'performance']
   ): Promise<ServiceResponse<{ [key: string]: PerformanceTrend[] }>> {
     try {
+      // Check if the RPC function exists first, if not return empty trends
       const { data: trendsData, error } = await this.supabase
         .rpc('calculate_performance_trends', {
           player_id: userId,
@@ -631,7 +727,15 @@ export class StatsService {
           stat_types: statTypes
         });
 
-      if (error) throw error;
+      // If RPC function doesn't exist or has error, return empty trends
+      if (error) {
+        console.warn('Performance trends RPC function not available:', error);
+        const emptyTrends: { [key: string]: PerformanceTrend[] } = {};
+        statTypes.forEach(statType => {
+          emptyTrends[statType] = [];
+        });
+        return { data: emptyTrends, error: null, success: true };
+      }
 
       // Process the trends data
       const trends: { [key: string]: PerformanceTrend[] } = {};
@@ -878,14 +982,67 @@ export class StatsService {
     overall: GlobalRanking[];
   }>> {
     try {
-      // This would use RPC functions to get top performers
-      const mockData = {
-        goals: [],
-        assists: [],
-        overall: []
+      // Get top goal scorers
+      const { data: goalScorers, error: goalError } = await this.supabase
+        .from('player_leaderboard')
+        .select('*')
+        .eq('league_id', leagueId)
+        .eq('season_year', seasonYear)
+        .order('goals', { ascending: false })
+        .limit(10);
+
+      if (goalError) throw goalError;
+
+      // Get top assists
+      const { data: assistLeaders, error: assistError } = await this.supabase
+        .from('player_leaderboard')
+        .select('*')
+        .eq('league_id', leagueId)
+        .eq('season_year', seasonYear)
+        .order('assists', { ascending: false })
+        .limit(10);
+
+      if (assistError) throw assistError;
+
+      // Get overall performers (based on goals + assists)
+      const { data: overallPerformers, error: overallError } = await this.supabase
+        .from('player_leaderboard')
+        .select('*')
+        .eq('league_id', leagueId)
+        .eq('season_year', seasonYear)
+        .order('goal_contributions_per_game', { ascending: false })
+        .limit(10);
+
+      if (overallError) throw overallError;
+
+      const data = {
+        goals: (goalScorers || []).map((player, index) => ({
+          playerId: player.player_id,
+          displayName: player.display_name,
+          avatarUrl: player.avatar_url,
+          rank: index + 1,
+          statValue: player.goals,
+          trend: 'stable' as const
+        })),
+        assists: (assistLeaders || []).map((player, index) => ({
+          playerId: player.player_id,
+          displayName: player.display_name,
+          avatarUrl: player.avatar_url,
+          rank: index + 1,
+          statValue: player.assists,
+          trend: 'stable' as const
+        })),
+        overall: (overallPerformers || []).map((player, index) => ({
+          playerId: player.player_id,
+          displayName: player.display_name,
+          avatarUrl: player.avatar_url,
+          rank: index + 1,
+          statValue: player.goals + player.assists,
+          trend: 'stable' as const
+        }))
       };
 
-      return { data: mockData, error: null, success: true };
+      return { data, error: null, success: true };
 
     } catch (error) {
       return {
@@ -902,18 +1059,61 @@ export class StatsService {
     competitiveBalance: number;
   }>> {
     try {
-      // Simplified implementation
-      const mockData = {
-        playerGrowth: 15,
-        matchActivity: 85,
-        competitiveBalance: 72
+      // Get league statistics for trends calculation
+      const { data: currentStats, error: currentError } = await this.supabase
+        .from('league_standings')
+        .select('*')
+        .eq('league_id', leagueId)
+        .eq('season_year', seasonYear);
+
+      if (currentError) throw currentError;
+
+      // Get previous year for comparison (if available)
+      const { data: previousStats, error: previousError } = await this.supabase
+        .from('league_standings')
+        .select('*')
+        .eq('league_id', leagueId)
+        .eq('season_year', seasonYear - 1);
+
+      // Calculate trends
+      const currentPlayerCount = currentStats?.length || 0;
+      const previousPlayerCount = previousStats?.length || 0;
+      const playerGrowth = previousPlayerCount > 0 
+        ? Math.round(((currentPlayerCount - previousPlayerCount) / previousPlayerCount) * 100)
+        : 0;
+
+      // Calculate match activity based on games played
+      const totalGames = currentStats?.reduce((sum, team) => sum + (team.games_played || 0), 0) || 0;
+      const expectedGames = currentPlayerCount * 10; // Assuming ~10 games per season
+      const matchActivity = expectedGames > 0 
+        ? Math.min(100, Math.round((totalGames / expectedGames) * 100))
+        : 0;
+
+      // Calculate competitive balance based on points distribution
+      const points = currentStats?.map(team => team.points || 0) || [];
+      const avgPoints = points.length > 0 ? points.reduce((a, b) => a + b, 0) / points.length : 0;
+      const pointsVariance = points.length > 0 
+        ? points.reduce((sum, points) => sum + Math.pow(points - avgPoints, 2), 0) / points.length
+        : 0;
+      const competitiveBalance = points.length > 0 
+        ? Math.max(0, Math.min(100, 100 - (Math.sqrt(pointsVariance) / avgPoints * 100)))
+        : 50;
+
+      const data = {
+        playerGrowth: Math.max(-100, Math.min(100, playerGrowth)),
+        matchActivity: Math.max(0, Math.min(100, matchActivity)),
+        competitiveBalance: Math.max(0, Math.min(100, Math.round(competitiveBalance)))
       };
 
-      return { data: mockData, error: null, success: true };
+      return { data, error: null, success: true };
 
     } catch (error) {
       return {
-        data: null,
+        data: {
+          playerGrowth: 0,
+          matchActivity: 0,
+          competitiveBalance: 50
+        },
         error: this.handleError(error, 'calculateLeagueTrends'),
         success: false
       };

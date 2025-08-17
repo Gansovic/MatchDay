@@ -18,11 +18,11 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { AuthService, AuthUser } from '@/lib/auth/auth.service';
-import { LoadingDialog } from '@/components/ui/loading-dialog';
+import { supabase } from '@/lib/supabase/client';
+import type { User } from '@supabase/supabase-js';
 
 interface AuthContextType {
-  user: AuthUser | null;
+  user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   signUp: (data: {
@@ -54,34 +54,44 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 interface AuthProviderProps {
   children: React.ReactNode;
-  supabaseClient: any;
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({
-  children,
-  supabaseClient
+  children
 }) => {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const authService = AuthService.getInstance();
 
   useEffect(() => {
-    // Initialize auth service with Supabase client
-    authService.setSupabaseClient(supabaseClient);
+    // Subscribe to auth state changes with Supabase directly
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event: string, session: any) => {
+        if (session?.user) {
+          setUser(session.user);
+        } else {
+          setUser(null);
+        }
+        setIsLoading(false);
+      }
+    );
 
-    // Subscribe to auth state changes
-    const unsubscribe = authService.onAuthStateChange((user) => {
-      setUser(user);
+    // Get initial session
+    const getInitialSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUser(session.user);
+      } else {
+        setUser(null);
+      }
       setIsLoading(false);
-    });
+    };
 
-    // Initial user check
-    const currentUser = authService.getCurrentUser();
-    setUser(currentUser);
-    setIsLoading(false);
+    getInitialSession();
 
-    return unsubscribe;
-  }, [supabaseClient]);
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
 
   const signUp = async (data: {
     email: string;
@@ -91,14 +101,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     location?: string;
   }): Promise<{ success: boolean; error?: string }> => {
     try {
-      const result = await LoadingDialog.show({
-        title: 'Creating Account',
-        message: 'Setting up your player profile...',
-        operation: () => authService.signUp(data)
+      const { data: authData, error } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password
       });
 
-      if (result.error) {
-        return { success: false, error: result.error.message };
+      if (error) {
+        return { success: false, error: error.message };
       }
 
       return { success: true };
@@ -115,14 +124,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     password: string;
   }): Promise<{ success: boolean; error?: string }> => {
     try {
-      const result = await LoadingDialog.show({
-        title: 'Signing In',
-        message: 'Authenticating your account...',
-        operation: () => authService.signIn(data)
+      const { data: authData, error } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password
       });
 
-      if (result.error) {
-        return { success: false, error: result.error.message };
+      if (error) {
+        return { success: false, error: error.message };
       }
 
       return { success: true };
@@ -138,10 +146,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     provider: 'google' | 'github' | 'discord'
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      const result = await authService.signInWithOAuth(provider);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
 
-      if (result.error) {
-        return { success: false, error: result.error.message };
+      if (error) {
+        return { success: false, error: error.message };
       }
 
       return { success: true };
@@ -155,11 +168,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
 
   const signOut = async (): Promise<void> => {
     try {
-      await LoadingDialog.show({
-        title: 'Signing Out',
-        message: 'Ending your session...',
-        operation: () => authService.signOut()
-      });
+      await supabase.auth.signOut();
     } catch (error) {
       console.error('Sign out error:', error);
     }
@@ -174,14 +183,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     location?: string;
   }): Promise<{ success: boolean; error?: string }> => {
     try {
-      const result = await LoadingDialog.show({
-        title: 'Updating Profile',
-        message: 'Saving your changes...',
-        operation: () => authService.updateProfile(updates)
+      const { error } = await supabase.auth.updateUser({
+        data: updates
       });
 
-      if (result.error) {
-        return { success: false, error: result.error.message };
+      if (error) {
+        return { success: false, error: error.message };
       }
 
       return { success: true };
@@ -195,10 +202,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
 
   const resetPassword = async (email: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const result = await authService.resetPassword(email);
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/reset-password`
+      });
 
-      if (result.error) {
-        return { success: false, error: result.error.message };
+      if (error) {
+        return { success: false, error: error.message };
       }
 
       return { success: true };
@@ -211,7 +220,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
   };
 
   const hasPermission = (permission: 'create_league' | 'manage_team' | 'admin'): boolean => {
-    return authService.hasPermission(permission);
+    if (!user) return false;
+    
+    // For now, all authenticated users can create leagues and manage teams
+    switch (permission) {
+      case 'create_league':
+      case 'manage_team':
+        return true;
+      case 'admin':
+        // Check if user has admin role (would be stored in user metadata)
+        return user.user_metadata?.role === 'admin';
+      default:
+        return false;
+    }
   };
 
   const value: AuthContextType = {
@@ -279,7 +300,7 @@ export const withAuth = <P extends object>(
 };
 
 // Hook for requiring authentication
-export const useRequireAuth = (): AuthUser => {
+export const useRequireAuth = (): User => {
   const { user, isLoading } = useAuth();
 
   if (isLoading) {

@@ -69,7 +69,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({
         bio: '' 
       },
       sports: { 
-        preferred_sports: [], 
+        preferred_sports: ['football'], // Default to football
         experience_level: 'intermediate', 
         preferred_position: '' 
       },

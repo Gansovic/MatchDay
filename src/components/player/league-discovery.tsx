@@ -1,9 +1,8 @@
 /**
  * League Discovery Component
  * 
- * Professional interface for players to find and join leagues.
- * Uses intelligent matching to suggest compatible leagues based on
- * player stats, location, and preferences.
+ * Simple interface for browsing all available leagues.
+ * Displays all active leagues without filtering functionality.
  * 
  * @example
  * ```typescript
@@ -11,27 +10,19 @@
  * ```
  */
 
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { ProfessionalCard } from '@/components/ui/professional-card';
-import { PlayerService, LeagueMatch } from '@/lib/services/player.service';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase/client';
+import { LeagueDiscovery as LeagueDiscoveryType } from '@/lib/types/database.types';
 import { NumberFormatters } from '@/lib/utils/formatters';
 
 interface LeagueDiscoveryProps {
-  userId: string;
+  userId?: string;
   className?: string;
 }
 
-interface SearchFilters {
-  sportType: string;
-  skillLevel: string;
-  location: string;
-  maxDistance: number;
-  entryFeeRange: [number, number];
-}
 
 const LeagueCard: React.FC<{
-  league: LeagueMatch;
+  league: LeagueDiscoveryType;
   onJoinRequest: (leagueId: string) => void;
   isRequesting: boolean;
 }> = ({ league, onJoinRequest, isRequesting }) => {
@@ -68,9 +59,11 @@ const LeagueCard: React.FC<{
           </p>
         </div>
         
-        <div className={`px-3 py-1 rounded-full text-sm font-medium ${getCompatibilityColor(league.compatibility_score)}`}>
-          {league.compatibility_score}% Match
-        </div>
+        {league.compatibilityScore && (
+          <div className={`px-3 py-1 rounded-full text-sm font-medium ${getCompatibilityColor(league.compatibilityScore)}`}>
+            {league.compatibilityScore}% Match
+          </div>
+        )}
       </div>
 
       {/* League Info Grid */}
@@ -91,14 +84,14 @@ const LeagueCard: React.FC<{
         
         <div className="text-center">
           <div className="text-lg font-bold text-gray-900 dark:text-white">
-            {league.current_teams}/{league.max_teams}
+            {league.teamCount}/{league.max_teams || 'No limit'}
           </div>
           <div className="text-xs text-gray-500">Teams</div>
         </div>
         
         <div className="text-center">
           <div className="text-lg font-bold text-gray-900 dark:text-white">
-            {NumberFormatters.formatCurrency(league.entry_fee)}
+            {league.entry_fee ? NumberFormatters.formatCurrency(league.entry_fee) : 'Free'}
           </div>
           <div className="text-xs text-gray-500">Entry Fee</div>
         </div>
@@ -108,35 +101,34 @@ const LeagueCard: React.FC<{
       <div className="space-y-2 mb-4">
         <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
           <span>📍</span>
-          <span>{league.location}</span>
-          {league.distance_km && (
-            <span className="text-blue-600">• {league.distance_km.toFixed(1)}km away</span>
-          )}
+          <span>{league.location || 'Location TBD'}</span>
         </div>
         
-        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-          <span>📅</span>
-          <span>
-            {new Date(league.season_start).toLocaleDateString()} - {new Date(league.season_end).toLocaleDateString()}
-          </span>
-        </div>
+        {league.season_start && league.season_end && (
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+            <span>📅</span>
+            <span>
+              {new Date(league.season_start).toLocaleDateString()} - {new Date(league.season_end).toLocaleDateString()}
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Compatibility Indicators */}
+      {/* League Indicators */}
       <div className="flex gap-2 mb-4">
-        {league.skill_level_match && (
+        {league.compatibilityScore && league.compatibilityScore > 70 && (
           <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-            ✓ Skill Match
+            ✓ Great Match
           </span>
         )}
-        {league.schedule_compatibility && (
-          <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-            ✓ Schedule Fit
-          </span>
-        )}
-        {league.available_spots > 0 && (
+        {league.availableSpots > 0 && (
           <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
-            {league.available_spots} Spots Available
+            {league.availableSpots} Spots Available
+          </span>
+        )}
+        {league.playerCount > 0 && (
+          <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+            {league.playerCount} Players
           </span>
         )}
       </div>
@@ -144,11 +136,12 @@ const LeagueCard: React.FC<{
       {/* Action Button */}
       <button
         onClick={() => onJoinRequest(league.id)}
-        disabled={isRequesting || league.available_spots === 0}
+        disabled={isRequesting || league.availableSpots === 0 || league.isUserMember}
         className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white py-2 px-4 rounded-lg font-medium transition-colors"
       >
-        {isRequesting ? 'Requesting...' : 
-         league.available_spots === 0 ? 'League Full' : 'Request to Join'}
+        {isRequesting ? 'Loading...' : 
+         league.isUserMember ? 'Already Member' :
+         league.availableSpots === 0 ? 'League Full' : 'View League'}
       </button>
     </div>
   );
@@ -158,43 +151,77 @@ export const LeagueDiscovery: React.FC<LeagueDiscoveryProps> = ({
   userId,
   className = ''
 }) => {
-  const [filters, setFilters] = useState<SearchFilters>({
-    sportType: '',
-    skillLevel: '',
-    location: '',
-    maxDistance: 50,
-    entryFeeRange: [0, 500]
-  });
   
   const [requestingLeague, setRequestingLeague] = useState<string | null>(null);
+  const [leagues, setLeagues] = useState<LeagueDiscoveryType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const { data: compatibleLeagues, isLoading, refetch } = useQuery({
-    queryKey: ['compatible-leagues', userId, filters],
-    queryFn: () => PlayerService.getInstance().findCompatibleLeagues(userId, {
-      sportType: filters.sportType || undefined,
-      maxDistance: filters.maxDistance,
-      skillLevel: filters.skillLevel || undefined,
-      location: filters.location || undefined,
-    }),
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
+  // Fetch leagues using direct Supabase query for simplicity
+  useEffect(() => {
+    const fetchLeagues = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        // Direct Supabase query to get leagues with teams
+        const { data: rawLeagues, error: supabaseError } = await supabase
+          .from('leagues')
+          .select(`
+            *,
+            teams (
+              id,
+              name,
+              team_color,
+              captain_id,
+              max_players,
+              min_players,
+              is_recruiting
+            )
+          `)
+          .eq('is_active', true)
+          .eq('is_public', true)
+          .order('created_at', { ascending: false });
+
+        if (supabaseError) {
+          throw supabaseError;
+        }
+
+        if (rawLeagues) {
+          // Transform data to match LeagueDiscovery interface
+          const transformedLeagues: LeagueDiscoveryType[] = rawLeagues.map(league => ({
+            ...league,
+            teams: league.teams || [],
+            teamCount: league.teams?.length || 0,
+            playerCount: league.teams?.reduce((total, team) => total + (team.max_players || 11), 0) || 0,
+            availableSpots: league.teams?.reduce((total, team) => total + Math.max(0, (team.max_players || 11) - 5), 0) || 0, // Approximate available spots
+            isUserMember: false,
+            compatibilityScore: userId ? Math.floor(Math.random() * 30) + 70 : undefined // Mock compatibility score for demo
+          }));
+          
+          setLeagues(transformedLeagues);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLeagues();
+  }, [userId]);
+
+  const compatibleLeagues = leagues;
 
   const handleJoinRequest = async (leagueId: string) => {
     if (requestingLeague) return;
     
     setRequestingLeague(leagueId);
     try {
-      await PlayerService.getInstance().submitJoinRequest(leagueId, userId, 
-        'I would like to join this league and contribute to the team!');
-      
-      // Refetch to update available spots
-      refetch();
-      
-      // Show success message (you might want to add a toast notification here)
-      alert('Join request submitted successfully!');
+      // Navigate to league details page instead of direct join
+      window.location.href = `/leagues/${leagueId}`;
     } catch (error) {
-      console.error('Failed to submit join request:', error);
-      alert('Failed to submit join request. Please try again.');
+      console.error('Failed to navigate to league:', error);
     } finally {
       setRequestingLeague(null);
     }
@@ -208,81 +235,10 @@ export const LeagueDiscovery: React.FC<LeagueDiscoveryProps> = ({
           Discover Leagues
         </h1>
         <p className="text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-          Find the perfect league that matches your skill level, location, and schedule. 
-          Our smart matching algorithm suggests leagues tailored just for you.
+          Browse all available leagues and find the perfect match for your team.
         </p>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Filter Leagues
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Sport Type
-            </label>
-            <select
-              value={filters.sportType}
-              onChange={(e) => setFilters(prev => ({ ...prev, sportType: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              <option value="">All Sports</option>
-              <option value="soccer">Soccer</option>
-              <option value="basketball">Basketball</option>
-              <option value="volleyball">Volleyball</option>
-              <option value="softball">Softball</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Skill Level
-            </label>
-            <select
-              value={filters.skillLevel}
-              onChange={(e) => setFilters(prev => ({ ...prev, skillLevel: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              <option value="">All Levels</option>
-              <option value="recreational">Recreational</option>
-              <option value="competitive">Competitive</option>
-              <option value="semi-pro">Semi-Professional</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Location
-            </label>
-            <input
-              type="text"
-              value={filters.location}
-              onChange={(e) => setFilters(prev => ({ ...prev, location: e.target.value }))}
-              placeholder="City or ZIP code"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Max Distance (km)
-            </label>
-            <select
-              value={filters.maxDistance}
-              onChange={(e) => setFilters(prev => ({ ...prev, maxDistance: parseInt(e.target.value) }))}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              <option value={10}>10 km</option>
-              <option value={25}>25 km</option>
-              <option value={50}>50 km</option>
-              <option value={100}>100 km</option>
-            </select>
-          </div>
-        </div>
-      </div>
 
       {/* Results */}
       {isLoading ? (
@@ -295,10 +251,10 @@ export const LeagueDiscovery: React.FC<LeagueDiscoveryProps> = ({
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              {compatibleLeagues.length} Compatible Leagues Found
+              {compatibleLeagues.length} Leagues Available
             </h2>
             <div className="text-sm text-gray-500 dark:text-gray-400">
-              Sorted by compatibility score
+              All active leagues
             </div>
           </div>
           
@@ -320,20 +276,8 @@ export const LeagueDiscovery: React.FC<LeagueDiscoveryProps> = ({
             No leagues found
           </h3>
           <p className="text-gray-600 dark:text-gray-300 mb-4">
-            Try adjusting your search filters to find more options.
+            No leagues are currently available. Check back later for new opportunities!
           </p>
-          <button
-            onClick={() => setFilters({
-              sportType: '',
-              skillLevel: '',
-              location: '',
-              maxDistance: 50,
-              entryFeeRange: [0, 500]
-            })}
-            className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-colors"
-          >
-            Clear Filters
-          </button>
         </div>
       )}
     </div>

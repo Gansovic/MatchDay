@@ -14,56 +14,31 @@ export interface Sport {
   popularPositions?: string[];
 }
 
-// Available sports with professional categorization
+// Football-only sport configuration
 export const SPORTS: Sport[] = [
   {
-    id: 'soccer',
-    name: 'Soccer',
+    id: 'football',
+    name: 'Football',
     icon: '⚽',
     category: 'team',
-    description: 'The world\'s most popular sport',
+    description: 'The beautiful game - the world\'s most popular sport',
     popularPositions: ['Goalkeeper', 'Defender', 'Midfielder', 'Forward']
-  },
-  {
-    id: 'basketball',
-    name: 'Basketball',
-    icon: '🏀',
-    category: 'team',
-    description: 'Fast-paced team sport',
-    popularPositions: ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center']
-  },
-  {
-    id: 'volleyball',
-    name: 'Volleyball',
-    icon: '🏐',
-    category: 'team',
-    description: 'Dynamic court sport',
-    popularPositions: ['Setter', 'Outside Hitter', 'Middle Blocker', 'Opposite Hitter', 'Libero']
-  },
-  {
-    id: 'softball',
-    name: 'Softball',
-    icon: '🥎',
-    category: 'team',
-    description: 'America\'s favorite pastime',
-    popularPositions: ['Pitcher', 'Catcher', 'First Base', 'Second Base', 'Third Base', 'Shortstop', 'Outfield']
-  },
-  {
-    id: 'tennis',
-    name: 'Tennis',
-    icon: '🎾',
-    category: 'racquet',
-    description: 'Precision and power sport',
-    popularPositions: ['Singles', 'Doubles']
-  },
-  {
-    id: 'badminton',
-    name: 'Badminton',
-    icon: '🏸',
-    category: 'racquet',
-    description: 'Fast reflexes required',
-    popularPositions: ['Singles', 'Doubles']
   }
+];
+
+// Football positions for easy reference
+export const FOOTBALL_POSITIONS = [
+  'Goalkeeper',
+  'Centre-back',
+  'Left-back',
+  'Right-back',
+  'Defensive Midfielder',
+  'Central Midfielder',
+  'Attacking Midfielder',
+  'Left Winger',
+  'Right Winger',
+  'Striker',
+  'Centre Forward'
 ];
 
 // Player goals with professional focus
@@ -171,9 +146,8 @@ export const ProfileStepSchema = z.object({
 });
 
 export const SportsStepSchema = z.object({
-  preferred_sports: z.array(z.string())
-    .min(1, 'Please select at least one sport')
-    .max(6, 'You can select up to 6 sports'),
+  // Football is automatically selected, no need for sport selection
+  preferred_sports: z.array(z.string()).default(['football']),
   
   experience_level: z.enum(['beginner', 'intermediate', 'advanced', 'expert']),
   
@@ -283,8 +257,8 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
     id: 3,
     key: 'sports',
     title: 'Sports',
-    subtitle: 'Select Your Sports',
-    description: 'Choose the sports you want to play',
+    subtitle: 'Your Football Journey',
+    description: 'Tell us about your football experience and preferences',
     icon: '⚽',
     estimatedTime: '1 min'
   },
