@@ -1,3 +1,4 @@
+
 -- Create admin user properly using Supabase auth functions
 -- This ensures proper password hashing and user state
 
@@ -99,15 +100,21 @@ INSERT INTO auth.identities (
 INSERT INTO user_profiles (
     id,
     full_name,
+    display_name,
     bio,
-    phone
+    phone,
+    role
 ) VALUES (
     '11111111-1111-1111-1111-111111111111',
     'Admin User',
+    'Admin User',
     'MatchDay Administrator',
-    '+1234567890'
+    '+1234567890',
+    'league_admin'
 ) ON CONFLICT (id) DO UPDATE SET
     full_name = EXCLUDED.full_name,
-    bio = EXCLUDED.bio;
+    display_name = EXCLUDED.display_name,
+    bio = EXCLUDED.bio,
+    role = 'league_admin';
 
 SELECT 'Admin user created successfully for Supabase Auth!' as message;

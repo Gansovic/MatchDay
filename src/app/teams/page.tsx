@@ -15,6 +15,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
 import { supabase } from '@/lib/supabase/client';
+import { TeamInvitationWithDetails } from '@/lib/types/database.types';
 import { 
   Users, 
   Calendar, 
@@ -30,7 +31,10 @@ import {
   X,
   Loader2,
   Check,
-  Palette
+  Palette,
+  Mail,
+  Hash,
+  MessageSquare
 } from 'lucide-react';
 
 interface Team {
@@ -62,7 +66,6 @@ interface Team {
 
 interface CreateTeamForm {
   name: string;
-  league: string;
   description: string;
   maxMembers: number;
   location: string;
@@ -71,7 +74,6 @@ interface CreateTeamForm {
 
 interface FormErrors {
   name?: string;
-  league?: string;
   location?: string;
 }
 
@@ -92,7 +94,7 @@ interface AvailableTeam {
 export default function TeamsPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'my-teams' | 'discover'>('my-teams');
+  const [activeTab, setActiveTab] = useState<'my-teams' | 'invitations' | 'discover'>('my-teams');
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -101,7 +103,6 @@ export default function TeamsPage() {
   const [newlyCreatedTeamId, setNewlyCreatedTeamId] = useState<string | null>(null);
   const [formData, setFormData] = useState<CreateTeamForm>({
     name: '',
-    league: '',
     description: '',
     maxMembers: 22,
     location: '',
@@ -109,8 +110,9 @@ export default function TeamsPage() {
   });
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [myTeams, setMyTeams] = useState<Team[]>([]);
-  const [availableLeagues, setAvailableLeagues] = useState<{id: string, name: string}[]>([]);
-  const [isLoadingLeagues, setIsLoadingLeagues] = useState(false);
+  const [invitations, setInvitations] = useState<TeamInvitationWithDetails[]>([]);
+  const [loadingInvitations, setLoadingInvitations] = useState(false);
+  const [processingInvitation, setProcessingInvitation] = useState<string | null>(null);
 
   // Temporarily disable authentication check for testing
   // TODO: Re-enable when authentication is properly configured
@@ -140,7 +142,15 @@ export default function TeamsPage() {
   React.useEffect(() => {
     const loadTeams = async () => {
       try {
-        const response = await fetch('/api/teams');
+        // Get the current session for authentication
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        const headers: HeadersInit = {};
+        if (session) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+        
+        const response = await fetch('/api/teams', { headers });
         
         if (!response.ok) {
           throw new Error('Failed to load teams');
@@ -181,7 +191,151 @@ export default function TeamsPage() {
     };
 
     loadTeams();
+    loadInvitations();
   }, []);
+
+  // Load invitations
+  const loadInvitations = async () => {
+    try {
+      setLoadingInvitations(true);
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        setInvitations([]);
+        return;
+      }
+
+      const response = await fetch('/api/invitations', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setInvitations(result.data || []);
+      } else {
+        setInvitations([]);
+      }
+
+    } catch (err) {
+      console.error('Error loading invitations:', err);
+      setInvitations([]);
+    } finally {
+      setLoadingInvitations(false);
+    }
+  };
+
+  const handleInvitationResponse = async (invitationId: string, action: 'accept' | 'decline') => {
+    try {
+      setProcessingInvitation(invitationId);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('Authentication required');
+      }
+
+      const response = await fetch(`/api/invitations/${invitationId}/respond`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ action })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to ${action} invitation`);
+      }
+
+      // Remove the invitation from the list
+      setInvitations(prev => prev.filter(inv => inv.id !== invitationId));
+      
+      // If accepted, refresh teams list
+      if (action === 'accept') {
+        // Reload teams to show the new team
+        const loadTeams = async () => {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            
+            const headers: HeadersInit = {};
+            if (session) {
+              headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+            
+            const response = await fetch('/api/teams', { headers });
+            
+            if (response.ok) {
+              const result = await response.json();
+              
+              const teams: Team[] = (result.data || []).map((teamData: any) => {
+                return {
+                  id: teamData.id,
+                  name: teamData.name,
+                  league: teamData.league?.name || teamData.league || 'Unknown League',
+                  position: 'Player',
+                  isCaptain: teamData.captain_id === user?.id,
+                  memberCount: teamData.memberCount || 1,
+                  maxMembers: teamData.max_players || 22,
+                  location: teamData.league?.location || 'Test Location',
+                  description: teamData.team_bio || teamData.description,
+                  stats: teamData.stats || {
+                    wins: 0,
+                    draws: 0,
+                    losses: 0,
+                    goals: 0,
+                    position: 1,
+                    totalTeams: 1
+                  },
+                  color: teamData.team_color || '#2563eb'
+                };
+              });
+
+              setMyTeams(teams);
+            }
+          } catch (error) {
+            console.error('Error reloading teams:', error);
+          }
+        };
+        
+        loadTeams();
+      }
+
+    } catch (err) {
+      console.error(`Error ${action}ing invitation:`, err);
+      alert(err instanceof Error ? err.message : `Failed to ${action} invitation`);
+    } finally {
+      setProcessingInvitation(null);
+    }
+  };
+
+  const formatInvitationDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const formatTimeLeft = (expiresAt: string) => {
+    const now = new Date();
+    const expiry = new Date(expiresAt);
+    const diff = expiry.getTime() - now.getTime();
+    
+    if (diff < 0) return 'Expired';
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (days > 0) return `${days} day${days !== 1 ? 's' : ''} left`;
+    if (hours > 0) return `${hours} hour${hours !== 1 ? 's' : ''} left`;
+    return 'Expires soon';
+  };
 
   const availableTeams: AvailableTeam[] = [
     {
@@ -262,31 +416,8 @@ export default function TeamsPage() {
     return { className: 'bg-blue-600', style: {} };
   };
 
-  // Load available leagues from API
-  const loadLeagues = async () => {
-    setIsLoadingLeagues(true);
-    try {
-      const response = await fetch('/api/leagues?sport=football');
-      
-      if (!response.ok) {
-        throw new Error('Failed to load leagues');
-      }
-
-      const result = await response.json();
-      setAvailableLeagues(result.data || []);
-    } catch (error) {
-      console.error('Error loading leagues:', error);
-      // Fallback to empty array if API fails
-      setAvailableLeagues([]);
-    } finally {
-      setIsLoadingLeagues(false);
-    }
-  };
-
-  // Load leagues when modal opens
   const handleShowCreateModal = () => {
     setShowCreateModal(true);
-    loadLeagues();
   };
 
 
@@ -322,9 +453,6 @@ export default function TeamsPage() {
       errors.name = 'Team name must be less than 50 characters';
     }
     
-    if (!formData.league) {
-      errors.league = 'Please select a league';
-    }
     
     if (!formData.location.trim()) {
       errors.location = 'Location is required';
@@ -349,6 +477,13 @@ export default function TeamsPage() {
     setIsSubmitting(true);
     
     try {
+      // Get the current session for authentication
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        throw new Error('You must be logged in to create a team. Please refresh the page and try again.');
+      }
+      
       // Convert Tailwind class to hex color code
       const selectedColor = teamColors.find(color => color.value === formData.color);
       const hexColor = selectedColor?.hex || '#2563eb'; // Default to blue if not found
@@ -356,12 +491,12 @@ export default function TeamsPage() {
       const response = await fetch('/api/teams', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
           name: formData.name,
           sport: 'Football', // Always football
-          league: formData.league,
           description: formData.description,
           maxMembers: formData.maxMembers,
           location: formData.location,
@@ -369,24 +504,25 @@ export default function TeamsPage() {
         })
       });
 
-      const result = await response.json();
-
       if (!response.ok) {
+        const result = await response.json();
         throw new Error(result.message || 'Failed to create team');
       }
+
+      const result = await response.json();
 
       // Convert API response to local Team format
       const createdTeam = result.data;
       const newTeam: Team = {
         id: createdTeam.id,
         name: createdTeam.name,
-        league: createdTeam.league.name,
+        league: 'No League', // Team is not in a league yet
         position: 'Captain', // Creator becomes captain
         isCaptain: true,
-        memberCount: createdTeam.memberCount,
-        maxMembers: createdTeam.max_players,
-        location: createdTeam.league.location,
-        description: createdTeam.team_bio,
+        memberCount: createdTeam.memberCount || 1,
+        maxMembers: createdTeam.max_players || formData.maxMembers,
+        location: formData.location, // Use the location from form since no league
+        description: createdTeam.team_bio || formData.description,
         stats: createdTeam.stats || {
           wins: 0,
           draws: 0,
@@ -406,7 +542,6 @@ export default function TeamsPage() {
       // Reset form
       setFormData({
         name: '',
-        league: '',
         description: '',
         maxMembers: 22,
         location: '',
@@ -523,6 +658,19 @@ export default function TeamsPage() {
                 </div>
               </button>
               <button
+                onClick={() => setActiveTab('invitations')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'invitations'
+                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Invitations ({invitations.length})
+                </div>
+              </button>
+              <button
                 onClick={() => setActiveTab('discover')}
                 className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                   activeTab === 'discover'
@@ -532,7 +680,7 @@ export default function TeamsPage() {
               >
                 <div className="flex items-center gap-2">
                   <Search className="w-4 h-4" />
-                  Discover Teams
+                  Explore Teams
                 </div>
               </button>
             </nav>
@@ -665,6 +813,147 @@ export default function TeamsPage() {
                           <Settings className="w-4 h-4" />
                         </button>
                       )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Invitations Tab */}
+        {activeTab === 'invitations' && (
+          <div className="space-y-6">
+            {loadingInvitations ? (
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+                <p className="text-gray-600 dark:text-gray-400">Loading invitations...</p>
+              </div>
+            ) : invitations.length === 0 ? (
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+                <Mail className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                  No Pending Invitations
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  You don't have any team invitations at the moment. Check back later!
+                </p>
+                <button
+                  onClick={() => setActiveTab('discover')}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                >
+                  <Search className="w-4 h-4" />
+                  Explore Teams
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {invitations.map((invitation) => (
+                  <div key={invitation.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: invitation.team.team_color || '#3B82F6' }}>
+                          <Users className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                            {invitation.team.name}
+                          </h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                            <MapPin className="w-4 h-4" />
+                            {invitation.team.location || 'Location not specified'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          {formatTimeLeft(invitation.expires_at)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Invitation Details */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                      {invitation.position && (
+                        <div className="flex items-center gap-2">
+                          <Target className="w-4 h-4 text-gray-500" />
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Position:</span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white capitalize">
+                            {invitation.position}
+                          </span>
+                        </div>
+                      )}
+                      {invitation.jersey_number && (
+                        <div className="flex items-center gap-2">
+                          <Hash className="w-4 h-4 text-gray-500" />
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Jersey:</span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            #{invitation.jersey_number}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-gray-500" />
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Invited:</span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          {formatInvitationDate(invitation.created_at)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Message */}
+                    {invitation.message && (
+                      <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <MessageSquare className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
+                              Message from {invitation.invited_by_user.display_name || invitation.invited_by_user.email}:
+                            </p>
+                            <p className="text-sm text-blue-800 dark:text-blue-200">
+                              {invitation.message}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Team Info */}
+                    {invitation.team.team_bio && (
+                      <div className="mb-4">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {invitation.team.team_bio}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => handleInvitationResponse(invitation.id, 'accept')}
+                        disabled={processingInvitation === invitation.id}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-medium rounded-lg transition-colors"
+                      >
+                        {processingInvitation === invitation.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Check className="w-4 h-4" />
+                        )}
+                        Accept
+                      </button>
+                      <button
+                        onClick={() => handleInvitationResponse(invitation.id, 'decline')}
+                        disabled={processingInvitation === invitation.id}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-medium rounded-lg transition-colors"
+                      >
+                        {processingInvitation === invitation.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <X className="w-4 h-4" />
+                        )}
+                        Decline
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -811,30 +1100,6 @@ export default function TeamsPage() {
                 )}
               </div>
 
-              {/* League Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  League *
-                </label>
-                <select
-                  value={formData.league}
-                  onChange={(e) => handleInputChange('league', e.target.value)}
-                  disabled={isLoadingLeagues}
-                  className={`w-full px-4 py-3 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                    formErrors.league ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-                  }`}
-                >
-                  <option value="">
-                    {isLoadingLeagues ? 'Loading leagues...' : 'Select football league'}
-                  </option>
-                  {availableLeagues.map(league => (
-                    <option key={league.id} value={league.name}>{league.name}</option>
-                  ))}
-                </select>
-                {formErrors.league && (
-                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">{formErrors.league}</p>
-                )}
-              </div>
 
               {/* Location and Max Members */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

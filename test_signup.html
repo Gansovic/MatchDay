@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Manual Admin Signup</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h2>Create Admin Account</h2>
+    <form id="signup-form">
+        <div>
+            <label>Email:</label>
+            <input type="email" id="email" value="admin@matchday.com" required>
+        </div>
+        <div>
+            <label>Password:</label>
+            <input type="password" id="password" value="admin123!" required>
+        </div>
+        <button type="submit">Sign Up</button>
+    </form>
+    
+    <div id="result"></div>
+
+    <script>
+        const supabaseUrl = 'http://127.0.0.1:54321';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
+        
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+        
+        document.getElementById('signup-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const result = document.getElementById('result');
+            
+            try {
+                const { data, error } = await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: {
+                            full_name: 'Admin User',
+                            display_name: 'Admin User'
+                        }
+                    }
+                });
+                
+                if (error) {
+                    result.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+                } else {
+                    result.innerHTML = `<p style="color: green;">Success! User created: ${data.user?.email}</p>`;
+                    console.log('User ID:', data.user?.id);
+                }
+            } catch (err) {
+                result.innerHTML = `<p style="color: red;">Error: ${err.message}</p>`;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -26,12 +26,22 @@ import {
   JoinRequestStatus,
   UserProfile,
   League,
+  TeamLeague,
+  TeamWithLeagues,
   CacheOptions,
   RealtimeSubscriptionOptions
 } from '@/lib/types/database.types';
 
 export interface TeamWithDetails extends Team {
+  // Backward compatibility - primary/current league
   league: League | null;
+  // New multi-league support
+  leagues: Array<{
+    league: League;
+    joined_at: string;
+    is_active: boolean;
+  }>;
+  league_count: number;
   captain?: UserProfile;
   members: Array<TeamMember & { user_profile: UserProfile }>;
   memberCount: number;
@@ -125,36 +135,46 @@ export class TeamService {
     options: TeamCreationOptions = { auto_add_creator: true }
   ): Promise<ServiceResponse<TeamWithDetails>> {
     try {
-      // First, validate that the league exists and is active
-      const { data: league, error: leagueError } = await this.supabase
-        .from('leagues')
-        .select('*')
-        .eq('id', teamData.league_id)
-        .eq('is_active', true)
-        .single();
+      let league = null;
+      
+      // If league_id is provided, validate that the league exists and is active
+      if (teamData.league_id) {
+        const { data: leagueData, error: leagueError } = await this.supabase
+          .from('leagues')
+          .select('*')
+          .eq('id', teamData.league_id)
+          .eq('is_active', true)
+          .single();
 
-      if (leagueError) {
-        if (leagueError.code === 'PGRST116') {
-          return {
-            data: null,
-            error: {
-              code: 'LEAGUE_NOT_FOUND',
-              message: 'Selected league not found or is not active',
-              timestamp: new Date().toISOString()
-            },
-            success: false
-          };
+        if (leagueError) {
+          if (leagueError.code === 'PGRST116') {
+            return {
+              data: null,
+              error: {
+                code: 'LEAGUE_NOT_FOUND',
+                message: 'Selected league not found or is not active',
+                timestamp: new Date().toISOString()
+              },
+              success: false
+            };
+          }
+          throw leagueError;
         }
-        throw leagueError;
+        league = leagueData;
       }
 
-      // Check if team name is unique within the league
-      const { data: existingTeam, error: nameCheckError } = await this.supabase
+      // Check if team name is unique (globally if no league, within league if specified)
+      let nameCheckQuery = this.supabase
         .from('teams')
         .select('id')
-        .eq('league_id', teamData.league_id)
-        .eq('name', teamData.name)
-        .single();
+        .eq('name', teamData.name);
+      
+      // Only check within league if league_id is provided
+      if (teamData.league_id) {
+        nameCheckQuery = nameCheckQuery.eq('league_id', teamData.league_id);
+      }
+      
+      const { data: existingTeam, error: nameCheckError } = await nameCheckQuery.single();
 
       if (nameCheckError && nameCheckError.code !== 'PGRST116') {
         throw nameCheckError;
@@ -165,7 +185,9 @@ export class TeamService {
           data: null,
           error: {
             code: 'TEAM_NAME_EXISTS',
-            message: 'A team with this name already exists in the selected league',
+            message: teamData.league_id 
+              ? 'A team with this name already exists in the selected league'
+              : 'A team with this name already exists',
             timestamp: new Date().toISOString()
           },
           success: false
@@ -209,15 +231,15 @@ export class TeamService {
             });
 
           if (memberError) throw memberError;
+
+          // Step 3: Update team with captain_id only if member was added successfully
+          const { error: updateError } = await this.supabase
+            .from('teams')
+            .update({ captain_id: captainId })
+            .eq('id', newTeam.id);
+
+          if (updateError) throw updateError;
         }
-
-        // Step 3: Update team with captain_id now that member exists
-        const { error: updateError } = await this.supabase
-          .from('teams')
-          .update({ captain_id: captainId })
-          .eq('id', newTeam.id);
-
-        if (updateError) throw updateError;
 
       } catch (error) {
         // If any step fails, clean up the team
@@ -229,13 +251,15 @@ export class TeamService {
       // to avoid potential infinite recursion during creation
       const basicTeamData: TeamWithDetails = {
         ...newTeam,
-        captain_id: captainId, // Use the updated captain_id
+        captain_id: options.auto_add_creator ? captainId : null, // Only set captain if member was added
         league: null, // Will be populated later if needed
+        leagues: [], // Initialize empty leagues array
+        league_count: 0,
         captain: undefined,
         members: [],
         memberCount: options.auto_add_creator ? 1 : 0,
         availableSpots: (teamData.max_players || 22) - (options.auto_add_creator ? 1 : 0),
-        isOrphaned: false,
+        isOrphaned: true, // New teams start orphaned until they join leagues
         previousLeagueName: undefined
       };
 
@@ -272,8 +296,7 @@ export class TeamService {
         return { data: cached, error: null, success: true };
       }
 
-      // Get team with league and member details
-      // Use left join for leagues since team might be orphaned
+      // Get team with primary league and member details
       const { data: team, error: teamError } = await this.supabase
         .from('teams')
         .select(`
@@ -300,6 +323,23 @@ export class TeamService {
           };
         }
         throw teamError;
+      }
+
+      // Get all leagues for this team from the junction table
+      const { data: teamLeagues, error: leaguesError } = await this.supabase
+        .from('team_leagues')
+        .select(`
+          joined_at,
+          is_active,
+          league:leagues(*)
+        `)
+        .eq('team_id', teamId)
+        .eq('is_active', true)
+        .order('joined_at', { ascending: false });
+
+      if (leaguesError) {
+        console.warn('Failed to fetch team leagues:', leaguesError);
+        // Continue with empty leagues array rather than failing
       }
 
       // Get captain profile if exists
@@ -359,15 +399,37 @@ export class TeamService {
       }
 
       const activeMembers = team.team_members?.filter((m: any) => m.is_active) || [];
+      
+      // Get leagues from junction table
+      let leagues = (teamLeagues || []).map((tl: any) => ({
+        league: tl.league,
+        joined_at: tl.joined_at,
+        is_active: tl.is_active
+      }));
+      
+      // BACKWARD COMPATIBILITY: If no junction table entries exist but team has a league_id,
+      // include the primary league in the leagues array
+      if (leagues.length === 0 && team.league) {
+        leagues = [{
+          league: team.league,
+          joined_at: team.created_at, // Use team creation date as fallback
+          is_active: true
+        }];
+      }
+      
       const teamWithDetails: TeamWithDetails = {
         ...team,
-        league: team.league || null,
+        // Backward compatibility - primary league (most recent)
+        league: team.league || (leagues.length > 0 ? leagues[0].league : null),
+        // New multi-league support
+        leagues: leagues,
+        league_count: leagues.length,
         captain,
         members: activeMembers,
         memberCount: activeMembers.length,
         availableSpots: Math.max(0, (team.max_players || 22) - activeMembers.length),
         stats,
-        isOrphaned: !team.league_id,
+        isOrphaned: leagues.length === 0, // Team is orphaned if no active league memberships
         previousLeagueName: team.previous_league_name || undefined
       };
 
@@ -656,6 +718,200 @@ export class TeamService {
         callback
       )
       .subscribe();
+  }
+
+  /**
+   * Get all leagues a team is participating in
+   */
+  async getTeamLeagues(teamId: string): Promise<ServiceResponse<Array<{
+    league: League;
+    joined_at: string;
+    is_active: boolean;
+  }>>> {
+    try {
+      const { data: teamLeagues, error } = await this.supabase
+        .from('team_leagues')
+        .select(`
+          joined_at,
+          is_active,
+          league:leagues(*)
+        `)
+        .eq('team_id', teamId)
+        .eq('is_active', true)
+        .order('joined_at', { ascending: false });
+
+      if (error) throw error;
+
+      const leagues = (teamLeagues || []).map((tl: any) => ({
+        league: tl.league,
+        joined_at: tl.joined_at,
+        is_active: tl.is_active
+      }));
+
+      return { data: leagues, error: null, success: true };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'getTeamLeagues'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Add team to a league (create team-league relationship)
+   */
+  async addTeamToLeague(
+    teamId: string,
+    leagueId: string,
+    userId: string
+  ): Promise<ServiceResponse<TeamLeague>> {
+    try {
+      // Verify the user is the team captain
+      const { data: team, error: verifyError } = await this.supabase
+        .from('teams')
+        .select('captain_id')
+        .eq('id', teamId)
+        .single();
+
+      if (verifyError) throw verifyError;
+
+      if (team.captain_id !== userId) {
+        return {
+          data: null,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Only team captains can add their team to leagues',
+            timestamp: new Date().toISOString()
+          },
+          success: false
+        };
+      }
+
+      // Check if relationship already exists
+      const { data: existing } = await this.supabase
+        .from('team_leagues')
+        .select('*')
+        .eq('team_id', teamId)
+        .eq('league_id', leagueId)
+        .single();
+
+      if (existing) {
+        if (existing.is_active) {
+          return {
+            data: null,
+            error: {
+              code: 'ALREADY_MEMBER',
+              message: 'Team is already a member of this league',
+              timestamp: new Date().toISOString()
+            },
+            success: false
+          };
+        } else {
+          // Reactivate existing relationship
+          const { data: reactivated, error: updateError } = await this.supabase
+            .from('team_leagues')
+            .update({ 
+              is_active: true, 
+              joined_at: new Date().toISOString(),
+              updated_at: new Date().toISOString() 
+            })
+            .eq('id', existing.id)
+            .select()
+            .single();
+
+          if (updateError) throw updateError;
+          return { data: reactivated, error: null, success: true };
+        }
+      }
+
+      // Create new team-league relationship
+      const { data: newRelation, error: insertError } = await this.supabase
+        .from('team_leagues')
+        .insert({
+          team_id: teamId,
+          league_id: leagueId,
+          is_active: true,
+          joined_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      // Clear caches
+      this.clearCache('getTeamDetails');
+      this.clearCache('getUserTeams');
+      this.clearCache('getTeamLeagues');
+
+      return { data: newRelation, error: null, success: true };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'addTeamToLeague'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Remove team from a league (deactivate team-league relationship)
+   */
+  async removeTeamFromLeague(
+    teamId: string,
+    leagueId: string,
+    userId: string
+  ): Promise<ServiceResponse<boolean>> {
+    try {
+      // Verify the user is the team captain
+      const { data: team, error: verifyError } = await this.supabase
+        .from('teams')
+        .select('captain_id')
+        .eq('id', teamId)
+        .single();
+
+      if (verifyError) throw verifyError;
+
+      if (team.captain_id !== userId) {
+        return {
+          data: null,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Only team captains can remove their team from leagues',
+            timestamp: new Date().toISOString()
+          },
+          success: false
+        };
+      }
+
+      // Deactivate the team-league relationship
+      const { error: updateError } = await this.supabase
+        .from('team_leagues')
+        .update({ 
+          is_active: false,
+          updated_at: new Date().toISOString() 
+        })
+        .eq('team_id', teamId)
+        .eq('league_id', leagueId);
+
+      if (updateError) throw updateError;
+
+      // Clear caches
+      this.clearCache('getTeamDetails');
+      this.clearCache('getUserTeams');
+      this.clearCache('getTeamLeagues');
+
+      return { data: true, error: null, success: true };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'removeTeamFromLeague'),
+        success: false
+      };
+    }
   }
 
   /**

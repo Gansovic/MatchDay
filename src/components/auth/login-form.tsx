@@ -44,6 +44,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const {
     register,
     handleSubmit,
+    setValue,
+    clearErrors,
     formState: { errors, isSubmitting }
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema)
@@ -94,6 +96,30 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         <p className="text-gray-600 dark:text-gray-400">
           Sign in to your player account
         </p>
+        {/* Development Player Credentials */}
+        <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <p className="text-sm text-blue-700 dark:text-blue-300 font-medium mb-2">
+            Development Player Login:
+          </p>
+          <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1 mb-3">
+            <div>Email: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">player@matchday.com</code></div>
+            <div>Password: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">player123!</code></div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              // Fill in the player credentials using React Hook Form's setValue
+              setValue('email', 'player@matchday.com');
+              setValue('password', 'player123!');
+              
+              // Clear any existing errors
+              clearErrors();
+            }}
+            className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition-colors"
+          >
+            Auto-Fill Player Credentials
+          </button>
+        </div>
       </div>
 
       {/* OAuth Buttons */}

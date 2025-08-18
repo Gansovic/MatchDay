@@ -30,10 +30,12 @@ import {
   UserPlus,
   MoreVertical,
   AlertCircle,
-  Loader2
+  Loader2,
+  Search
 } from 'lucide-react';
 import { useTeam, useUserProfile } from '@/hooks';
 import { useAuth } from '@/components/auth/auth-provider';
+import { InvitePlayerModal } from '@/components/team/InvitePlayerModal';
 
 interface Match {
   id: string;
@@ -78,7 +80,12 @@ interface DisplayTeamMember {
 interface DisplayTeamData {
   id: string;
   name: string;
-  league: string;
+  league: string; // Primary league for backward compatibility
+  leagues: Array<{ // Multiple leagues support
+    name: string;
+    id: string;
+    joined_at: string;
+  }>;
   logo?: string;
   color: string;
   description: string;
@@ -89,7 +96,7 @@ interface DisplayTeamData {
   isMember: boolean;
   isUserCaptain: boolean;
   userPosition?: string;
-  stats: {
+  stats?: {
     wins: number;
     draws: number;
     losses: number;
@@ -121,6 +128,7 @@ export default function TeamDashboard() {
   const params = useParams();
   const teamId = params.teamId as string;
   const [activeTab, setActiveTab] = useState<'overview' | 'roster' | 'matches'>('overview');
+  const [showInviteModal, setShowInviteModal] = useState(false);
   
   // Use custom hooks for data fetching
   const { user } = useAuth();
@@ -136,7 +144,12 @@ export default function TeamDashboard() {
   const displayTeam: DisplayTeamData | null = team ? {
     id: team.id,
     name: team.name,
-    league: team.league?.name || 'Unknown League',
+    league: team.league?.name || 'No League',
+    leagues: (team.leagues || []).map(tl => ({
+      name: tl.league.name,
+      id: tl.league.id,
+      joined_at: tl.joined_at
+    })),
     color: team.team_color || 'bg-blue-600',
     description: team.team_bio || 'No description available',
     founded: team.founded_year?.toString() || new Date(team.created_at).getFullYear().toString(),
@@ -342,28 +355,19 @@ export default function TeamDashboard() {
 
   const compactStandings = getCompactStandings(leagueStandings, displayTeam.name);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    // Use consistent UTC-based formatting to prevent hydration mismatches
-    const month = date.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
-    const day = date.getUTCDate();
-    const hours = date.getUTCHours().toString().padStart(2, '0');
-    const minutes = date.getUTCMinutes().toString().padStart(2, '0');
-    return `${month} ${day}, ${hours}:${minutes}`;
+  // Invitation handlers
+  const handleOpenInviteModal = () => {
+    setShowInviteModal(true);
   };
 
-  const calculateWinRate = (wins: number, draws: number, losses: number) => {
-    const total = wins + draws + losses;
-    return total > 0 ? Math.round((wins / total) * 100) : 0;
+  const handleCloseInviteModal = () => {
+    setShowInviteModal(false);
   };
 
-  const getResultBadge = (result: 'win' | 'loss' | 'draw') => {
-    const badges = {
-      win: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
-      loss: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300',
-      draw: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300'
-    };
-    return badges[result];
+  const handleInvitationSent = () => {
+    // TODO: Show success message or update the UI
+    console.log('Invitation sent successfully!');
+    // Could trigger a refetch of team data or show a toast notification
   };
 
   return (
@@ -391,9 +395,31 @@ export default function TeamDashboard() {
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
                   {team.name}
                 </h1>
-                <p className="text-gray-600 dark:text-gray-400 text-lg mb-2">
-                  {team.league}
-                </p>
+                {displayTeam.leagues.length > 0 ? (
+                  <div className="text-gray-600 dark:text-gray-400 text-lg mb-2">
+                    {displayTeam.leagues.length === 1 ? (
+                      <span>{displayTeam.leagues[0].name}</span>
+                    ) : (
+                      <div className="flex flex-wrap gap-2 items-center">
+                        <span className="text-sm font-medium">Competing in:</span>
+                        {displayTeam.leagues.map((league, index) => (
+                          <span key={league.id} className="inline-flex items-center">
+                            <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded-full text-sm font-medium">
+                              {league.name}
+                            </span>
+                            {index < displayTeam.leagues.length - 1 && (
+                              <span className="mx-1 text-gray-400">•</span>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-gray-600 dark:text-gray-400 text-lg mb-2">
+                    No League
+                  </p>
+                )}
                 <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
                   <span className="flex items-center gap-1">
                     <MapPin className="w-4 h-4" />
@@ -431,28 +457,34 @@ export default function TeamDashboard() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             <div className="text-center">
               <div className="text-3xl font-bold text-gray-900 dark:text-white">
-                {team.stats.position}
+                {team.stats?.position || '-'}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                of {team.stats.totalTeams}
-              </div>
+              {team.stats?.totalTeams ? (
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  of {team.stats?.totalTeams}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  No League
+                </div>
+              )}
               <div className="text-xs text-gray-500 dark:text-gray-500">League Position</div>
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold text-gray-900 dark:text-white">
-                {calculateWinRate(team.stats.wins, team.stats.draws, team.stats.losses)}%
+                {team.stats ? calculateWinRate(team.stats.wins, team.stats.draws, team.stats.losses) : 0}%
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-500">Win Rate</div>
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold text-gray-900 dark:text-white">
-                {team.stats.points}
+                {team.stats?.points || 0}
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-500">Points</div>
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold text-gray-900 dark:text-white">
-                {team.stats.goals}
+                {team.stats?.goals || 0}
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-500">
                 Goals Scored
@@ -511,16 +543,74 @@ export default function TeamDashboard() {
         {/* Tab Content */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
-            {/* League Table Preview */}
+            {/* League Table Preview or Join League Section */}
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {team.league} Standings
-                </h3>
-                <Trophy className="w-5 h-5 text-gray-400" />
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
+              {displayTeam.leagues.length > 0 ? (
+                <>
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {displayTeam.leagues.length === 1 
+                        ? `${displayTeam.leagues[0].name} Standings`
+                        : 'League Standings'
+                      }
+                    </h3>
+                    <Trophy className="w-5 h-5 text-gray-400" />
+                  </div>
+                  
+                  {displayTeam.leagues.length > 1 && (
+                    <div className="mb-6">
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                        This team competes in {displayTeam.leagues.length} leagues:
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {displayTeam.leagues.map((league) => (
+                          <div key={league.id} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                            <div className="font-medium text-gray-900 dark:text-white">
+                              {league.name}
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              Joined {new Date(league.joined_at).toLocaleDateString()}
+                            </div>
+                            <Link 
+                              href={`/leagues/${getLeagueId(league.name)}`}
+                              className="inline-flex items-center gap-1 mt-2 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                            >
+                              <Trophy className="w-3 h-3" />
+                              View League
+                            </Link>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Join a League
+                    </h3>
+                    <Search className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div className="text-center py-8">
+                    <Trophy className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                      No League Yet
+                    </h4>
+                    <p className="text-gray-600 dark:text-gray-400 mb-6">
+                      Your team isn't part of any league yet. Join a league to compete against other teams and see standings.
+                    </p>
+                    <button className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+                      <Search className="w-4 h-4" />
+                      Search Leagues
+                    </button>
+                  </div>
+                </>
+              )}
+              {displayTeam.leagues.length > 0 && displayTeam.leagues.length === 1 && (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-gray-600">
                       <th className="text-left py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">Pos</th>
@@ -595,30 +685,31 @@ export default function TeamDashboard() {
                       );
                     })}
                   </tbody>
-                </table>
-              </div>
-              
-              {/* View Full League Button */}
-              <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
-                <Link 
-                  href={`/leagues/${leagueId}`}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors text-sm"
-                >
-                  <Trophy className="w-4 h-4" />
-                  View Full League Table
-                </Link>
-              </div>
-              
-              <div className="mt-4 flex items-center gap-6 text-xs text-gray-500 dark:text-gray-400">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-green-100 dark:bg-green-900/30 rounded-full"></div>
-                  <span>Top 3 (Championship spots)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-red-100 dark:bg-red-900/30 rounded-full"></div>
-                  <span>Bottom 2 (Relegation zone)</span>
-                </div>
-              </div>
+                    </table>
+                  </div>
+                  
+                  <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+                    <Link 
+                      href={`/leagues/${getLeagueId(displayTeam.leagues[0].name)}`}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors text-sm"
+                    >
+                      <Trophy className="w-4 h-4" />
+                      View Full League Table
+                    </Link>
+                  </div>
+                  
+                  <div className="mt-4 flex items-center gap-6 text-xs text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-green-100 dark:bg-green-900/30 rounded-full"></div>
+                      <span>Top 3 (Championship spots)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-red-100 dark:bg-red-900/30 rounded-full"></div>
+                      <span>Bottom 2 (Relegation zone)</span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Matches Grid */}
@@ -703,7 +794,10 @@ export default function TeamDashboard() {
                 Team Roster
               </h3>
               {displayTeam.isUserCaptain && (
-                <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors text-sm">
+                <button 
+                  onClick={handleOpenInviteModal}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors text-sm"
+                >
                   <UserPlus className="w-4 h-4" />
                   Add Member
                 </button>
@@ -835,6 +929,15 @@ export default function TeamDashboard() {
           </div>
         )}
       </div>
+
+      {/* Invite Player Modal */}
+      <InvitePlayerModal
+        isOpen={showInviteModal}
+        onClose={handleCloseInviteModal}
+        teamId={teamId}
+        teamName={displayTeam?.name || 'Team'}
+        onInvitationSent={handleInvitationSent}
+      />
     </div>
   );
 }

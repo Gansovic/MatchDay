@@ -14,19 +14,17 @@ import {
   Trophy, 
   Users, 
   Target,
-  Activity,
   Star,
   TrendingUp,
-  Clock,
   UserCheck
 } from 'lucide-react';
 import { 
   useUserStats, 
   useUserTeams, 
-  useRecentActivity, 
   useUserPerformance 
 } from '@/hooks/useDashboardData';
 import { useUserProfile } from '@/hooks';
+import { RecentActivity } from '@/components/notifications/recent-activity';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -38,7 +36,6 @@ export default function DashboardPage() {
   // Fetch dashboard data
   const { stats, loading: statsLoading } = useUserStats(user?.id || null);
   const { teams, loading: teamsLoading } = useUserTeams(user?.id || null);
-  const { activity, loading: activityLoading } = useRecentActivity(user?.id || null, 5);
   const { performance } = useUserPerformance(user?.id || null);
 
   if (isLoading || profileLoading) {
@@ -193,60 +190,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
           {/* Recent Activity */}
           <div className="lg:col-span-2">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 card-hover">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-6 flex items-center gap-2">
-                <Activity className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                Recent Activity
-              </h3>
-              {activityLoading ? (
-                <div className="space-y-4">
-                  {[...Array(3)].map((_, i) => (
-                    <div key={i} className="flex items-start gap-4">
-                      <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse"></div>
-                      <div className="flex-1">
-                        <div className="w-3/4 h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
-                        <div className="w-1/2 h-3 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : activity.length > 0 ? (
-                <div className="space-y-4">
-                  {activity.map((item) => (
-                    <div key={item.id} className="flex items-start gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                      <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-                        {item.type === 'team_joined' && <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />}
-                        {item.type === 'match' && <Trophy className="w-5 h-5 text-green-600 dark:text-green-400" />}
-                        {item.type === 'goal_scored' && <Target className="w-5 h-5 text-purple-600 dark:text-purple-400" />}
-                        {item.type === 'league_joined' && <Star className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />}
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="font-medium text-gray-900 dark:text-gray-100">{item.title}</h4>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{item.description}</p>
-                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-500">
-                          <Clock className="w-3 h-3" />
-                          {new Date(item.timestamp).toLocaleDateString()}
-                          {item.metadata?.teamName && (
-                            <>
-                              <span>•</span>
-                              <span>{item.metadata.teamName}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Activity className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 dark:text-gray-400">No recent activity yet</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
-                    Join a team or league to start seeing your activity here
-                  </p>
-                </div>
-              )}
-            </div>
+            <RecentActivity className="rounded-2xl shadow-xl card-hover" limit={5} />
           </div>
 
           {/* Team Memberships */}
@@ -330,9 +274,9 @@ export default function DashboardPage() {
         </div>
 
         {/* Action Cards */}
-        <div className={`grid grid-cols-1 gap-8 ${(teams.length === 0 && activity.length === 0) ? 'lg:grid-cols-2' : 'lg:grid-cols-1 max-w-2xl mx-auto'}`}>
+        <div className={`grid grid-cols-1 gap-8 ${teams.length === 0 ? 'lg:grid-cols-2' : 'lg:grid-cols-1 max-w-2xl mx-auto'}`}>
           {/* Get Started - Only show for new users */}
-          {teams.length === 0 && activity.length === 0 && (
+          {teams.length === 0 && (
             <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-8 card-hover">
               <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
                 Get Started

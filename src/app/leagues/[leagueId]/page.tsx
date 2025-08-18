@@ -119,8 +119,11 @@ export default function LeaguePage() {
   // Derived data for rendering
   const recentMatches = matches.filter(m => m.status === 'completed').slice(0, 8);
   const upcomingMatches = matches.filter(m => m.status === 'upcoming').slice(0, 8);
-            </Link>
-          </div>
+
+  if (errors.league) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <div className="container mx-auto px-4 py-8">
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">League Not Found</h2>

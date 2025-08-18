@@ -19,6 +19,7 @@ export interface Database {
           date_of_birth: string | null;
           preferred_position: string | null;
           location: string | null;
+          role: 'player' | 'captain' | 'admin' | 'league_admin' | 'app_admin';
           created_at: string;
           updated_at: string;
         };
@@ -32,6 +33,7 @@ export interface Database {
           date_of_birth?: string | null;
           preferred_position?: string | null;
           location?: string | null;
+          role?: 'player' | 'captain' | 'admin' | 'league_admin' | 'app_admin';
           created_at?: string;
           updated_at?: string;
         };
@@ -45,6 +47,7 @@ export interface Database {
           date_of_birth?: string | null;
           preferred_position?: string | null;
           location?: string | null;
+          role?: 'player' | 'captain' | 'admin' | 'league_admin' | 'app_admin';
           created_at?: string;
           updated_at?: string;
         };
@@ -488,6 +491,35 @@ export interface Database {
           updated_by?: string | null;
         };
       };
+      team_leagues: {
+        Row: {
+          id: string;
+          team_id: string;
+          league_id: string;
+          joined_at: string;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          league_id: string;
+          joined_at?: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          team_id?: string;
+          league_id?: string;
+          joined_at?: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {
       league_standings: {
@@ -608,11 +640,13 @@ export type Achievement = Database['public']['Tables']['achievements']['Row'];
 export type UserAchievement = Database['public']['Tables']['user_achievements']['Row'];
 export type TeamJoinRequest = Database['public']['Tables']['team_join_requests']['Row'];
 export type AppConfiguration = Database['public']['Tables']['app_configurations']['Row'];
+export type TeamLeague = Database['public']['Tables']['team_leagues']['Row'];
 
 // Insert types
 export type InsertLeague = Database['public']['Tables']['leagues']['Insert'];
 export type InsertTeam = Database['public']['Tables']['teams']['Insert'];
 export type InsertMatch = Database['public']['Tables']['matches']['Insert'];
+export type InsertTeamLeague = Database['public']['Tables']['team_leagues']['Insert'];
 
 // Update types
 export type UpdateLeague = Database['public']['Tables']['leagues']['Update'];
@@ -620,6 +654,7 @@ export type UpdateTeam = Database['public']['Tables']['teams']['Update'];
 export type UpdateMatch = Database['public']['Tables']['matches']['Update'];
 export type UpdateUserProfile = Database['public']['Tables']['user_profiles']['Update'];
 export type UpdatePlayerStats = Database['public']['Tables']['player_stats']['Update'];
+export type UpdateTeamLeague = Database['public']['Tables']['team_leagues']['Update'];
 
 // View types
 export type LeagueStanding = Database['public']['Views']['league_standings']['Row'];
@@ -685,7 +720,7 @@ export enum JoinRequestStatus {
 export interface PlayerProfile extends UserProfile {
   teams?: Array<{
     team: Team;
-    league: League;
+    leagues: League[]; // Updated to support multiple leagues per team
     position?: string;
     jersey_number?: number;
     is_active?: boolean;
@@ -696,6 +731,17 @@ export interface PlayerProfile extends UserProfile {
     earned_at: string;
     context?: any;
   }>;
+}
+
+// Team with multiple leagues interface
+export interface TeamWithLeagues extends Team {
+  leagues: Array<{
+    league: League;
+    joined_at: string;
+    is_active: boolean;
+  }>;
+  primary_league?: League; // For backward compatibility
+  league_count: number;
 }
 
 export interface LeagueWithDetails extends League {
@@ -736,9 +782,8 @@ export interface CreateLeagueForm {
 
 export interface CreateTeamForm {
   name: string;
-  league_id: string;
+  league_id?: string;  // Optional - teams can be created without a league
   sport: string;
-  league: string;
   description?: string;
   max_players?: number;
   min_players?: number;
@@ -758,6 +803,121 @@ export interface UpdateProfileForm {
   preferred_position?: string;
   location?: string;
   date_of_birth?: string;
+}
+
+// Team Invitation types
+export type InvitationStatus = 'pending' | 'accepted' | 'declined' | 'expired';
+
+// Team League Request types
+export type TeamLeagueRequestStatus = 'pending' | 'approved' | 'rejected' | 'withdrawn';
+
+// User Role types
+export type UserRole = 'player' | 'captain' | 'admin' | 'league_admin' | 'app_admin';
+
+export interface TeamInvitation {
+  id: string;
+  team_id: string;
+  invited_by: string;
+  invited_email: string;
+  invited_user_id?: string;
+  position?: string;
+  jersey_number?: number;
+  message?: string;
+  status: InvitationStatus;
+  expires_at: string;
+  created_at: string;
+  responded_at?: string;
+}
+
+export interface TeamInvitationWithDetails extends TeamInvitation {
+  team: {
+    id: string;
+    name: string;
+    location?: string;
+    team_color?: string;
+    team_bio?: string;
+    max_players?: number;
+    captain?: {
+      display_name?: string;
+      email: string;
+    };
+  };
+  invited_by_user: {
+    display_name?: string;
+    email: string;
+  };
+}
+
+export interface SendInvitationForm {
+  email: string;
+  position?: string;
+  jersey_number?: number;
+  message?: string;
+}
+
+export interface InvitationResponseForm {
+  action: 'accept' | 'decline';
+}
+
+// Team League Request interfaces
+export interface TeamLeagueRequest {
+  id: string;
+  team_id: string;
+  league_id: string;
+  requested_by: string;
+  message?: string;
+  status: TeamLeagueRequestStatus;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  review_message?: string;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface TeamLeagueRequestWithDetails extends TeamLeagueRequest {
+  teams: {
+    id: string;
+    name: string;
+    team_color?: string;
+    team_bio?: string;
+    max_players?: number;
+    min_players?: number;
+    captain_id: string;
+    member_count: number;
+  };
+  leagues: {
+    id: string;
+    name: string;
+    description?: string;
+    location?: string;
+    sport_type: string;
+    league_type: string;
+    entry_fee?: number;
+  };
+  requested_by_user: {
+    email: string;
+    user_profiles?: {
+      display_name?: string;
+      full_name?: string;
+    };
+  };
+  reviewed_by_user?: {
+    email: string;
+    user_profiles?: {
+      display_name?: string;
+      full_name?: string;
+    };
+  };
+}
+
+export interface CreateLeagueRequestForm {
+  league_id: string;
+  message?: string;
+}
+
+export interface LeagueRequestResponseForm {
+  action: 'approve' | 'reject';
+  review_message?: string;
 }
 
 // API Response types
