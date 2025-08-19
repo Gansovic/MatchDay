@@ -19,11 +19,10 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { UserService } from '@/lib/services/user.service';
-import type { User } from '@supabase/supabase-js';
+import { authService, type AuthUser } from '@shared/lib/auth';
 
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   signUp: (data: {
@@ -60,38 +59,24 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({
   children
 }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Subscribe to auth state changes with Supabase directly
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: string, session: any) => {
-        if (session?.user) {
-          setUser(session.user);
-        } else {
-          setUser(null);
-        }
-        setIsLoading(false);
-      }
-    );
+    // Initialize the unified auth service with supabase client
+    authService.setSupabaseClient(supabase);
 
-    // Get initial session
-    const getInitialSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setUser(session.user);
-      } else {
-        setUser(null);
-      }
+    // Subscribe to auth state changes through unified service
+    const unsubscribe = authService.onAuthStateChange((user) => {
+      setUser(user);
       setIsLoading(false);
-    };
+    });
 
-    getInitialSession();
+    // Set initial user from auth service
+    setUser(authService.getCurrentUser());
+    setIsLoading(false);
 
-    return () => {
-      subscription?.unsubscribe();
-    };
+    return unsubscribe;
   }, []);
 
   const signUp = async (data: {
@@ -102,35 +87,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     location?: string;
   }): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { data: authData, error } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password
-      });
-
-      if (error) {
-        return { success: false, error: error.message };
+      const result = await authService.signUp(data);
+      
+      if (result.error) {
+        return { success: false, error: result.error.message };
       }
-
-      if (!authData.user) {
-        return { success: false, error: 'User creation failed' };
-      }
-
-      // Wait a moment for the trigger to create the basic profile
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Update the user profile with the provided data
-      const userService = UserService.getInstance();
-      const profileResult = await userService.updateUserProfile(authData.user.id, {
-        display_name: data.displayName,
-        preferred_position: data.preferredPosition,
-        location: data.location
-      });
-
-      if (!profileResult.success) {
-        console.warn('Profile update failed:', profileResult.error);
-        // Don't fail the signup if profile update fails - the trigger created a basic profile
-      }
-
+      
       return { success: true };
     } catch (error) {
       return { 
@@ -145,15 +107,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     password: string;
   }): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { data: authData, error } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: data.password
-      });
-
-      if (error) {
-        return { success: false, error: error.message };
+      const result = await authService.signIn(data);
+      
+      if (result.error) {
+        return { success: false, error: result.error.message };
       }
-
+      
       return { success: true };
     } catch (error) {
       return { 
@@ -167,17 +126,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     provider: 'google' | 'github' | 'discord'
   ): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`
-        }
-      });
-
-      if (error) {
-        return { success: false, error: error.message };
+      const result = await authService.signInWithOAuth(provider);
+      
+      if (result.error) {
+        return { success: false, error: result.error.message };
       }
-
+      
       return { success: true };
     } catch (error) {
       return { 
@@ -189,7 +143,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
 
   const signOut = async (): Promise<void> => {
     try {
-      await supabase.auth.signOut();
+      await authService.signOut();
     } catch (error) {
       console.error('Sign out error:', error);
     }
@@ -204,14 +158,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     location?: string;
   }): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { error } = await supabase.auth.updateUser({
-        data: updates
-      });
-
-      if (error) {
-        return { success: false, error: error.message };
+      const result = await authService.updateProfile(updates);
+      
+      if (result.error) {
+        return { success: false, error: result.error.message };
       }
-
+      
       return { success: true };
     } catch (error) {
       return { 
@@ -223,14 +175,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
 
   const resetPassword = async (email: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`
-      });
-
-      if (error) {
-        return { success: false, error: error.message };
+      const result = await authService.resetPassword(email);
+      
+      if (result.error) {
+        return { success: false, error: result.error.message };
       }
-
+      
       return { success: true };
     } catch (error) {
       return { 
@@ -241,19 +191,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
   };
 
   const hasPermission = (permission: 'create_league' | 'manage_team' | 'admin'): boolean => {
-    if (!user) return false;
-    
-    // For now, all authenticated users can create leagues and manage teams
-    switch (permission) {
-      case 'create_league':
-      case 'manage_team':
-        return true;
-      case 'admin':
-        // Check if user has admin role (would be stored in user metadata)
-        return user.user_metadata?.role === 'admin';
-      default:
-        return false;
-    }
+    return authService.hasPermission(permission);
   };
 
   const value: AuthContextType = {
@@ -321,7 +259,7 @@ export const withAuth = <P extends object>(
 };
 
 // Hook for requiring authentication
-export const useRequireAuth = (): User => {
+export const useRequireAuth = (): AuthUser => {
   const { user, isLoading } = useAuth();
 
   if (isLoading) {

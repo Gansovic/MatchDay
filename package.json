@@ -2,6 +2,7 @@
   "name": "matchday",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
@@ -11,7 +12,23 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "lint:fix": "next lint --fix",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "dev:init": "node scripts/dev-init.js",
+    "dev:init:force": "node scripts/dev-init.js --force --verbose",
+    "dev:reset": "node scripts/dev-reset.js",
+    "dev:reset:hard": "node scripts/dev-reset.js --hard",
+    "dev:full": "npm run dev:init && npm run dev",
+    "dev:create-users": "node scripts/create-development-users.js",
+    "dev:setup": "npm run dev:create-users",
+    "auth:check": "node scripts/validate-auth-migration.js",
+    "auth:pre-migration": "node scripts/validate-auth-migration.js --pre",
+    "auth:post-migration": "node scripts/validate-auth-migration.js --post",
+    "auth:recover": "node scripts/validate-auth-migration.js --post --auto-fix",
+    "auth:test": "node scripts/test-auth-reliability.js",
+    "auth:test-verbose": "node scripts/test-auth-reliability.js --verbose",
+    "test:errors": "node scripts/test-error-handling.js",
+    "test:errors-verbose": "node scripts/test-error-handling.js --verbose",
+    "errors:monitor": "echo 'Visit http://localhost:3000/dev/errors for error monitoring dashboard'"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

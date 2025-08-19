@@ -387,6 +387,7 @@ export class AdminDashboardService {
         .from('team_leagues')
         .select(`
           team_id,
+          league_id,
           joined_at,
           teams!inner(id, name),
           leagues!inner(id, name)
@@ -399,19 +400,30 @@ export class AdminDashboardService {
       const activities: RecentActivity[] = [];
 
       if (recentTeamJoins && !teamsError) {
+        // Use a Map to deduplicate entries based on team-league combination
+        const activityMap = new Map<string, RecentActivity>();
+        
         recentTeamJoins.forEach(join => {
-          activities.push({
-            id: `team-join-${join.team_id}`,
-            type: 'team_joined',
-            description: `Team "${(join.teams as any).name}" joined ${(join.leagues as any).name}`,
-            timestamp: join.joined_at,
-            relatedEntity: {
-              type: 'team',
-              id: (join.teams as any).id,
-              name: (join.teams as any).name
-            }
-          });
+          // Create a unique key using both team_id and league_id with timestamp for uniqueness
+          const uniqueKey = `team-join-${join.team_id}-${join.league_id}-${new Date(join.joined_at).getTime()}`;
+          
+          // Only add if we haven't seen this team-league combination recently
+          if (!activityMap.has(uniqueKey)) {
+            activityMap.set(uniqueKey, {
+              id: uniqueKey,
+              type: 'team_joined',
+              description: `Team "${(join.teams as any).name}" joined ${(join.leagues as any).name}`,
+              timestamp: join.joined_at,
+              relatedEntity: {
+                type: 'team',
+                id: (join.teams as any).id,
+                name: (join.teams as any).name
+              }
+            });
+          }
         });
+        
+        activities.push(...activityMap.values());
       }
 
       // Sort by timestamp descending

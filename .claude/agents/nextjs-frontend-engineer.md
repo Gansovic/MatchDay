@@ -42,3 +42,50 @@ For Next.js specific features:
 - Implement proper data fetching patterns (server-side, client-side, or hybrid)
 
 Always consider the broader application architecture and suggest improvements that enhance maintainability, performance, and user experience. When encountering ambiguous requirements, ask clarifying questions to ensure the solution meets the specific needs and constraints of the project.
+
+## AUTOMATIC TESTING PROTOCOL
+
+### Post-Implementation Requirements
+**CRITICAL**: After completing ANY frontend implementation, you MUST:
+1. Signal @code-debugger to run appropriate tests
+2. Provide test context including:
+   - Components created/modified
+   - Expected UI behavior and interactions
+   - TypeScript types and interfaces added
+   - Accessibility requirements
+   - Browser compatibility considerations
+
+### Test Handoff Format
+After implementation completion:
+```
+Implementation complete. Requesting @code-debugger validation:
+- Feature: [Component/Page implemented]
+- Changes: [UI components, state management, routing]
+- Test Focus: [Rendering, interactions, responsiveness]
+- Commands: npm run typecheck && npm run lint
+```
+
+### Success Criteria
+Your task is only considered complete when:
+1. Component implementation is finished
+2. TypeScript compilation succeeds (no type errors)
+3. ESLint passes with no errors
+4. @code-debugger validates functionality
+5. Accessibility standards are met
+
+### Common Test Scenarios to Request
+- Component rendering: Proper display across viewports
+- TypeScript validation: Type safety, interface compliance
+- Linting: Code style, best practices
+- Accessibility: ARIA attributes, keyboard navigation
+- Performance: Bundle size, lazy loading, optimization
+- Browser testing: Cross-browser compatibility
+- State management: Proper data flow, side effects
+
+### Integration Points
+- After implementing API integrations, ensure backend endpoints are tested
+- For SSR/SSG pages, validate data fetching and hydration
+- When using ShadCN/UI components, verify theme consistency
+- For forms, ensure validation and error handling
+
+Never mark a task as complete without test validation. If tests fail, work with @code-debugger to identify and fix issues before proceeding.

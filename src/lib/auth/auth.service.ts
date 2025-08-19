@@ -15,6 +15,9 @@
 
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { EdgeFunctionsService } from '../services/edge-functions.service';
+import { BaseService } from '../services/base.service';
+import { ErrorRecoveryService } from '../error/error-recovery.service';
+import { errorHandler, ErrorType } from '../error/error-handler';
 
 export interface AuthUser extends User {
   profile?: {
@@ -24,6 +27,7 @@ export interface AuthUser extends User {
     bio?: string;
     date_of_birth?: string;
     location?: string;
+    role?: 'player' | 'league_admin' | 'app_admin';
   };
 }
 
@@ -44,14 +48,32 @@ export interface SignInData {
   password: string;
 }
 
-export class AuthService {
+export class AuthService extends BaseService {
   private static instance: AuthService;
   private supabase: any;
   private currentUser: AuthUser | null = null;
   private currentSession: AuthSession | null = null;
   private listeners: Array<(user: AuthUser | null) => void> = [];
+  private isOffline: boolean = false;
+  private offlineQueue: Array<() => Promise<any>> = [];
+  private reconnectionAttempts: number = 0;
+  private maxReconnectionAttempts: number = 5;
   
-  private constructor() {}
+  private constructor() {
+    super({
+      retryAttempts: 3,
+      retryDelay: 1000,
+      cacheEnabled: true,
+      cacheTTL: 10 * 60 * 1000, // 10 minutes for auth data
+      timeout: 15000 // 15 seconds for auth operations
+    });
+
+    // Monitor online/offline status
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', this.handleOnline.bind(this));
+      window.addEventListener('offline', this.handleOffline.bind(this));
+    }
+  }
   
   static getInstance(): AuthService {
     if (!AuthService.instance) {
@@ -66,28 +88,123 @@ export class AuthService {
   }
   
   private async initializeAuthListener() {
-    // Listen for auth state changes
-    this.supabase.auth.onAuthStateChange(async (event: string, session: Session | null) => {
-      if (session?.user) {
-        // Fetch user profile
-        const userWithProfile = await this.enrichUserWithProfile(session.user);
-        this.currentUser = userWithProfile;
-        this.currentSession = { ...session, user: userWithProfile } as AuthSession;
-      } else {
-        this.currentUser = null;
-        this.currentSession = null;
+    try {
+      // Listen for auth state changes with error handling
+      this.supabase.auth.onAuthStateChange(async (event: string, session: Session | null) => {
+        try {
+          console.log('Auth state change:', event, session?.user?.email);
+          
+          if (session?.user) {
+            // Fetch user profile with retry and error handling
+            const userWithProfile = await this.executeOperation(
+              () => this.enrichUserWithProfile(session.user),
+              {
+                operationName: 'enrichUserWithProfile',
+                userId: session.user.id,
+                metadata: { event }
+              }
+            );
+            
+            this.currentUser = userWithProfile;
+            this.currentSession = { ...session, user: userWithProfile } as AuthSession;
+            
+            // Cache the session
+            this.setCache(`session:${session.user.id}`, this.currentSession);
+          } else {
+            this.currentUser = null;
+            this.currentSession = null;
+            this.invalidateCache('session:');
+          }
+          
+          // Notify listeners with error handling
+          this.notifyListeners(this.currentUser);
+        } catch (error) {
+          console.error('Error in auth state change:', error);
+          // Don't throw - this would break the auth flow
+        }
+      });
+      
+      // Get initial session with error handling
+      const { data: { session }, error } = await this.supabase.auth.getSession();
+      
+      if (error) {
+        throw errorHandler.handle(error, {
+          type: ErrorType.AUTH,
+          metadata: { operation: 'getInitialSession' }
+        });
       }
       
-      // Notify listeners
-      this.listeners.forEach(listener => listener(this.currentUser));
+      if (session?.user) {
+        const userWithProfile = await this.executeOperation(
+          () => this.enrichUserWithProfile(session.user),
+          {
+            operationName: 'getInitialSession',
+            userId: session.user.id
+          }
+        );
+        
+        this.currentUser = userWithProfile;
+        this.currentSession = { ...session, user: userWithProfile } as AuthSession;
+        this.setCache(`session:${session.user.id}`, this.currentSession);
+      }
+    } catch (error) {
+      console.error('Failed to initialize auth listener:', error);
+      // Try to recover from cached session
+      this.attemptCacheRecovery();
+    }
+  }
+
+  private notifyListeners(user: AuthUser | null) {
+    this.listeners.forEach(listener => {
+      try {
+        listener(user);
+      } catch (error) {
+        console.error('Error in auth listener:', error);
+      }
     });
-    
-    // Get initial session
-    const { data: { session } } = await this.supabase.auth.getSession();
-    if (session?.user) {
-      const userWithProfile = await this.enrichUserWithProfile(session.user);
-      this.currentUser = userWithProfile;
-      this.currentSession = { ...session, user: userWithProfile } as AuthSession;
+  }
+
+  private async attemptCacheRecovery() {
+    try {
+      // Try to find any cached session
+      for (const [key, entry] of this.cache.entries()) {
+        if (key.startsWith('session:') && entry.data) {
+          console.log('Attempting cache recovery for auth session');
+          this.currentSession = entry.data;
+          this.currentUser = entry.data.user;
+          this.notifyListeners(this.currentUser);
+          break;
+        }
+      }
+    } catch (error) {
+      console.error('Cache recovery failed:', error);
+    }
+  }
+
+  private handleOnline() {
+    console.log('Network back online, processing queued operations');
+    this.isOffline = false;
+    this.reconnectionAttempts = 0;
+    this.processOfflineQueue();
+  }
+
+  private handleOffline() {
+    console.log('Network offline detected');
+    this.isOffline = true;
+  }
+
+  private async processOfflineQueue() {
+    const queue = [...this.offlineQueue];
+    this.offlineQueue = [];
+
+    for (const operation of queue) {
+      try {
+        await operation();
+      } catch (error) {
+        console.error('Failed to process queued operation:', error);
+        // Re-queue failed operations
+        this.offlineQueue.push(operation);
+      }
     }
   }
   
@@ -117,26 +234,42 @@ export class AuthService {
     session: AuthSession | null;
     error: AuthError | null;
   }> {
-    try {
+    if (this.isOffline) {
+      return {
+        user: null,
+        session: null,
+        error: { message: 'Cannot create account while offline' } as AuthError
+      };
+    }
+
+    return this.executeOperation(async () => {
       const { data: authData, error: authError } = await this.supabase.auth.signUp({
         email: data.email,
         password: data.password
       });
       
       if (authError) {
-        return { user: null, session: null, error: authError };
+        throw errorHandler.handle(authError, {
+          type: ErrorType.AUTH,
+          metadata: { operation: 'signUp', email: data.email }
+        });
       }
       
       if (authData.user) {
         // Create user profile via Edge Function to ensure proper validation and audit logging
-        const profileResult = await EdgeFunctionsService.getInstance().updateUserProfile({
-          display_name: data.displayName,
-          preferred_position: data.preferredPosition,
-          location: data.location
-        });
-        
-        if (!profileResult.success) {
-          console.warn('Failed to create user profile:', profileResult.error);
+        try {
+          const profileResult = await EdgeFunctionsService.getInstance().updateUserProfile({
+            display_name: data.displayName,
+            preferred_position: data.preferredPosition,
+            location: data.location
+          });
+          
+          if (!profileResult.success) {
+            console.warn('Failed to create user profile:', profileResult.error);
+          }
+        } catch (profileError) {
+          console.warn('Profile creation failed:', profileError);
+          // Don't fail signup for profile creation issues
         }
         
         const enrichedUser = await this.enrichUserWithProfile(authData.user);
@@ -151,13 +284,14 @@ export class AuthService {
       }
       
       return { user: null, session: null, error: null };
-    } catch (error) {
-      return {
-        user: null,
-        session: null,
-        error: error as AuthError
-      };
-    }
+    }, {
+      operationName: 'signUp',
+      metadata: { email: data.email }
+    }).catch(error => ({
+      user: null,
+      session: null,
+      error: error as AuthError
+    }));
   }
   
   /**
@@ -168,19 +302,45 @@ export class AuthService {
     session: AuthSession | null;
     error: AuthError | null;
   }> {
-    try {
+    // Check for offline mode - allow cached sessions
+    if (this.isOffline) {
+      const cachedSession = this.getFromCache<AuthSession>(`session:${data.email}`);
+      if (cachedSession) {
+        console.log('Using cached session for offline login');
+        return {
+          user: cachedSession.user,
+          session: cachedSession,
+          error: null
+        };
+      }
+      
+      return {
+        user: null,
+        session: null,
+        error: { message: 'No cached session available for offline login' } as AuthError
+      };
+    }
+
+    return this.executeOperation(async () => {
       const { data: authData, error } = await this.supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password
       });
       
       if (error) {
-        return { user: null, session: null, error };
+        throw errorHandler.handle(error, {
+          type: ErrorType.AUTH,
+          metadata: { operation: 'signIn', email: data.email }
+        });
       }
       
       if (authData.user) {
         const enrichedUser = await this.enrichUserWithProfile(authData.user);
         const enrichedSession = { ...authData.session, user: enrichedUser } as AuthSession;
+        
+        // Cache the session for offline use
+        this.setCache(`session:${authData.user.id}`, enrichedSession);
+        this.setCache(`session:${data.email}`, enrichedSession); // Also cache by email for offline lookup
         
         return {
           user: enrichedUser,
@@ -190,13 +350,14 @@ export class AuthService {
       }
       
       return { user: null, session: null, error: null };
-    } catch (error) {
-      return {
-        user: null,
-        session: null,
-        error: error as AuthError
-      };
-    }
+    }, {
+      operationName: 'signIn',
+      metadata: { email: data.email }
+    }).catch(error => ({
+      user: null,
+      session: null,
+      error: error as AuthError
+    }));
   }
   
   /**
@@ -343,17 +504,162 @@ export class AuthService {
   hasPermission(permission: 'create_league' | 'manage_team' | 'admin'): boolean {
     if (!this.currentUser) return false;
     
-    // For now, all authenticated users can create leagues and manage teams
-    // In the future, this could be enhanced with role-based permissions
+    const userRole = this.currentUser.profile?.role;
+    
     switch (permission) {
       case 'create_league':
+        // League admins and app admins can create leagues
+        return userRole === 'league_admin' || userRole === 'app_admin';
       case 'manage_team':
+        // All authenticated users can manage teams they're part of
         return true;
       case 'admin':
-        // Check if user has admin role (would be stored in user metadata or separate table)
-        return this.currentUser.user_metadata?.role === 'admin';
+        // Only app admins have full admin permissions
+        return userRole === 'app_admin';
       default:
         return false;
     }
+  }
+
+  /**
+   * Get current user's role
+   */
+  getUserRole(): 'player' | 'league_admin' | 'app_admin' | null {
+    if (!this.currentUser?.profile?.role) return null;
+    return this.currentUser.profile.role as 'player' | 'league_admin' | 'app_admin';
+  }
+
+  /**
+   * Check if user is a league admin
+   */
+  isLeagueAdmin(): boolean {
+    const role = this.getUserRole();
+    return role === 'league_admin' || role === 'app_admin';
+  }
+
+  /**
+   * Check if user is an app admin
+   */
+  isAppAdmin(): boolean {
+    return this.getUserRole() === 'app_admin';
+  }
+
+  /**
+   * Check if in offline mode
+   */
+  isOfflineMode(): boolean {
+    return this.isOffline;
+  }
+
+  /**
+   * Queue operation for when network returns
+   */
+  queueForOnline(operation: () => Promise<any>): void {
+    if (this.isOffline) {
+      this.offlineQueue.push(operation);
+    } else {
+      // Execute immediately if online
+      operation().catch(error => 
+        console.error('Queued operation failed:', error)
+      );
+    }
+  }
+
+  /**
+   * Enhanced health check for auth service
+   */
+  protected async performHealthCheck(): Promise<void> {
+    // Check Supabase connection
+    if (!this.supabase) {
+      throw new Error('Supabase client not initialized');
+    }
+
+    // Test basic auth functionality
+    try {
+      await this.supabase.auth.getUser();
+    } catch (error) {
+      throw new Error(`Auth service unhealthy: ${error.message}`);
+    }
+
+    // Check if we can read user profiles table
+    try {
+      await this.supabase.from('user_profiles').select('id').limit(1);
+    } catch (error) {
+      throw new Error(`User profiles table inaccessible: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get auth service status
+   */
+  getAuthStatus(): {
+    isAuthenticated: boolean;
+    isOffline: boolean;
+    currentUser: { id: string; email: string; role?: string } | null;
+    cacheSize: number;
+    reconnectionAttempts: number;
+    queuedOperations: number;
+  } {
+    return {
+      isAuthenticated: !!this.currentUser,
+      isOffline: this.isOffline,
+      currentUser: this.currentUser ? {
+        id: this.currentUser.id,
+        email: this.currentUser.email || 'unknown',
+        role: this.currentUser.profile?.role
+      } : null,
+      cacheSize: this.cache.size,
+      reconnectionAttempts: this.reconnectionAttempts,
+      queuedOperations: this.offlineQueue.length
+    };
+  }
+
+  /**
+   * Force refresh of current session
+   */
+  async refreshSession(): Promise<{ success: boolean; error?: string }> {
+    if (this.isOffline) {
+      return { success: false, error: 'Cannot refresh session while offline' };
+    }
+
+    return this.executeOperation(async () => {
+      const { data, error } = await this.supabase.auth.refreshSession();
+      
+      if (error) {
+        throw errorHandler.handle(error, {
+          type: ErrorType.AUTH,
+          metadata: { operation: 'refreshSession' }
+        });
+      }
+
+      if (data.session?.user) {
+        const enrichedUser = await this.enrichUserWithProfile(data.session.user);
+        this.currentUser = enrichedUser;
+        this.currentSession = { ...data.session, user: enrichedUser } as AuthSession;
+        
+        // Update cache
+        this.setCache(`session:${data.session.user.id}`, this.currentSession);
+        
+        this.notifyListeners(this.currentUser);
+        
+        return { success: true };
+      }
+      
+      return { success: false, error: 'No session data returned' };
+    }, {
+      operationName: 'refreshSession',
+      userId: this.currentUser?.id
+    }).catch(error => ({
+      success: false,
+      error: error.message || 'Session refresh failed'
+    }));
+  }
+
+  /**
+   * Clear all cached auth data
+   */
+  clearAuthCache(): void {
+    this.invalidateCache('session:');
+    this.offlineQueue.length = 0; // Clear queue
   }
 }

@@ -60,21 +60,16 @@ export function useRoleGuard({
         setIsLoading(true);
         setError(null);
 
-        // Set a maximum timeout of 3 seconds for role verification
+        // Set a maximum timeout of 5 seconds for role verification
         timeoutId = setTimeout(() => {
           if (!isCancelled) {
-            console.warn('[RoleGuard] Role verification timeout reached - failing open for admin access');
+            console.warn('[RoleGuard] Role verification timeout reached');
             setTimeoutReached(true);
             setIsLoading(false);
-            // For admin routes, fail open on timeout to prevent lockout
-            if (allowedRoles.includes('league_admin') || allowedRoles.includes('app_admin')) {
-              setHasAccess(true);
-              setUserRole('league_admin'); // Assume admin access on timeout
-            } else {
-              setHasAccess(false);
-            }
+            setHasAccess(false);
+            setError('Authentication timeout - please try refreshing the page');
           }
-        }, 3000);
+        }, 5000);
 
         // Wait for auth to complete, but don't wait forever
         if (authLoading) {
@@ -128,14 +123,9 @@ export function useRoleGuard({
         setError('Failed to verify user permissions');
         setIsLoading(false);
         
-        // For admin routes, fail open on error to prevent lockout
-        if (allowedRoles.includes('league_admin') || allowedRoles.includes('app_admin')) {
-          console.warn('[RoleGuard] Role verification failed - failing open for admin access');
-          setHasAccess(true);
-          setUserRole('league_admin');
-        } else {
-          setHasAccess(false);
-        }
+        // Don't fail open on errors - be explicit about failures
+        setHasAccess(false);
+        setUserRole(null);
       }
     }
 
@@ -163,7 +153,7 @@ export function useRoleGuard({
  */
 export function usePlayerAccess() {
   return useRoleGuard({
-    allowedRoles: ['player', 'captain', 'admin', 'league_admin', 'app_admin'],
+    allowedRoles: ['player'],
     redirectTo: '/auth/login'
   });
 }
@@ -171,14 +161,14 @@ export function usePlayerAccess() {
 /**
  * Hook specifically for admin app access
  */
-export function useAdminAccess() {
-  // Use a stable reference to prevent infinite re-renders
-  const allowedRoles = React.useMemo(() => ['league_admin', 'app_admin'] as UserRole[], []);
+export function useAdminAccess(isAuthRoute: boolean = false) {
+  // Use a static constant for league admin access only
+  const allowedRoles: UserRole[] = ['league_admin'];
   
   return useRoleGuard({
     allowedRoles,
     redirectTo: '/auth/login',
-    redirectOnUnauthorized: true  // Auto-redirect unauthorized users to login
+    redirectOnUnauthorized: !isAuthRoute  // Don't redirect if we're already on an auth route
   });
 }
 

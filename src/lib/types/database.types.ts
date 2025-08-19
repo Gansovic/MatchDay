@@ -19,7 +19,7 @@ export interface Database {
           date_of_birth: string | null;
           preferred_position: string | null;
           location: string | null;
-          role: 'player' | 'captain' | 'admin' | 'league_admin' | 'app_admin';
+          role: 'player' | 'league_admin';
           created_at: string;
           updated_at: string;
         };
@@ -33,7 +33,7 @@ export interface Database {
           date_of_birth?: string | null;
           preferred_position?: string | null;
           location?: string | null;
-          role?: 'player' | 'captain' | 'admin' | 'league_admin' | 'app_admin';
+          role?: 'player' | 'league_admin';
           created_at?: string;
           updated_at?: string;
         };
@@ -47,7 +47,7 @@ export interface Database {
           date_of_birth?: string | null;
           preferred_position?: string | null;
           location?: string | null;
-          role?: 'player' | 'captain' | 'admin' | 'league_admin' | 'app_admin';
+          role?: 'player' | 'league_admin';
           created_at?: string;
           updated_at?: string;
         };
@@ -68,6 +68,12 @@ export interface Database {
           is_active: boolean | null;
           is_public: boolean | null;
           season: string | null;
+          tournament_format: 'league' | 'knockout' | 'league_with_playoffs';
+          match_frequency: number | null;
+          playoff_teams_count: number | null;
+          tournament_start_date: string | null;
+          fixtures_generated: boolean | null;
+          fixtures_generated_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -86,6 +92,12 @@ export interface Database {
           is_active?: boolean | null;
           is_public?: boolean | null;
           season?: string | null;
+          tournament_format?: 'league' | 'knockout' | 'league_with_playoffs';
+          match_frequency?: number | null;
+          playoff_teams_count?: number | null;
+          tournament_start_date?: string | null;
+          fixtures_generated?: boolean | null;
+          fixtures_generated_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -104,6 +116,12 @@ export interface Database {
           is_active?: boolean | null;
           is_public?: boolean | null;
           season?: string | null;
+          tournament_format?: 'league' | 'knockout' | 'league_with_playoffs';
+          match_frequency?: number | null;
+          playoff_teams_count?: number | null;
+          tournament_start_date?: string | null;
+          fixtures_generated?: boolean | null;
+          fixtures_generated_at?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -199,6 +217,8 @@ export interface Database {
           status: string | null;
           home_score: number | null;
           away_score: number | null;
+          match_type: 'regular_season' | 'playoff' | 'final' | 'semifinal' | 'quarterfinal' | null;
+          round_number: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -213,6 +233,8 @@ export interface Database {
           status?: string | null;
           home_score?: number | null;
           away_score?: number | null;
+          match_type?: 'regular_season' | 'playoff' | 'final' | 'semifinal' | 'quarterfinal' | null;
+          round_number?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -227,6 +249,8 @@ export interface Database {
           status?: string | null;
           home_score?: number | null;
           away_score?: number | null;
+          match_type?: 'regular_season' | 'playoff' | 'final' | 'semifinal' | 'quarterfinal' | null;
+          round_number?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -674,6 +698,20 @@ export enum LeagueType {
   FRIENDLY = 'friendly'
 }
 
+export enum TournamentFormat {
+  LEAGUE = 'league',
+  KNOCKOUT = 'knockout',
+  LEAGUE_WITH_PLAYOFFS = 'league_with_playoffs'
+}
+
+export enum MatchType {
+  REGULAR_SEASON = 'regular_season',
+  PLAYOFF = 'playoff',
+  FINAL = 'final',
+  SEMIFINAL = 'semifinal',
+  QUARTERFINAL = 'quarterfinal'
+}
+
 export enum MatchStatus {
   SCHEDULED = 'scheduled',
   LIVE = 'live',
@@ -778,6 +816,10 @@ export interface CreateLeagueForm {
   season_end?: string;
   max_teams?: number;
   entry_fee?: number;
+  tournament_format?: TournamentFormat;
+  match_frequency?: number;
+  playoff_teams_count?: number;
+  tournament_start_date?: string;
 }
 
 export interface CreateTeamForm {

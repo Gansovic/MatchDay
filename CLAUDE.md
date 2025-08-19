@@ -17,6 +17,13 @@ This is a Next.js 15 application called "MatchDay" built with React 19, TypeScri
 ### Development Server
 The development server runs on `http://localhost:3000` by default and uses Turbopack for enhanced performance.
 
+### Auto-Start Development Environment
+When the user says "start working" or "@agent-project-orchestrator start working":
+1. **ALWAYS** automatically start the main MatchDay app: `npm run dev` (runs on localhost:3000)
+2. **ALWAYS** automatically start the admin dashboard: `cd matchday-admin && npm run dev` (runs on separate port)
+3. Start both servers in background mode so user can continue working
+4. Confirm both servers are running with their respective URLs
+
 ## Architecture & Structure
 
 ### File Structure

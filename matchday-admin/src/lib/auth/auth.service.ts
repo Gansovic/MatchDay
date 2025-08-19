@@ -24,6 +24,7 @@ export interface AuthUser extends User {
     bio?: string;
     date_of_birth?: string;
     location?: string;
+    role?: 'player' | 'league_admin' | 'app_admin';
   };
 }
 
@@ -343,17 +344,43 @@ export class AuthService {
   hasPermission(permission: 'create_league' | 'manage_team' | 'admin'): boolean {
     if (!this.currentUser) return false;
     
-    // For now, all authenticated users can create leagues and manage teams
-    // In the future, this could be enhanced with role-based permissions
+    const userRole = this.currentUser.profile?.role;
+    
     switch (permission) {
       case 'create_league':
+        // League admins and app admins can create leagues
+        return userRole === 'league_admin' || userRole === 'app_admin';
       case 'manage_team':
+        // All authenticated users can manage teams they're part of
         return true;
       case 'admin':
-        // Check if user has admin role (would be stored in user metadata or separate table)
-        return this.currentUser.user_metadata?.role === 'admin';
+        // Only app admins have full admin permissions
+        return userRole === 'app_admin';
       default:
         return false;
     }
+  }
+
+  /**
+   * Get current user's role
+   */
+  getUserRole(): 'player' | 'league_admin' | 'app_admin' | null {
+    if (!this.currentUser?.profile?.role) return null;
+    return this.currentUser.profile.role as 'player' | 'league_admin' | 'app_admin';
+  }
+
+  /**
+   * Check if user is a league admin
+   */
+  isLeagueAdmin(): boolean {
+    const role = this.getUserRole();
+    return role === 'league_admin' || role === 'app_admin';
+  }
+
+  /**
+   * Check if user is an app admin
+   */
+  isAppAdmin(): boolean {
+    return this.getUserRole() === 'app_admin';
   }
 }

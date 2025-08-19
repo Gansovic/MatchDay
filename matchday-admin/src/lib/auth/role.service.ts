@@ -127,7 +127,7 @@ export class RoleService {
       console.error('[RoleService] Error in hasRole check:', error);
       
       // For admin roles, be more permissive on timeout/error to prevent lockout
-      const isAdminCheck = allowedRoles.includes('league_admin') || allowedRoles.includes('app_admin');
+      const isAdminCheck = allowedRoles.includes('league_admin');
       if (isAdminCheck) {
         console.warn('[RoleService] Admin role check failed - failing open to prevent lockout');
         return {
@@ -149,29 +149,21 @@ export class RoleService {
    * Check if user can access player features
    */
   static async canAccessPlayerApp(): Promise<RoleCheckResult> {
-    return this.hasRole(['player', 'captain', 'admin', 'league_admin', 'app_admin']);
+    return this.hasRole(['player']);
   }
 
   /**
    * Check if user can access admin features
    */
   static async canAccessAdminApp(): Promise<RoleCheckResult> {
-    return this.hasRole(['league_admin', 'app_admin']);
+    return this.hasRole(['league_admin']);
   }
 
   /**
    * Check if user is a league administrator
    */
   static async isLeagueAdmin(): Promise<boolean> {
-    const result = await this.hasRole(['league_admin', 'app_admin']);
-    return result.hasAccess;
-  }
-
-  /**
-   * Check if user is an app administrator
-   */
-  static async isAppAdmin(): Promise<boolean> {
-    const result = await this.hasRole(['app_admin']);
+    const result = await this.hasRole(['league_admin']);
     return result.hasAccess;
   }
 
@@ -183,11 +175,6 @@ export class RoleService {
       const userRole = await this.getCurrentUserRole();
       
       if (!userRole) return false;
-      
-      // App admins can manage any league
-      if (userRole === 'app_admin') {
-        return true;
-      }
       
       // League admins can manage leagues they created
       if (userRole === 'league_admin') {
@@ -264,10 +251,7 @@ export class RoleService {
   static getRoleDisplayName(role: UserRole): string {
     const roleNames: Record<UserRole, string> = {
       player: 'Player',
-      captain: 'Team Captain',
-      admin: 'Team Admin',
-      league_admin: 'League Administrator',
-      app_admin: 'App Administrator'
+      league_admin: 'League Administrator'
     };
     
     return roleNames[role] || 'Unknown';
@@ -280,32 +264,20 @@ export class RoleService {
     const permissions: Record<UserRole, string[]> = {
       player: [
         'Join teams',
-        'View leagues',
+        'View leagues', 
         'View personal stats',
-        'Receive team invitations'
-      ],
-      captain: [
-        'All player permissions',
+        'Receive team invitations',
         'Manage team roster',
         'Invite players',
         'Request league membership'
-      ],
-      admin: [
-        'All captain permissions',
-        'Manage team settings',
-        'View team analytics'
       ],
       league_admin: [
         'Create and manage leagues',
         'Approve team requests',
         'Schedule matches',
-        'Manage league settings'
-      ],
-      app_admin: [
-        'All permissions',
-        'Manage all users',
-        'System administration',
-        'Global settings'
+        'Manage league settings',
+        'View league analytics',
+        'Manage teams in leagues'
       ]
     };
     

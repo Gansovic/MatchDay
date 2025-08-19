@@ -798,7 +798,7 @@ export type InvitationStatus = 'pending' | 'accepted' | 'declined' | 'expired';
 export type TeamLeagueRequestStatus = 'pending' | 'approved' | 'rejected' | 'withdrawn';
 
 // User Role types
-export type UserRole = 'player' | 'captain' | 'admin' | 'league_admin' | 'app_admin';
+export type UserRole = 'player' | 'league_admin';
 
 export interface TeamInvitation {
   id: string;
