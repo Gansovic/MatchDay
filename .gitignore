@@ -61,3 +61,10 @@ Thumbs.db
 # Storybook
 *storybook.log
 /storybook-static
+
+# Prevent loose test files in root
+/*.js
+/*.sql
+/*.html
+!jest.config.js
+!eslint.config.mjs
