@@ -11,7 +11,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { LogIn, LogOut, User } from 'lucide-react';
-import { useAuth } from '@/components/auth/auth-provider';
+import { useAuth } from '@/components/auth/dev-auth-provider';
 
 interface HeaderProps {
   className?: string;
@@ -26,6 +26,7 @@ export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
     { href: '/dashboard', label: 'My Dashboard', icon: '📊' },
     { href: '/leagues', label: 'Explore Leagues', icon: '🏆' },
     { href: '/teams', label: 'My Teams', icon: '👥' },
+    { href: '/matches', label: 'Matches', icon: '⚽' },
     { href: '/profile', label: 'Profile Settings', icon: '⚙️' },
   ];
 

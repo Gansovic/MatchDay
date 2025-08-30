@@ -37,6 +37,7 @@ services:
       GOTRUE_DB_DATABASE_URL: "postgres://supabase_auth_admin:matchday_pass@postgres:5432/matchday"
       GOTRUE_SITE_URL: "http://localhost:3001"
       GOTRUE_URI_ALLOW_LIST: "http://localhost:3001,http://localhost:3000"
+      GOTRUE_CORS_ALLOWED_HEADERS: "authorization,x-client-info,apikey,content-type,x-requested-with,x-forwarded-for,x-forwarded-proto,x-forwarded-host"
       GOTRUE_JWT_SECRET: "jUZj2O0d4B9nxxsU6p7xN3x81z9UGdY/lqbfIlUKb/Q="
       GOTRUE_JWT_EXP: "3600"
       GOTRUE_JWT_DEFAULT_GROUP_NAME: "authenticated"

@@ -4,33 +4,6 @@ _transform: true
 services:
   - name: auth-v1
     url: http://auth:9999/
-    plugins:
-      - name: cors
-        config:
-          origins:
-            - http://localhost:3001
-            - http://localhost:3000
-          methods:
-            - GET
-            - POST
-            - PUT
-            - PATCH
-            - DELETE
-            - OPTIONS
-          headers:
-            - Accept
-            - Accept-Language
-            - Content-Language
-            - Content-Type
-            - Authorization
-            - Cache-Control
-            - Expires
-            - Last-Modified
-            - Pragma
-            - apikey
-            - X-Requested-With
-          credentials: true
-          max_age: 3600
     routes:
       - name: auth-v1-all
         strip_path: true
@@ -40,35 +13,6 @@ services:
   - name: rest-v1
     url: http://rest:3000/
     plugins:
-      - name: cors
-        config:
-          origins:
-            - http://localhost:3001
-            - http://localhost:3000
-          methods:
-            - GET
-            - POST
-            - PUT
-            - PATCH
-            - DELETE
-            - OPTIONS
-          headers:
-            - Accept
-            - Accept-Language
-            - Content-Language
-            - Content-Type
-            - Authorization
-            - Cache-Control
-            - Expires
-            - Last-Modified
-            - Pragma
-            - apikey
-            - X-Requested-With
-            - Range
-            - X-Client-Info
-            - X-Supabase-Api-Version
-          credentials: true
-          max_age: 3600
       - name: key-auth
         config:
           key_names:
@@ -159,5 +103,6 @@ plugins:
         - Pragma
         - apikey
         - X-Requested-With
+        - X-Client-Info
       credentials: true
       max_age: 3600

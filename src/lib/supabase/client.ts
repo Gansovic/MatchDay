@@ -45,11 +45,12 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     flowType: 'pkce',
     storage: typeof window !== 'undefined' ? window.localStorage : undefined
   },
-  global: {
-    headers: {
-      'X-Client-Info': 'matchday-web@1.0.0'
-    }
-  },
+  // Temporarily remove X-Client-Info to debug CORS issues
+  // global: {
+  //   headers: {
+  //     'X-Client-Info': 'matchday-web@1.0.0'
+  //   }
+  // },
   // Add retry logic for failed requests
   db: {
     schema: 'public'

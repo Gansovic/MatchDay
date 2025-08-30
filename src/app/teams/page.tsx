@@ -13,7 +13,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/components/auth/auth-provider';
+import { useAuth } from '@/components/auth/dev-auth-provider';
+import DevAuthHelper from './dev-auth-helper';
 import { supabase } from '@/lib/supabase/client';
 import { 
   Users, 
@@ -91,7 +92,7 @@ interface AvailableTeam {
 
 export default function TeamsPage() {
   const router = useRouter();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, getSession } = useAuth();
   const [activeTab, setActiveTab] = useState<'my-teams' | 'discover'>('my-teams');
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -112,38 +113,32 @@ export default function TeamsPage() {
   const [availableLeagues, setAvailableLeagues] = useState<{id: string, name: string}[]>([]);
   const [isLoadingLeagues, setIsLoadingLeagues] = useState(false);
 
-  // Temporarily disable authentication check for testing
-  // TODO: Re-enable when authentication is properly configured
-  /*
-  useEffect(() => {
-    if (!isLoading && !user) {
-      router.push('/auth/login?returnUrl=/teams');
-    }
-  }, [user, isLoading, router]);
-
-  // Show loading while checking authentication
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  // Show nothing while redirecting
-  if (!user) {
-    return null;
-  }
-  */
-
   // Load teams data
-  React.useEffect(() => {
+  useEffect(() => {
     const loadTeams = async () => {
       try {
-        const response = await fetch('/api/teams');
+        // Get current user session for authentication
+        const session = await getSession();
+        
+        if (!session?.access_token) {
+          console.log('❌ No authentication session found, skipping team load');
+          setMyTeams([]);
+          return;
+        }
+        
+        console.log('🔑 Found session, loading teams for user:', session.user?.email);
+        console.log('🔑 Access token preview:', session.access_token?.substring(0, 50) + '...');
+
+        const response = await fetch('/api/teams', {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
+          }
+        });
         
         if (!response.ok) {
-          throw new Error('Failed to load teams');
+          const errorText = await response.text();
+          console.error('Failed to load teams:', response.status, errorText);
+          throw new Error(`Failed to load teams: ${response.status}`);
         }
 
         const result = await response.json();
@@ -180,8 +175,31 @@ export default function TeamsPage() {
       }
     };
 
-    loadTeams();
-  }, []);
+    if (user) {
+      loadTeams();
+    }
+  }, [user, getSession]);
+
+  // Authentication redirect effect
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.push('/auth/login?returnUrl=/teams');
+    }
+  }, [user, isLoading, router]);
+
+  // Show loading while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Show nothing while redirecting
+  if (!user) {
+    return null;
+  }
 
   const availableTeams: AvailableTeam[] = [
     {
@@ -322,9 +340,7 @@ export default function TeamsPage() {
       errors.name = 'Team name must be less than 50 characters';
     }
     
-    if (!formData.league) {
-      errors.league = 'Please select a league';
-    }
+    // League is now optional - teams can be created without being assigned to a league
     
     if (!formData.location.trim()) {
       errors.location = 'Location is required';
@@ -349,6 +365,13 @@ export default function TeamsPage() {
     setIsSubmitting(true);
     
     try {
+      // Get current user session for authentication using dev auth
+      const session = await getSession();
+      
+      if (!session?.access_token) {
+        throw new Error('Authentication required. Please sign in and try again.');
+      }
+      
       // Convert Tailwind class to hex color code
       const selectedColor = teamColors.find(color => color.value === formData.color);
       const hexColor = selectedColor?.hex || '#2563eb'; // Default to blue if not found
@@ -356,7 +379,8 @@ export default function TeamsPage() {
       const response = await fetch('/api/teams', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
           name: formData.name,
@@ -454,8 +478,9 @@ export default function TeamsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <div className="container mx-auto px-4 py-8">
+    <DevAuthHelper>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <div className="container mx-auto px-4 py-8">
         {/* Page Header */}
         <div className="mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -466,14 +491,33 @@ export default function TeamsPage() {
               <p className="text-gray-600 dark:text-gray-400 text-lg">
                 Manage your teams, track performance, and discover new opportunities
               </p>
+              {/* Development Auth Status */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  Auth: {user ? `✅ ${user.email}` : '❌ Not authenticated'} | 
+                  {user ? ` User ID: ${user.id.substring(0, 8)}...` : ' Please refresh if not auto-logged in'}
+                </div>
+              )}
             </div>
-            <button
-              onClick={handleShowCreateModal}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
-            >
-              <Plus className="w-5 h-5" />
-              Create Team
-            </button>
+            <div className="flex gap-3">
+              {/* Development Auth Button */}
+              {process.env.NODE_ENV === 'development' && !user && (
+                <button
+                  onClick={() => router.push('/dev-login')}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  🔑 Dev Login
+                </button>
+              )}
+              <button
+                onClick={handleShowCreateModal}
+                disabled={!user}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+              >
+                <Plus className="w-5 h-5" />
+                Create Team
+              </button>
+            </div>
           </div>
         </div>
 
@@ -814,7 +858,7 @@ export default function TeamsPage() {
               {/* League Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  League *
+                  League (Optional)
                 </label>
                 <select
                   value={formData.league}
@@ -825,7 +869,7 @@ export default function TeamsPage() {
                   }`}
                 >
                   <option value="">
-                    {isLoadingLeagues ? 'Loading leagues...' : 'Select football league'}
+                    {isLoadingLeagues ? 'Loading leagues...' : 'No league (Independent team)'}
                   </option>
                   {availableLeagues.map(league => (
                     <option key={league.id} value={league.name}>{league.name}</option>
@@ -942,6 +986,7 @@ export default function TeamsPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </DevAuthHelper>
   );
 }
