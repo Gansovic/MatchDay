@@ -105,27 +105,68 @@ export const PlayerLoginForm: React.FC<PlayerLoginFormProps> = ({
         
         {/* Development Player Credentials */}
         <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-          <p className="text-sm text-green-700 dark:text-green-300 font-medium mb-2">
-            Development Player Login:
+          <p className="text-sm text-green-700 dark:text-green-300 font-medium mb-3">
+            Development Test Accounts:
           </p>
-          <div className="text-xs text-green-600 dark:text-green-400 space-y-1 mb-3">
-            <div>Email: <code className="bg-green-100 dark:bg-green-800 px-1 rounded">player@matchday.com</code></div>
-            <div>Password: <code className="bg-green-100 dark:bg-green-800 px-1 rounded">player123!</code></div>
+          
+          {/* Main Player Account */}
+          <div className="mb-3 p-3 bg-green-100 dark:bg-green-800/30 rounded">
+            <div className="text-xs text-green-600 dark:text-green-400 space-y-1 mb-2">
+              <div><strong>Main Player:</strong> <code className="bg-green-200 dark:bg-green-700 px-1 rounded">player@matchday.com</code></div>
+              <div><strong>Password:</strong> <code className="bg-green-200 dark:bg-green-700 px-1 rounded">player123!</code></div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setValue('email', 'player@matchday.com');
+                setValue('password', 'player123!');
+                clearErrors();
+              }}
+              className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded transition-colors"
+            >
+              Use Player Account
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              // Fill in the player credentials using React Hook Form's setValue
-              setValue('email', 'player@matchday.com');
-              setValue('password', 'player123!');
-              
-              // Clear any existing errors
-              clearErrors();
-            }}
-            className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded transition-colors"
-          >
-            Auto-Fill Player Credentials
-          </button>
+          
+          {/* Sample Players */}
+          <div className="text-xs text-green-600 dark:text-green-400 mb-2">
+            <strong>Team players (all use password: admin123!):</strong>
+          </div>
+          <div className="grid grid-cols-1 gap-2 text-xs">
+            <button
+              type="button"
+              onClick={() => {
+                setValue('email', 'john.doe@example.com');
+                setValue('password', 'admin123!');
+                clearErrors();
+              }}
+              className="text-left p-2 bg-green-100 dark:bg-green-800/30 rounded hover:bg-green-200 dark:hover:bg-green-700/50 transition-colors"
+            >
+              <div><strong>John Doe (Captain/Midfielder):</strong> john.doe@example.com</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setValue('email', 'jane.smith@example.com');
+                setValue('password', 'admin123!');
+                clearErrors();
+              }}
+              className="text-left p-2 bg-green-100 dark:bg-green-800/30 rounded hover:bg-green-200 dark:hover:bg-green-700/50 transition-colors"
+            >
+              <div><strong>Jane Smith (Forward):</strong> jane.smith@example.com</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setValue('email', 'mike.wilson@example.com');
+                setValue('password', 'admin123!');
+                clearErrors();
+              }}
+              className="text-left p-2 bg-green-100 dark:bg-green-800/30 rounded hover:bg-green-200 dark:hover:bg-green-700/50 transition-colors"
+            >
+              <div><strong>Mike Wilson (Goalkeeper):</strong> mike.wilson@example.com</div>
+            </button>
+          </div>
         </div>
       </div>
 

@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 5, "column": 0}, "map": {"version":3,"sources":["file:///Users/lukini/MatchDay/MatchDay/src/app/auth/layout.tsx"],"sourcesContent":["import { AuthProvider } from \"@/components/auth/auth-provider\";\nimport { QueryProvider } from \"@/components/providers/query-provider\";\n\nexport default function AuthLayout({\n  children,\n}: {\n  children: React.ReactNode;\n}) {\n  return (\n    <QueryProvider>\n      <AuthProvider>\n        {children}\n      </AuthProvider>\n    </QueryProvider>\n  );\n}"],"names":[],"mappings":";;;;AAAA;AACA;;;;AAEe,SAAS,WAAW,EACjC,QAAQ,EAGT;IACC,qBACE,8OAAC,oJAAA,CAAA,gBAAa;kBACZ,cAAA,8OAAC,8IAAA,CAAA,eAAY;sBACV;;;;;;;;;;;AAIT","debugId":null}}]
+}

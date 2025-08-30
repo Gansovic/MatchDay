@@ -67,11 +67,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     // Subscribe to auth state changes with Supabase directly
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: string, session: any) => {
-        if (session?.user) {
-          setUser(session.user);
-        } else {
+        console.log('Auth state change:', event, session?.user ? 'User present' : 'No user');
+        
+        if (event === 'SIGNED_OUT' || !session?.user) {
+          // Ensure complete cleanup on sign out
           setUser(null);
+          
+          // Clear localStorage on sign out event
+          if (typeof window !== 'undefined') {
+            Object.keys(localStorage).forEach(key => {
+              if (key.includes('supabase') || key.includes('auth')) {
+                localStorage.removeItem(key);
+              }
+            });
+          }
+        } else if (session?.user) {
+          setUser(session.user);
         }
+        
         setIsLoading(false);
       }
     );
@@ -189,9 +202,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
 
   const signOut = async (): Promise<void> => {
     try {
+      // Clear Supabase session
       await supabase.auth.signOut();
+      
+      // Manually clear localStorage to ensure all tokens are removed
+      if (typeof window !== 'undefined') {
+        // Clear Supabase auth tokens
+        localStorage.removeItem('sb-' + process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('http://', '').replace('https://', '').split('.')[0] + '-auth-token');
+        
+        // Clear any other auth-related items
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('supabase.auth') || key.includes('auth-token')) {
+            localStorage.removeItem(key);
+          }
+        });
+      }
+      
+      // Clear user state immediately
+      setUser(null);
+      
     } catch (error) {
       console.error('Sign out error:', error);
+      // Even if logout fails, clear local state to prevent UI issues
+      setUser(null);
+      
+      // Clear localStorage anyway
+      if (typeof window !== 'undefined') {
+        Object.keys(localStorage).forEach(key => {
+          if (key.includes('supabase') || key.includes('auth')) {
+            localStorage.removeItem(key);
+          }
+        });
+      }
+      
+      throw error; // Re-throw so UI can handle the error
     }
   };
 

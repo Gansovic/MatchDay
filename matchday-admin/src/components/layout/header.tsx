@@ -44,9 +44,22 @@ export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
   const handleLogout = async () => {
     try {
       await signOut();
-      router.push('/');
+      
+      // Force a hard reload to clear all cached data
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      } else {
+        router.push('/');
+      }
     } catch (error) {
       console.error('Logout error:', error);
+      
+      // Even if logout fails, redirect to home page
+      if (typeof window !== 'undefined') {
+        window.location.href = '/';
+      } else {
+        router.push('/');
+      }
     }
   };
 

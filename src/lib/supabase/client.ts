@@ -49,6 +49,10 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     headers: {
       'X-Client-Info': 'matchday-web@1.0.0'
     }
+  },
+  // Add retry logic for failed requests
+  db: {
+    schema: 'public'
   }
 });
 

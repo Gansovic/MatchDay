@@ -96,29 +96,70 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         <p className="text-gray-600 dark:text-gray-400">
           Sign in to access the admin dashboard
         </p>
-        {/* Development Admin Credentials */}
+        {/* Development Credentials */}
         <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <p className="text-sm text-blue-700 dark:text-blue-300 font-medium mb-2">
-            Development Admin Login:
+          <p className="text-sm text-blue-700 dark:text-blue-300 font-medium mb-3">
+            Development Test Accounts:
           </p>
-          <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1 mb-3">
-            <div>Email: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">admin@matchday.com</code></div>
-            <div>Password: <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">admin123!</code></div>
+          
+          {/* Admin Account */}
+          <div className="mb-3 p-3 bg-blue-100 dark:bg-blue-800/30 rounded">
+            <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1 mb-2">
+              <div><strong>Admin:</strong> <code className="bg-blue-200 dark:bg-blue-700 px-1 rounded">admin@matchday.com</code></div>
+              <div><strong>Password:</strong> <code className="bg-blue-200 dark:bg-blue-700 px-1 rounded">admin123!</code></div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setValue('email', 'admin@matchday.com');
+                setValue('password', 'admin123!');
+                clearErrors();
+              }}
+              className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors"
+            >
+              Use Admin Account
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              // Fill in the admin credentials using React Hook Form's setValue
-              setValue('email', 'admin@matchday.com');
-              setValue('password', 'admin123!');
-              
-              // Clear any existing errors
-              clearErrors();
-            }}
-            className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded transition-colors"
-          >
-            Auto-Fill Admin Credentials
-          </button>
+          
+          {/* Sample User Accounts */}
+          <div className="text-xs text-blue-600 dark:text-blue-400 mb-2">
+            <strong>Other test accounts (all use password: admin123!):</strong>
+          </div>
+          <div className="grid grid-cols-1 gap-2 text-xs">
+            <button
+              type="button"
+              onClick={() => {
+                setValue('email', 'john.doe@example.com');
+                setValue('password', 'admin123!');
+                clearErrors();
+              }}
+              className="text-left p-2 bg-blue-100 dark:bg-blue-800/30 rounded hover:bg-blue-200 dark:hover:bg-blue-700/50 transition-colors"
+            >
+              <div><strong>John Doe (Captain):</strong> john.doe@example.com</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setValue('email', 'jane.smith@example.com');
+                setValue('password', 'admin123!');
+                clearErrors();
+              }}
+              className="text-left p-2 bg-blue-100 dark:bg-blue-800/30 rounded hover:bg-blue-200 dark:hover:bg-blue-700/50 transition-colors"
+            >
+              <div><strong>Jane Smith (Player):</strong> jane.smith@example.com</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setValue('email', 'mike.wilson@example.com');
+                setValue('password', 'admin123!');
+                clearErrors();
+              }}
+              className="text-left p-2 bg-blue-100 dark:bg-blue-800/30 rounded hover:bg-blue-200 dark:hover:bg-blue-700/50 transition-colors"
+            >
+              <div><strong>Mike Wilson (Goalkeeper):</strong> mike.wilson@example.com</div>
+            </button>
+          </div>
         </div>
       </div>
 

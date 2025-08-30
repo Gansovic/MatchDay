@@ -8,16 +8,117 @@ services:
       POSTGRES_DB: matchday
       POSTGRES_USER: matchday_user
       POSTGRES_PASSWORD: matchday_pass
+      POSTGRES_MULTIPLE_EXTENSIONS: uuid-ossp
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./supabase-auth-schema.sql:/docker-entrypoint-initdb.d/02-supabase-auth.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U matchday_user -d matchday"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # Supabase Auth Service (GoTrue)
+  auth:
+    image: supabase/gotrue:v2.143.0
+    container_name: matchday-auth
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      API_EXTERNAL_URL: "http://localhost:9999"
+      GOTRUE_API_HOST: "0.0.0.0"
+      GOTRUE_API_PORT: "9999"
+      GOTRUE_DB_DRIVER: "postgres"
+      GOTRUE_DB_DATABASE_URL: "postgres://supabase_auth_admin:matchday_pass@postgres:5432/matchday"
+      GOTRUE_SITE_URL: "http://localhost:3001"
+      GOTRUE_URI_ALLOW_LIST: "http://localhost:3001,http://localhost:3000"
+      GOTRUE_JWT_SECRET: "jUZj2O0d4B9nxxsU6p7xN3x81z9UGdY/lqbfIlUKb/Q="
+      GOTRUE_JWT_EXP: "3600"
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: "authenticated"
+      GOTRUE_JWT_ADMIN_ROLES: "service_role"
+      GOTRUE_JWT_AUD: "authenticated"
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_SMTP_ADMIN_EMAIL: "admin@matchday.local"
+      GOTRUE_SMTP_HOST: ""
+      GOTRUE_SMTP_PORT: "587"
+      GOTRUE_SMTP_USER: ""
+      GOTRUE_SMTP_PASS: ""
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: "false"
+    ports:
+      - "9999:9999"
+
+  # PostgREST API Service
+  rest:
+    image: postgrest/postgrest:v12.0.2
+    container_name: matchday-rest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      PGRST_DB_URI: "postgres://authenticator:matchday_pass@postgres:5432/matchday"
+      PGRST_DB_SCHEMAS: "public"
+      PGRST_DB_ANON_ROLE: "anon"
+      PGRST_JWT_SECRET: "jUZj2O0d4B9nxxsU6p7xN3x81z9UGdY/lqbfIlUKb/Q="
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_APP_SETTINGS_JWT_SECRET: "jUZj2O0d4B9nxxsU6p7xN3x81z9UGdY/lqbfIlUKb/Q="
+      PGRST_APP_SETTINGS_JWT_EXP: "3600"
+    ports:
+      - "3333:3000"
+
+  # Supabase Realtime Service
+  realtime:
+    image: supabase/realtime:v2.25.50
+    container_name: matchday-realtime
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_USER: "supabase_realtime_admin"
+      DB_PASSWORD: "matchday_pass"
+      DB_NAME: "matchday"
+      DB_AFTER_CONNECT_QUERY: "SET search_path TO _realtime"
+      DB_ENC_KEY: "supabaserealtime"
+      SECRET_KEY_BASE: "jUZj2O0d4B9nxxsU6p7xN3x81z9UGdY/lqbfIlUKb/Q="
+      JWT_SECRET: "jUZj2O0d4B9nxxsU6p7xN3x81z9UGdY/lqbfIlUKb/Q="
+      REPLICATION_MODE: "RLS"
+      REPLICATION_POLL_INTERVAL: "100"
+      SECURE_CHANNELS: "true"
+      SLOT_NAME: "supabase_realtime_rls"
+      TEMPORARY_SLOT: "true"
+    ports:
+      - "4000:4000"
+
+  # Kong API Gateway
+  kong:
+    image: kong
+    container_name: matchday-kong
+    restart: unless-stopped
+    depends_on:
+      - auth
+      - rest
+      - realtime
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: "/var/lib/kong/kong.yml"
+      KONG_DNS_ORDER: "LAST,A,CNAME"
+      KONG_PLUGINS: "request-transformer,cors,key-auth,acl,basic-auth"
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: "160k"
+      KONG_NGINX_PROXY_PROXY_BUFFERS: "64 160k"
+    volumes:
+      - ./kong.yml:/var/lib/kong/kong.yml:ro
+    ports:
+      - "8000:8000"
 
   adminer:
     image: adminer:4.8.1

@@ -1,0 +1,163 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: auth-v1
+    url: http://auth:9999/
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - http://localhost:3001
+            - http://localhost:3000
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+          headers:
+            - Accept
+            - Accept-Language
+            - Content-Language
+            - Content-Type
+            - Authorization
+            - Cache-Control
+            - Expires
+            - Last-Modified
+            - Pragma
+            - apikey
+            - X-Requested-With
+          credentials: true
+          max_age: 3600
+    routes:
+      - name: auth-v1-all
+        strip_path: true
+        paths:
+          - /auth/v1/
+
+  - name: rest-v1
+    url: http://rest:3000/
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - http://localhost:3001
+            - http://localhost:3000
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+          headers:
+            - Accept
+            - Accept-Language
+            - Content-Language
+            - Content-Type
+            - Authorization
+            - Cache-Control
+            - Expires
+            - Last-Modified
+            - Pragma
+            - apikey
+            - X-Requested-With
+            - Range
+            - X-Client-Info
+            - X-Supabase-Api-Version
+          credentials: true
+          max_age: 3600
+      - name: key-auth
+        config:
+          key_names:
+            - apikey
+          key_in_body: false
+          key_in_header: true
+          key_in_query: true
+          anonymous: null
+          run_on_preflight: true
+    routes:
+      - name: rest-v1-all
+        strip_path: true
+        paths:
+          - /rest/v1/
+
+  - name: realtime-v1
+    url: http://realtime:4000/socket/
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - http://localhost:3001
+            - http://localhost:3000
+          methods:
+            - GET
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+            - OPTIONS
+          headers:
+            - Accept
+            - Accept-Language
+            - Content-Language
+            - Content-Type
+            - Authorization
+            - Cache-Control
+            - Expires
+            - Last-Modified
+            - Pragma
+            - apikey
+            - X-Requested-With
+          credentials: true
+          max_age: 3600
+    routes:
+      - name: realtime-v1-all
+        strip_path: true
+        paths:
+          - /realtime/v1/
+
+consumers:
+  - username: anon
+    keyauth_credentials:
+      - key: wmIL9fNxipY7cwMtkAA6TGKvIB17LNZweLAlnttuyvc=
+
+  - username: service_role
+    keyauth_credentials:
+      - key: Lqysqplr8uhhzp/3ypBZqp3pFZBQrh4KUcjfCLJG5sg=
+
+acls:
+  - consumer: anon
+    group: anon
+  - consumer: service_role
+    group: admin
+
+plugins:
+  - name: cors
+    config:
+      origins:
+        - http://localhost:3001
+        - http://localhost:3000
+      methods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+      headers:
+        - Accept
+        - Accept-Language
+        - Content-Language
+        - Content-Type
+        - Authorization
+        - Cache-Control
+        - Expires
+        - Last-Modified
+        - Pragma
+        - apikey
+        - X-Requested-With
+      credentials: true
+      max_age: 3600
