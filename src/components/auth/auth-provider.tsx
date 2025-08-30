@@ -18,8 +18,26 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
+
+// Test environment variables first
+console.log('🚀 AuthProvider loading...', {
+  hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+  hasSupabaseKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+  key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.slice(0, 10) + '...'
+});
+
+let supabase: any = null;
+
+try {
+  // Use the fixed client that handles CORS issues
+  const { supabaseNoClientInfo } = require('@/lib/supabase/client-fixed');
+  supabase = supabaseNoClientInfo;
+  console.log('✅ Supabase client loaded successfully (using fixed version without X-Client-Info)');
+} catch (error) {
+  console.error('🚨 Failed to load Supabase client:', error);
+}
 
 interface AuthContextType {
   user: User | null;
@@ -63,6 +81,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Debug environment variables
+    console.log('🔧 Environment check:', {
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      anonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.slice(0, 10) + '...'
+    });
+
     // Subscribe to auth state changes with Supabase directly
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: string, session: any) => {
@@ -137,17 +162,78 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     password: string;
   }): Promise<{ success: boolean; error?: string }> => {
     try {
-      const { data: authData, error } = await supabase.auth.signInWithPassword({
-        email: data.email,
-        password: data.password
+      console.log('🔐 Attempting sign in with:', { 
+        email: data.email, 
+        url: process.env.NEXT_PUBLIC_SUPABASE_URL,
+        hasKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
       });
 
-      if (error) {
-        return { success: false, error: error.message };
-      }
+      console.log('🔐 Authenticating with Supabase client...');
+      
+      try {
+        const { data: authData, error } = await supabase.auth.signInWithPassword({
+          email: data.email,
+          password: data.password
+        });
 
-      return { success: true };
+        if (error) {
+          console.error('🚨 Supabase auth error:', error);
+          return { success: false, error: error.message };
+        }
+
+        console.log('✅ Supabase authentication successful:', { 
+          user: authData.user?.email,
+          hasSession: !!authData.session 
+        });
+
+        return { success: true };
+      } catch (networkError) {
+        console.error('🚨 Network error during Supabase auth:', networkError);
+        
+        // Fallback: Try direct fetch as a last resort
+        try {
+          console.log('🔄 Attempting direct fetch fallback...');
+          const directResponse = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+            method: 'POST',
+            headers: {
+              'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+              'Content-Type': 'application/json',
+              'Origin': window.location.origin
+            },
+            body: JSON.stringify({
+              email: data.email,
+              password: data.password
+            })
+          });
+          
+          if (directResponse.ok) {
+            const result = await directResponse.json();
+            console.log('✅ Direct fetch authentication successful as fallback!', { user: result.user?.email });
+            
+            // Manually set the session in Supabase client
+            if (result.access_token) {
+              await supabase.auth.setSession({
+                access_token: result.access_token,
+                refresh_token: result.refresh_token
+              });
+            }
+            
+            return { success: true };
+          } else {
+            const errorText = await directResponse.text();
+            console.error('🚨 Direct fetch fallback also failed:', directResponse.status, errorText);
+            return { success: false, error: `Network error: ${errorText}` };
+          }
+        } catch (fallbackError) {
+          console.error('🚨 Both Supabase client and direct fetch failed:', fallbackError);
+          return { 
+            success: false, 
+            error: `Authentication failed: ${networkError instanceof Error ? networkError.message : 'Network error'}`
+          };
+        }
+      }
     } catch (error) {
+      console.error('🚨 Unexpected auth error:', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Failed to sign in'

@@ -16,7 +16,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Eye, EyeOff, Loader2, Mail, Lock, ArrowRight } from 'lucide-react';
-import { useAuth } from './auth-provider';
+import { useAuth } from './dev-auth-provider';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -44,6 +44,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const {
     register,
     handleSubmit,
+    setValue,
+    clearErrors,
     formState: { errors, isSubmitting }
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema)
@@ -94,6 +96,48 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         <p className="text-gray-600 dark:text-gray-400">
           Sign in to your player account
         </p>
+        
+        {/* Development Player Credentials */}
+        <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+          <p className="text-sm text-green-700 dark:text-green-300 font-medium mb-3">
+            Development Test Accounts:
+          </p>
+          
+          {/* Mock Development Accounts */}
+          <div className="mb-3 p-3 bg-green-100 dark:bg-green-800/30 rounded">
+            <div className="text-xs text-green-600 dark:text-green-400 space-y-1 mb-2">
+              <div><strong>Player Account:</strong> <code className="bg-green-200 dark:bg-green-700 px-1 rounded">player@matchday.com</code></div>
+              <div><strong>Password:</strong> <code className="bg-green-200 dark:bg-green-700 px-1 rounded">player123!</code></div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setValue('email', 'player@matchday.com');
+                setValue('password', 'player123!');
+                clearErrors();
+              }}
+              className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded transition-colors mr-2"
+            >
+              Use Player Account
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setValue('email', 'john.doe@example.com');
+                setValue('password', 'admin123!');
+                clearErrors();
+              }}
+              className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors"
+            >
+              Use Captain Account
+            </button>
+          </div>
+          
+          {/* Test Account Note */}
+          <div className="text-xs text-green-600 dark:text-green-400 text-center">
+            <strong>Note:</strong> Other test accounts may have different passwords. Use the working account above for testing.
+          </div>
+        </div>
       </div>
 
       {/* OAuth Buttons */}
