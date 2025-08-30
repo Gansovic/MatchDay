@@ -13,7 +13,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { 
@@ -34,8 +34,9 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { LeagueService } from '@/lib/services/league.service';
-import { TeamService } from '@/lib/services/team.service';
 import { LeagueDiscovery, LeagueStanding, Match, PlayerLeaderboard } from '@/lib/types/database.types';
+import { SeasonSelector, Season } from '@/components/leagues/season-selector';
+import { LeagueStandings } from '@/components/leagues/league-standings';
 
 interface LeagueMatch {
   id: string;
@@ -78,6 +79,8 @@ export default function LeaguePage() {
   
   // State for real data
   const [leagueData, setLeagueData] = useState<LeagueDiscovery | null>(null);
+  const [allSeasons, setAllSeasons] = useState<Season[]>([]);
+  const [currentSeason, setCurrentSeason] = useState<Season | null>(null);
   const [standings, setStandings] = useState<LeagueStanding[]>([]);
   const [matches, setMatches] = useState<LeagueMatch[]>([]);
   const [playerStats, setPlayerStats] = useState<{
@@ -103,23 +106,10 @@ export default function LeaguePage() {
   
   // Initialize services
   const leagueService = LeagueService.getInstance(supabase);
-  const teamService = TeamService.getInstance(supabase);
+  const isInitialMount = useRef(true);
 
-  // Fetch league data on component mount
-  useEffect(() => {
-    fetchLeagueData();
-  }, [leagueId]);
-  
-  const fetchLeagueData = async () => {
-    await Promise.all([
-      fetchLeagueDetails(),
-      fetchLeagueStandings(),
-      fetchLeagueMatches(),
-      fetchPlayerStats()
-    ]);
-  };
-  
-  const fetchLeagueDetails = async () => {
+  // Fetch league details - wrapped in useCallback with minimal dependencies
+  const fetchLeagueDetails = useCallback(async () => {
     try {
       setLoading(prev => ({ ...prev, league: true }));
       setErrors(prev => ({ ...prev, league: null }));
@@ -137,52 +127,59 @@ export default function LeaguePage() {
     } finally {
       setLoading(prev => ({ ...prev, league: false }));
     }
-  };
+  }, [leagueId]);
   
-  const fetchLeagueStandings = async () => {
+  // Fetch league standings - wrapped in useCallback with minimal dependencies
+  const fetchLeagueStandings = useCallback(async () => {
     try {
       setLoading(prev => ({ ...prev, standings: true }));
       setErrors(prev => ({ ...prev, standings: null }));
       
-      // Get league standings from the view
-      const { data, error } = await supabase
-        .from('league_standings')
-        .select('*')
-        .eq('league_id', leagueId)
-        .order('position', { ascending: true });
-      
-      if (error) throw error;
-      
-      setStandings(data || []);
+      // For now, return empty standings since the view doesn't exist yet
+      // TODO: Create league_standings view or calculate from matches
+      setStandings([]);
     } catch (error) {
       console.error('Error fetching standings:', error);
       setErrors(prev => ({ ...prev, standings: 'Failed to load standings' }));
     } finally {
       setLoading(prev => ({ ...prev, standings: false }));
     }
-  };
+  }, [leagueId]);
   
-  const fetchLeagueMatches = async () => {
+  // Fetch league matches - accepts season parameter to avoid dependency
+  const fetchLeagueMatches = useCallback(async (seasonId?: string) => {
     try {
       setLoading(prev => ({ ...prev, matches: true }));
       setErrors(prev => ({ ...prev, matches: null }));
       
-      // Get matches for this league
-      const { data, error } = await supabase
-        .from('matches')
-        .select(`
-          *,
-          home_team:teams!home_team_id(name),
-          away_team:teams!away_team_id(name)
-        `)
-        .eq('league_id', leagueId)
-        .order('scheduled_date', { ascending: false })
-        .limit(20);
+      // Use our API endpoint instead of direct Supabase
+      const baseUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001';
       
-      if (error) throw error;
+      const matchesUrl = seasonId 
+        ? `${baseUrl}/api/leagues/${leagueId}/matches?season_id=${seasonId}`
+        : `${baseUrl}/api/leagues/${leagueId}/matches`;
+      
+      const response = await fetch(matchesUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status}`);
+      }
+
+      const apiResult = await response.json();
+      
+      if (!apiResult.success) {
+        throw new Error(apiResult.error || 'Failed to fetch matches');
+      }
       
       // Transform matches to expected format
-      const transformedMatches: LeagueMatch[] = (data || []).map((match, index) => ({
+      const transformedMatches: LeagueMatch[] = (apiResult.data || []).map((match: any) => ({
         id: match.id,
         homeTeam: match.home_team?.name || 'Unknown Team',
         awayTeam: match.away_team?.name || 'Unknown Team',
@@ -201,76 +198,109 @@ export default function LeaguePage() {
     } finally {
       setLoading(prev => ({ ...prev, matches: false }));
     }
-  };
+  }, [leagueId]);
   
-  const fetchPlayerStats = async () => {
+  // Fetch player stats - wrapped in useCallback with minimal dependencies
+  const fetchPlayerStats = useCallback(async () => {
     try {
       setLoading(prev => ({ ...prev, stats: true }));
       setErrors(prev => ({ ...prev, stats: null }));
       
-      // Get player leaderboard for this league
-      const { data, error } = await supabase
-        .from('player_leaderboard')
-        .select('*')
-        .eq('league_id', leagueId);
-      
-      if (error) throw error;
-      
-      // Transform and sort data
-      const leaderboard = data || [];
-      
-      const topScorers = leaderboard
-        .sort((a, b) => (b.goals || 0) - (a.goals || 0))
-        .slice(0, 5)
-        .map((player, index) => ({
-          id: player.player_id,
-          name: player.display_name,
-          team: player.team_name,
-          value: player.goals || 0,
-          position: player.preferred_position || 'Unknown'
-        }));
-      
-      const topAssists = leaderboard
-        .sort((a, b) => (b.assists || 0) - (a.assists || 0))
-        .slice(0, 5)
-        .map((player, index) => ({
-          id: player.player_id,
-          name: player.display_name,
-          team: player.team_name,
-          value: player.assists || 0,
-          position: player.preferred_position || 'Unknown'
-        }));
-      
-      // Get goalkeeper stats (clean sheets would need to be calculated from match events)
-      const cleanSheets = leaderboard
-        .filter(player => player.preferred_position?.toLowerCase().includes('goalkeeper'))
-        .sort((a, b) => (b.games_played || 0) - (a.games_played || 0))
-        .slice(0, 5)
-        .map((player, index) => ({
-          id: player.player_id,
-          name: player.display_name,
-          team: player.team_name,
-          value: Math.floor((player.games_played || 0) * 0.6), // Estimate clean sheets
-          position: player.preferred_position || 'Goalkeeper'
-        }));
-      
-      setPlayerStats({ topScorers, topAssists, cleanSheets });
+      // For now, return empty player stats since the view doesn't exist yet
+      // TODO: Create player_leaderboard view or calculate from player_stats table
+      setPlayerStats({ 
+        topScorers: [], 
+        topAssists: [], 
+        cleanSheets: [] 
+      });
     } catch (error) {
       console.error('Error fetching player stats:', error);
       setErrors(prev => ({ ...prev, stats: 'Failed to load player statistics' }));
     } finally {
       setLoading(prev => ({ ...prev, stats: false }));
     }
-  };
+  }, []);
 
-  // Helper function to format date
+  // Fetch current season - returns the season data
+  const fetchCurrentSeason = useCallback(async () => {
+    try {
+      const baseUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001';
+      
+      const response = await fetch(`${baseUrl}/api/leagues/${leagueId}/seasons`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data && result.data.length > 0) {
+          setAllSeasons(result.data);
+          // Find current season or use first active season
+          const current = result.data.find((season: Season) => season.is_current) || result.data[0];
+          setCurrentSeason(current);
+          return current;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching seasons:', error);
+      return null;
+    }
+  }, [leagueId]);
+
+  // Initial data load - only runs once on mount
+  useEffect(() => {
+    const loadInitialData = async () => {
+      // Fetch league details, standings, and stats in parallel
+      const [, , , season] = await Promise.all([
+        fetchLeagueDetails(),
+        fetchLeagueStandings(),
+        fetchPlayerStats(),
+        fetchCurrentSeason()
+      ]);
+      
+      // Fetch matches for the current season if we have one
+      if (season) {
+        await fetchLeagueMatches(season.id);
+      }
+    };
+    
+    loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - only run on mount
+
+  // Handle season changes (manually by user only)
+  const handleSeasonChange = useCallback((season: Season) => {
+    setCurrentSeason(season);
+    // Fetch matches for new season
+    fetchLeagueMatches(season.id);
+  }, [fetchLeagueMatches]);
+
+  // Helper function to format date consistently on server and client
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    const month = date.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[date.getUTCMonth()];
     const day = date.getUTCDate();
     const hours = date.getUTCHours().toString().padStart(2, '0');
     const minutes = date.getUTCMinutes().toString().padStart(2, '0');
     return `${month} ${day}, ${hours}:${minutes}`;
+  };
+
+  // Helper function to format date only (no time)
+  const formatDateOnly = (dateString: string) => {
+    const date = new Date(dateString);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[date.getUTCMonth()];
+    const day = date.getUTCDate();
+    const year = date.getUTCFullYear();
+    return `${month} ${day}, ${year}`;
   };
 
   // Derived data for rendering
@@ -359,12 +389,24 @@ export default function LeaguePage() {
               <div className="flex items-center gap-6 text-sm text-gray-600 dark:text-gray-400">
                 <span className="flex items-center gap-1">
                   <Trophy className="w-4 h-4" />
-                  {leagueData.season || new Date().getFullYear()} Season
+                  {currentSeason ? currentSeason.display_name : (leagueData.season || new Date().getFullYear())} Season
                 </span>
+                {currentSeason && (
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-4 h-4" />
+                    {formatDateOnly(currentSeason.start_date)} - {formatDateOnly(currentSeason.end_date)}
+                  </span>
+                )}
                 <span className="flex items-center gap-1">
                   <Users className="w-4 h-4" />
                   {leagueData.teamCount} Teams
                 </span>
+                {currentSeason && currentSeason.stats && (
+                  <span className="flex items-center gap-1">
+                    <Target className="w-4 h-4" />
+                    {currentSeason.stats.completed_matches} of {currentSeason.stats.total_matches} Matches
+                  </span>
+                )}
                 {leagueData.location && (
                   <span className="flex items-center gap-1">
                     <MapPin className="w-4 h-4" />
@@ -381,6 +423,17 @@ export default function LeaguePage() {
             </div>
           </div>
         </div>
+
+        {/* Season Selector */}
+        {allSeasons.length > 0 && currentSeason && (
+          <div className="mb-6">
+            <SeasonSelector
+              seasons={allSeasons}
+              currentSeason={currentSeason}
+              onSeasonChange={handleSeasonChange}
+            />
+          </div>
+        )}
 
         {/* Tab Navigation */}
         <div className="mb-8">
@@ -444,117 +497,13 @@ export default function LeaguePage() {
 
         {/* Tab Content */}
         {activeTab === 'standings' && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Complete League Table
-              </h3>
-              <Trophy className="w-5 h-5 text-gray-400" />
-            </div>
-            
-            {loading.standings ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-                <span className="ml-2 text-gray-600 dark:text-gray-400">Loading standings...</span>
-              </div>
-            ) : errors.standings ? (
-              <div className="text-center py-8">
-                <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
-                <p className="text-red-600 dark:text-red-400">{errors.standings}</p>
-              </div>
-            ) : standings.length === 0 ? (
-              <div className="text-center py-8">
-                <Trophy className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-gray-600 dark:text-gray-400">No standings data available yet</p>
-              </div>
-            ) : (
-              <>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-gray-200 dark:border-gray-600">
-                        <th className="text-left py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">Pos</th>
-                        <th className="text-left py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">Team</th>
-                        <th className="text-center py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">P</th>
-                        <th className="text-center py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">W</th>
-                        <th className="text-center py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">D</th>
-                        <th className="text-center py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">L</th>
-                        <th className="text-center py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">GF</th>
-                        <th className="text-center py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">GA</th>
-                        <th className="text-center py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">GD</th>
-                        <th className="text-center py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">Pts</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {standings.map((standing) => (
-                        <tr 
-                          key={standing.position}
-                          className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                        >
-                          <td className="py-3 px-2">
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                              standing.position <= 3 
-                                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                                : standing.position >= standings.length - 2
-                                ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                            }`}>
-                              {standing.position}
-                            </div>
-                          </td>
-                          <td className="py-3 px-2 font-medium text-gray-900 dark:text-white">
-                            {standing.team_name}
-                          </td>
-                          <td className="py-3 px-2 text-center text-sm text-gray-600 dark:text-gray-400">
-                            {standing.games_played}
-                          </td>
-                          <td className="py-3 px-2 text-center text-sm text-gray-600 dark:text-gray-400">
-                            {standing.wins}
-                          </td>
-                          <td className="py-3 px-2 text-center text-sm text-gray-600 dark:text-gray-400">
-                            {standing.draws}
-                          </td>
-                          <td className="py-3 px-2 text-center text-sm text-gray-600 dark:text-gray-400">
-                            {standing.losses}
-                          </td>
-                          <td className="py-3 px-2 text-center text-sm text-gray-600 dark:text-gray-400">
-                            {standing.goals_for}
-                          </td>
-                          <td className="py-3 px-2 text-center text-sm text-gray-600 dark:text-gray-400">
-                            {standing.goals_against}
-                          </td>
-                          <td className="py-3 px-2 text-center text-sm">
-                            <span className={`${
-                              standing.goal_difference > 0 
-                                ? 'text-green-600 dark:text-green-400' 
-                                : standing.goal_difference < 0
-                                ? 'text-red-600 dark:text-red-400'
-                                : 'text-gray-600 dark:text-gray-400'
-                            }`}>
-                              {standing.goal_difference > 0 ? '+' : ''}{standing.goal_difference}
-                            </span>
-                          </td>
-                          <td className="py-3 px-2 text-center font-bold text-gray-900 dark:text-white">
-                            {standing.points}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="mt-6 flex items-center gap-6 text-xs text-gray-500 dark:text-gray-400">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-green-100 dark:bg-green-900/30 rounded-full"></div>
-                    <span>Top 3 (Championship spots)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-red-100 dark:bg-red-900/30 rounded-full"></div>
-                    <span>Bottom 2 (Relegation zone)</span>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+          <LeagueStandings 
+            leagueId={leagueId}
+            leagueName={leagueData?.name}
+            currentSeasonId={currentSeason?.id}
+            promotionSpots={3}
+            relegationSpots={2}
+          />
         )}
 
         {activeTab === 'matches' && (
@@ -889,7 +838,7 @@ export default function LeaguePage() {
                   <div>
                     <h4 className="font-medium text-gray-900 dark:text-white mb-2">Season Start</h4>
                     <p className="text-gray-600 dark:text-gray-400">
-                      {new Date(leagueData.season_start).toLocaleDateString()}
+                      {formatDateOnly(leagueData.season_start)}
                     </p>
                   </div>
                 )}
@@ -897,7 +846,7 @@ export default function LeaguePage() {
                   <div>
                     <h4 className="font-medium text-gray-900 dark:text-white mb-2">Season End</h4>
                     <p className="text-gray-600 dark:text-gray-400">
-                      {new Date(leagueData.season_end).toLocaleDateString()}
+                      {formatDateOnly(leagueData.season_end)}
                     </p>
                   </div>
                 )}
