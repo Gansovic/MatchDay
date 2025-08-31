@@ -104,89 +104,77 @@ function validateTeamCreationRequest(data: any): {
  */
 export async function GET(request: NextRequest) {
   try {
-    // Development mode: Use a default user if no proper auth
-    let userId: string = 'eec00b4f-7e94-4d76-8f2a-7364b49d1c86'; // Default to player@matchday.com
+    // Extract authenticated user ID from request
+    const authHeader = request.headers.get('authorization');
+    let userId: string | null = null;
     
-    if (process.env.NODE_ENV === 'production') {
-      // Only enforce JWT in production
-      const authHeader = request.headers.get('authorization');
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return NextResponse.json(
-          { error: 'Unauthorized', message: 'Authentication required' },
-          { status: 401 }
-        );
-      }
-
+    if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.replace('Bearer ', '');
       
-      // Verify JWT token manually and extract user info
       try {
-        const jwtSecret = process.env.SUPABASE_JWT_SECRET || 'jUZj2O0d4B9nxxsU6p7xN3x81z9UGdY/lqbfIlUKb/Q=';
-        const decoded = jwt.verify(token, jwtSecret) as any;
+        // In development, we can extract user ID from the Supabase JWT token
+        const jwtSecret = process.env.SUPABASE_JWT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY!;
+        const decoded = jwt.verify(token, jwtSecret, { algorithms: ['HS256'] }) as any;
         userId = decoded.sub;
+        console.log('✅ Extracted user ID from token:', userId);
+      } catch (jwtError) {
+        console.log('⚠️ JWT verification failed, trying fallback approach:', jwtError.message);
+      }
+    }
+    
+    // Fallback: Create a Supabase client with user context to get current user
+    if (!userId) {
+      try {
+        const supabaseUserClient = createUserSupabaseClient(request);
+        const { data: { user }, error: userError } = await supabaseUserClient.auth.getUser();
         
-        if (!userId) {
-          throw new Error('No user ID in token');
+        if (userError || !user) {
+          return NextResponse.json(
+            { error: 'Authentication required', message: 'Please log in to view your teams' },
+            { status: 401 }
+          );
         }
         
-        console.log('✅ JWT token verified for user:', userId);
-      } catch (jwtError) {
-        console.error('JWT verification failed:', jwtError);
+        userId = user.id;
+        console.log('✅ Got user ID from Supabase auth context:', userId);
+      } catch (error) {
+        console.error('Failed to get authenticated user:', error);
         return NextResponse.json(
-          { error: 'Unauthorized', message: 'Invalid or expired authentication token' },
+          { error: 'Authentication error', message: 'Failed to verify user authentication' },
           { status: 401 }
         );
       }
-    } else {
-      console.log('🧪 Development mode: Using default user for teams API');
     }
 
-    // Use Supabase to get user teams
-    const supabase = createServerSupabaseClient();
+    // Use TeamService to get user teams
+    const teamService = new TeamService();
+    const result = await teamService.getUserTeams(userId, { includeInactive: false });
     
-    // Get teams where the user is captain or member
-    const { data: userTeams, error: teamsError } = await supabase
-      .from('teams')
-      .select(`
-        id,
-        name,
-        team_color,
-        team_bio,
-        captain_id,
-        max_players,
-        created_at,
-        leagues (
-          id,
-          name
-        ),
-        team_members!inner (
-          user_id
-        )
-      `)
-      .eq('team_members.user_id', userId);
-
-    if (teamsError) {
-      console.error('Error fetching user teams:', teamsError);
-      throw new Error(`Database error: ${teamsError.message}`);
+    if (!result.success || !result.data) {
+      console.error('Error fetching user teams:', result.error);
+      return NextResponse.json(
+        { error: 'Failed to fetch teams', message: result.error || 'Could not retrieve your teams' },
+        { status: 500 }
+      );
     }
 
-    // Convert database result to the format expected by the frontend
-    const teams = (userTeams || []).map(team => ({
+    // Convert to API response format
+    const teams = result.data.map(team => ({
       id: team.id,
       name: team.name,
       league: { 
-        name: team.leagues?.name || 'Unknown League', 
-        id: team.leagues?.id || '' 
+        name: team.league?.name || 'Independent', 
+        id: team.league?.id || null 
       },
       sport: 'football',
-      max_players: team.max_players || 22,
-      current_members: 1, // TODO: Calculate actual member count
-      team_color: team.team_color,
-      team_bio: team.team_bio,
-      created_at: team.created_at,
-      captain_id: team.captain_id,
-      memberCount: 1, // TODO: Calculate actual member count
-      stats: null // TODO: Add stats calculation
+      max_players: team.maxPlayers || 22,
+      current_members: team.memberCount || 0,
+      team_color: team.teamColor,
+      team_bio: team.teamBio,
+      created_at: team.createdAt,
+      captain_id: team.captainId,
+      memberCount: team.memberCount || 0,
+      stats: team.stats || null
     }));
 
     return NextResponse.json({
