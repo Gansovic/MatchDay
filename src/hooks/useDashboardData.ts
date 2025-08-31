@@ -9,10 +9,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { TeamService, TeamWithDetails } from '@/lib/services/team.service';
-import { StatsService, PlayerPerformanceAnalysis } from '@/lib/services/stats.service';
-import { LeagueService } from '@/lib/services/league.service';
-import { UserService } from '@/lib/services/user.service';
+// Services no longer needed - using direct Supabase queries
 
 export interface DashboardStats {
   matchesPlayed: number;
@@ -39,7 +36,14 @@ export interface RecentActivity {
 }
 
 export interface UserTeamMembership {
-  team: TeamWithDetails;
+  team: {
+    id: string;
+    name: string;
+    league?: { id: string; name: string } | null;
+    captain_id?: string;
+    memberCount: number;
+    availableSpots: number;
+  };
   role: 'captain' | 'member';
   position?: string;
   jerseyNumber?: number;
@@ -71,69 +75,15 @@ export function useUserStats(userId: string | null) {
         setLoading(true);
         setError(null);
 
-        // Get user's team memberships
-        const teamService = TeamService.getInstance(supabase);
-        const teamsResult = await teamService.getUserTeams(userId);
+        // Use new API endpoint for user stats
+        const response = await fetch('/api/user/stats');
         
-        if (!teamsResult.success) {
-          throw new Error(teamsResult.error?.message || 'Failed to fetch teams');
+        if (!response.ok) {
+          throw new Error(`Failed to fetch user stats: ${response.status}`);
         }
 
-        const teams = teamsResult.data || [];
-
-        // Get user's cross-league stats
-        const statsService = StatsService.getInstance(supabase);
-        const performanceResult = await statsService.getPlayerPerformanceAnalysis(userId, {
-          includeComparisons: false,
-          includePredictions: false
-        });
-
-        // Get user's stats from player_cross_league_stats
-        const { data: crossLeagueStats } = await supabase
-          .from('player_cross_league_stats')
-          .select('*')
-          .eq('player_id', userId)
-          .eq('season_year', new Date().getFullYear())
-          .single();
-
-        // Get total matches played across all teams
-        const { data: playerStats } = await supabase
-          .from('player_stats')
-          .select('games_played, goals, assists, wins, draws, losses')
-          .eq('player_id', userId)
-          .eq('season_year', new Date().getFullYear());
-
-        const totalMatches = playerStats?.reduce((sum, stat) => sum + (stat.games_played || 0), 0) || 0;
-        const totalGoals = playerStats?.reduce((sum, stat) => sum + (stat.goals || 0), 0) || 0;
-        const totalAssists = playerStats?.reduce((sum, stat) => sum + (stat.assists || 0), 0) || 0;
-        const totalWins = playerStats?.reduce((sum, stat) => sum + (stat.wins || 0), 0) || 0;
-        const totalGames = playerStats?.reduce((sum, stat) => sum + ((stat.wins || 0) + (stat.draws || 0) + (stat.losses || 0)), 0) || 0;
-
-        // Calculate win rate
-        const winRate = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0;
-
-        // Get upcoming matches (simplified - would need match scheduling system)
-        const upcomingMatches = 0; // TODO: Implement when match system is ready
-
-        // Get unique leagues participated
-        const leaguesParticipated = teams.reduce((acc, team) => {
-          if (team.league?.id && !acc.includes(team.league.id)) {
-            acc.push(team.league.id);
-          }
-          return acc;
-        }, [] as string[]).length;
-
-        const dashboardStats: DashboardStats = {
-          matchesPlayed: totalMatches,
-          teamsJoined: teams.length,
-          upcomingMatches,
-          winRate,
-          goalsScored: totalGoals,
-          assists: totalAssists,
-          leaguesParticipated
-        };
-
-        setStats(dashboardStats);
+        const data = await response.json();
+        setStats(data.stats);
       } catch (err) {
         console.error('Error fetching user stats:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch statistics');
@@ -168,46 +118,15 @@ export function useUserTeams(userId: string | null) {
         setLoading(true);
         setError(null);
 
-        const teamService = TeamService.getInstance(supabase);
-        const result = await teamService.getUserTeams(userId);
-
-        if (!result.success) {
-          throw new Error(result.error?.message || 'Failed to fetch teams');
+        // Use new API endpoint for user teams
+        const response = await fetch('/api/user/teams');
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch user teams: ${response.status}`);
         }
 
-        // Get detailed membership information
-        const { data: memberships } = await supabase
-          .from('team_members')
-          .select('*')
-          .eq('user_id', userId)
-          .eq('is_active', true);
-
-        // Get player stats for each team
-        const { data: playerStats } = await supabase
-          .from('player_stats')
-          .select('*')
-          .eq('player_id', userId)
-          .eq('season_year', new Date().getFullYear());
-
-        const teamMemberships: UserTeamMembership[] = (result.data || []).map(team => {
-          const membership = memberships?.find(m => m.team_id === team.id);
-          const stats = playerStats?.find(s => s.team_id === team.id);
-          
-          return {
-            team,
-            role: team.captain_id === userId ? 'captain' : 'member',
-            position: membership?.position,
-            jerseyNumber: membership?.jersey_number,
-            joinedAt: membership?.joined_at || team.created_at,
-            stats: stats ? {
-              goals: stats.goals || 0,
-              assists: stats.assists || 0,
-              matches: stats.games_played || 0
-            } : undefined
-          };
-        });
-
-        setTeams(teamMemberships);
+        const data = await response.json();
+        setTeams(data.teams || []);
       } catch (err) {
         console.error('Error fetching user teams:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch teams');
@@ -324,11 +243,19 @@ export function useRecentActivity(userId: string | null, limit: number = 10) {
   return { activity, loading, error, refetch: () => setLoading(true) };
 }
 
+export interface UserPerformance {
+  overallRating: number;
+  strengths: string[];
+  totalGoals: number;
+  totalAssists: number;
+  totalMatches: number;
+}
+
 /**
  * Hook for fetching user's performance analysis
  */
 export function useUserPerformance(userId: string | null) {
-  const [performance, setPerformance] = useState<PlayerPerformanceAnalysis | null>(null);
+  const [performance, setPerformance] = useState<UserPerformance | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -344,22 +271,15 @@ export function useUserPerformance(userId: string | null) {
         setLoading(true);
         setError(null);
 
-        const statsService = StatsService.getInstance(supabase);
-        const result = await statsService.getPlayerPerformanceAnalysis(userId, {
-          includeComparisons: true,
-          includePredictions: true
-        });
-
-        if (!result.success) {
-          // If no stats exist yet, don't treat as error
-          if (result.error?.code === 'PGRST116') {
-            setPerformance(null);
-            return;
-          }
-          throw new Error(result.error?.message || 'Failed to fetch performance analysis');
+        // Use new API endpoint for user stats (includes performance data)
+        const response = await fetch('/api/user/stats');
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch user performance: ${response.status}`);
         }
 
-        setPerformance(result.data);
+        const data = await response.json();
+        setPerformance(data.performance);
       } catch (err) {
         console.error('Error fetching user performance:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch performance analysis');
