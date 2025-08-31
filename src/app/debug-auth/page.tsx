@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/components/auth/dev-auth-provider';
+import { useAuth } from '@/components/auth/supabase-auth-provider';
 
 export default function DebugAuthPage() {
   const { user, isLoading: authLoading, getSession } = useAuth();

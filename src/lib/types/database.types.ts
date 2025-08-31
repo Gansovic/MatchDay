@@ -488,6 +488,50 @@ export interface Database {
           updated_by?: string | null;
         };
       };
+      team_invitations: {
+        Row: {
+          id: string;
+          team_id: string;
+          invited_by: string;
+          email: string | null;
+          position: string | null;
+          jersey_number: number | null;
+          message: string | null;
+          token: string;
+          status: 'pending' | 'accepted' | 'expired';
+          expires_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          team_id: string;
+          invited_by: string;
+          email?: string | null;
+          position?: string | null;
+          jersey_number?: number | null;
+          message?: string | null;
+          token?: string;
+          status?: 'pending' | 'accepted' | 'expired';
+          expires_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          team_id?: string;
+          invited_by?: string;
+          email?: string | null;
+          position?: string | null;
+          jersey_number?: number | null;
+          message?: string | null;
+          token?: string;
+          status?: 'pending' | 'accepted' | 'expired';
+          expires_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {
       league_standings: {
@@ -607,6 +651,7 @@ export type TeamStats = Database['public']['Tables']['team_stats']['Row'];
 export type Achievement = Database['public']['Tables']['achievements']['Row'];
 export type UserAchievement = Database['public']['Tables']['user_achievements']['Row'];
 export type TeamJoinRequest = Database['public']['Tables']['team_join_requests']['Row'];
+export type TeamInvitation = Database['public']['Tables']['team_invitations']['Row'];
 export type AppConfiguration = Database['public']['Tables']['app_configurations']['Row'];
 
 // Insert types
@@ -679,6 +724,12 @@ export enum JoinRequestStatus {
   APPROVED = 'approved',
   REJECTED = 'rejected',
   WITHDRAWN = 'withdrawn'
+}
+
+export enum InvitationStatus {
+  PENDING = 'pending',
+  ACCEPTED = 'accepted',
+  EXPIRED = 'expired'
 }
 
 // Complex types for forms and API responses
@@ -758,6 +809,13 @@ export interface UpdateProfileForm {
   preferred_position?: string;
   location?: string;
   date_of_birth?: string;
+}
+
+export interface SendInvitationForm {
+  email: string;
+  position?: string;
+  jersey_number?: number;
+  message?: string;
 }
 
 // API Response types

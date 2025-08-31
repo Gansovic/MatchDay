@@ -77,10 +77,10 @@ const MOCK_USERS: { [email: string]: { password: string; user: MockUser } } = {
       id: '550e8400-e29b-41d4-a716-446655440100',
       email: 'john.doe@example.com',
       full_name: 'John Doe',
-      role: 'captain',
+      role: 'player',
       user_metadata: {
         full_name: 'John Doe',
-        role: 'captain',
+        role: 'player',
         preferred_position: 'midfielder'
       }
     }

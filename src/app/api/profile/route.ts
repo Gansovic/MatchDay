@@ -8,9 +8,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { UserService } from '@/lib/services/user.service';
-import { Database, UpdateUserProfile } from '@/lib/types/database.types';
+import { UpdateUserProfile } from '@/lib/types/database.types';
+import { createUserSupabaseClient } from '@/lib/supabase/server-client';
 
 interface ProfileUpdateRequest {
   full_name?: string;
@@ -27,30 +27,6 @@ interface ProfileValidationError {
   message: string;
 }
 
-/**
- * Create a Supabase client for API routes with proper auth token handling
- */
-function createServerSupabaseClient(request: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  
-  // Get the authorization header
-  const authHeader = request.headers.get('authorization');
-  const accessToken = authHeader?.replace('Bearer ', '');
-  
-  const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: accessToken ? {
-        'Authorization': `Bearer ${accessToken}`,
-        'X-Client-Info': 'matchday-api@1.0.0'
-      } : {
-        'X-Client-Info': 'matchday-api@1.0.0'
-      }
-    }
-  });
-  
-  return supabase;
-}
 
 /**
  * Validate profile update request data
@@ -188,7 +164,7 @@ function validateProfileUpdateRequest(data: any): {
 export async function GET(request: NextRequest) {
   try {
     // Create Supabase client
-    const supabase = createServerSupabaseClient(request);
+    const supabase = createUserSupabaseClient(request);
     const userService = UserService.getInstance();
 
     // Get current user from Supabase auth
@@ -259,7 +235,7 @@ export async function PATCH(request: NextRequest) {
 async function handleProfileUpdate(request: NextRequest, updateType: 'full' | 'partial') {
   try {
     // Create Supabase client
-    const supabase = createServerSupabaseClient(request);
+    const supabase = createUserSupabaseClient(request);
     const userService = UserService.getInstance();
 
     // Get current user from Supabase auth

@@ -31,8 +31,10 @@ import {
   Trash2,
   Check,
   X,
-  Loader2
+  Loader2,
+  Send
 } from 'lucide-react';
+import { TeamInviteModal } from './TeamInviteModal';
 
 export interface TeamMember {
   id: string;
@@ -55,14 +57,10 @@ export interface TeamMember {
   };
 }
 
-export interface AddMemberForm {
-  email: string;
-  position?: string;
-  jersey_number?: number;
-}
 
 interface TeamMemberManagementProps {
   teamId: string;
+  teamName?: string;
   isUserCaptain: boolean;
   onMemberAdded?: (member: TeamMember) => void;
   onMemberRemoved?: (memberId: string) => void;
@@ -70,6 +68,7 @@ interface TeamMemberManagementProps {
 
 export const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
   teamId,
+  teamName = 'Team',
   isUserCaptain,
   onMemberAdded,
   onMemberRemoved
@@ -78,18 +77,12 @@ export const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [positionFilter, setPositionFilter] = useState<string>('all');
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  
-  const [addMemberForm, setAddMemberForm] = useState<AddMemberForm>({
-    email: '',
-    position: '',
-    jersey_number: undefined
-  });
 
   // Load team members
   useEffect(() => {
@@ -205,48 +198,6 @@ export const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
     }
   };
 
-  const handleAddMember = async () => {
-    if (!addMemberForm.email.trim()) return;
-
-    setIsSubmitting(true);
-    setError(null);
-    
-    try {
-      // Mock successful addition for development
-      const newMember: TeamMember = {
-        id: Date.now().toString(),
-        user_id: `user_${Date.now()}`,
-        team_id: teamId,
-        email: addMemberForm.email,
-        full_name: addMemberForm.email.split('@')[0],
-        position: addMemberForm.position as any,
-        jersey_number: addMemberForm.jersey_number,
-        joined_at: new Date().toISOString(),
-        is_active: true,
-        is_captain: false,
-        stats: {
-          matches_played: 0,
-          goals: 0,
-          assists: 0,
-          yellow_cards: 0,
-          red_cards: 0,
-          minutes_played: 0
-        }
-      };
-
-      setMembers(prev => [...prev, newMember]);
-      setShowAddModal(false);
-      setAddMemberForm({ email: '', position: '', jersey_number: undefined });
-      setSuccess('Team member added successfully!');
-      onMemberAdded?.(newMember);
-      
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError('Failed to add team member. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const handleRemoveMember = async (memberId: string) => {
     if (!confirm('Are you sure you want to remove this member from the team?')) return;
@@ -310,11 +261,11 @@ export const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
           </div>
           {isUserCaptain && (
             <button
-              onClick={() => setShowAddModal(true)}
+              onClick={() => setShowInviteModal(true)}
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
             >
-              <UserPlus className="w-4 h-4" />
-              Add Member
+              <Send className="w-4 h-4" />
+              Invite Player
             </button>
           )}
         </div>
@@ -484,100 +435,19 @@ export const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
         </div>
       )}
 
-      {/* Add Member Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 w-full max-w-md">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                Add Team Member
-              </h3>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Email Address *
-                </label>
-                <input
-                  type="email"
-                  value={addMemberForm.email}
-                  onChange={(e) => setAddMemberForm(prev => ({ ...prev, email: e.target.value }))}
-                  placeholder="Enter member's email"
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Position
-                </label>
-                <select
-                  value={addMemberForm.position}
-                  onChange={(e) => setAddMemberForm(prev => ({ ...prev, position: e.target.value }))}
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select position (optional)</option>
-                  {positions.map(pos => (
-                    <option key={pos.value} value={pos.value}>{pos.icon} {pos.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Jersey Number
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="99"
-                  value={addMemberForm.jersey_number || ''}
-                  onChange={(e) => setAddMemberForm(prev => ({ 
-                    ...prev, 
-                    jersey_number: e.target.value ? parseInt(e.target.value) : undefined 
-                  }))}
-                  placeholder="Optional"
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => setShowAddModal(false)}
-                disabled={isSubmitting}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddMember}
-                disabled={isSubmitting || !addMemberForm.email.trim()}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Adding...
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="w-4 h-4" />
-                    Add Member
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Team Invite Modal */}
+      <TeamInviteModal
+        isOpen={showInviteModal}
+        onClose={() => setShowInviteModal(false)}
+        teamId={teamId}
+        teamName={teamName}
+        onInvitationSent={() => {
+          // Refresh member list when invitation is sent
+          loadMembers();
+          setSuccess('Invitation created successfully!');
+          setTimeout(() => setSuccess(null), 3000);
+        }}
+      />
     </div>
   );
 };

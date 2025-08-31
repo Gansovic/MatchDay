@@ -10,7 +10,7 @@
 import React, { useState, useEffect } from 'react';
 import { LeagueManagement, type League, type UserTeam } from '@/components/leagues/league-management';
 import { LeagueStandings } from '@/components/leagues/league-standings';
-import { useAuth } from '@/components/auth/dev-auth-provider';
+import { useAuth } from '@/components/auth/supabase-auth-provider';
 import { Trophy, Users, BarChart3, Loader2 } from 'lucide-react';
 
 export default function LeaguesPage() {

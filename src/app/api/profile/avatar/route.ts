@@ -7,34 +7,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { UserService } from '@/lib/services/user.service';
-import { Database } from '@/lib/types/database.types';
+import { createUserSupabaseClient } from '@/lib/supabase/server-client';
 
-/**
- * Create a Supabase client for API routes with proper auth token handling
- */
-function createServerSupabaseClient(request: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  
-  // Get the authorization header
-  const authHeader = request.headers.get('authorization');
-  const accessToken = authHeader?.replace('Bearer ', '');
-  
-  const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: accessToken ? {
-        'Authorization': `Bearer ${accessToken}`,
-        'X-Client-Info': 'matchday-api@1.0.0'
-      } : {
-        'X-Client-Info': 'matchday-api@1.0.0'
-      }
-    }
-  });
-  
-  return supabase;
-}
 
 /**
  * Validate uploaded file
@@ -80,7 +55,7 @@ function generateAvatarFilename(userId: string, originalName: string): string {
 export async function POST(request: NextRequest) {
   try {
     // Create Supabase client
-    const supabase = createServerSupabaseClient(request);
+    const supabase = createUserSupabaseClient(request);
     const userService = UserService.getInstance();
 
     // Get current user from Supabase auth
@@ -218,7 +193,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     // Create Supabase client
-    const supabase = createServerSupabaseClient(request);
+    const supabase = createUserSupabaseClient(request);
     const userService = UserService.getInstance();
 
     // Get current user from Supabase auth

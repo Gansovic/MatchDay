@@ -16,7 +16,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Eye, EyeOff, Loader2, Mail, Lock, ArrowRight } from 'lucide-react';
-import { useAuth } from './dev-auth-provider';
+import { useAuth } from './supabase-auth-provider';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),

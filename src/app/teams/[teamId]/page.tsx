@@ -30,10 +30,12 @@ import {
   UserPlus,
   MoreVertical,
   AlertCircle,
-  Loader2
+  Loader2,
+  Send
 } from 'lucide-react';
-import { useAuth } from '@/components/auth/dev-auth-provider';
+import { useAuth } from '@/components/auth/supabase-auth-provider';
 import { TeamMemberManagement } from '@/components/teams/team-member-management';
+import { TeamInviteModal } from '@/components/teams/TeamInviteModal';
 import { Database } from '@/lib/types/database.types';
 
 interface Match {
@@ -120,6 +122,7 @@ export default function TeamDashboard() {
   const params = useParams();
   const teamId = params.teamId as string;
   const [activeTab, setActiveTab] = useState<'overview' | 'roster' | 'matches'>('overview');
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const { user, isLoading: authLoading } = useAuth();
   
   // State for real data
@@ -134,106 +137,52 @@ export default function TeamDashboard() {
         setLoading(true);
         setError(null);
 
-        // For development, create mock team data
-        const mockTeamData = {
-          id: teamId,
-          name: 'Thunder Eagles',
-          league: { name: 'League1' },
-          team_color: '#3B82F6',
-          team_bio: 'A competitive football team focused on teamwork and excellence.',
-          founded_year: 2020,
-          location: 'Central Stadium',
-          max_players: 22,
-          created_at: '2024-01-15T08:00:00Z',
-          captain_id: user?.id === 'john.doe@example.com' ? user.id : '550e8400-e29b-41d4-a716-446655440100'
-        };
+        // Fetch real team data from API
+        const teamResponse = await fetch(`/api/teams/${teamId}`);
+        if (!teamResponse.ok) {
+          throw new Error(`Failed to fetch team data: ${teamResponse.status}`);
+        }
+        const teamData = await teamResponse.json();
+        const apiTeam = teamData.data;
 
-        // Mock members data
-        const mockMembers = [
-          {
-            id: '1',
-            user_id: '550e8400-e29b-41d4-a716-446655440100',
-            position: 'midfielder',
-            users: { full_name: 'John Doe' }
-          },
-          {
-            id: '2', 
-            user_id: '550e8400-e29b-41d4-a716-446655440101',
-            position: 'forward',
-            users: { full_name: 'Jane Smith' }
-          }
-        ];
+        // Fetch team members data
+        const membersResponse = await fetch(`/api/teams/${teamId}/members`);
+        if (!membersResponse.ok) {
+          throw new Error(`Failed to fetch team members: ${membersResponse.status}`);
+        }
+        const membersData = await membersResponse.json();
+        const apiMembers = membersData.data || [];
 
-        // Check if user is a member or has access  
-        const userMember = user ? mockMembers?.find(member => member.user_id === user.id) : null;
-        const isMember = !!userMember || true; // Allow access for development
-        const isUserCaptain = user ? mockTeamData.captain_id === user.id : true; // Mock as captain for development
-
-        // Mock team stats for development
-        const stats = {
-          wins: 12,
-          draws: 3,
-          losses: 2,
-          goals: 42,
-          goalsAgainst: 18,
-          position: 1,
-          totalTeams: 16,
-          points: 39
-        };
-        
         // Transform team members to display format
-        const displayMembers: DisplayTeamMember[] = mockMembers.map(member => ({
+        const displayMembers: DisplayTeamMember[] = apiMembers.map((member: any) => ({
           id: member.id,
-          name: member.users.full_name,
-          position: member.position,
-          isCaptain: member.user_id === mockTeamData.captain_id,
+          name: member.full_name,
+          position: member.position || 'player',
+          isCaptain: member.is_captain,
           isViceCaptain: false,
-          joinDate: '2024-01-15T08:00:00Z',
-          gamesPlayed: 15,
-          goals: member.position === 'forward' ? 12 : member.position === 'midfielder' ? 8 : 0,
-          assists: member.position === 'midfielder' ? 10 : 3
+          joinDate: member.joined_at,
+          gamesPlayed: member.stats?.matches_played || 0,
+          goals: member.stats?.goals || 0,
+          assists: member.stats?.assists || 0
         }));
 
-        // Mock recent and upcoming matches
-        const recentMatches: Match[] = [
-          {
-            id: '1',
-            opponent: 'Lightning Strikers',
-            date: '2024-08-15T18:00:00Z',
-            venue: 'Central Stadium',
-            result: 'win',
-            score: { home: 3, away: 1 },
-            isHome: true
-          }
-        ];
-
-        const upcomingMatches: Match[] = [
-          {
-            id: '2',
-            opponent: 'Phoenix United',
-            date: '2024-08-25T15:00:00Z',
-            venue: 'Sports Complex',
-            isHome: false
-          }
-        ];
-
         const displayTeam: DisplayTeamData = {
-          id: mockTeamData.id,
-          name: mockTeamData.name,
-          league: mockTeamData.league.name,
-          color: mockTeamData.team_color,
-          description: mockTeamData.team_bio,
-          founded: mockTeamData.founded_year.toString(),
-          location: mockTeamData.location,
-          memberCount: displayMembers.length,
-          maxMembers: mockTeamData.max_players,
-          isMember,
-          isUserCaptain,
-          userPosition: userMember?.position,
-          stats,
+          id: apiTeam.id,
+          name: apiTeam.name,
+          league: apiTeam.league.name,
+          color: apiTeam.color,
+          description: apiTeam.description || 'A competitive football team focused on teamwork and excellence.',
+          founded: apiTeam.founded,
+          location: apiTeam.location,
+          memberCount: apiTeam.memberCount,
+          maxMembers: apiTeam.maxMembers,
+          isMember: apiTeam.isMember,
+          isUserCaptain: apiTeam.isUserCaptain,
+          userPosition: apiTeam.userPosition,
+          stats: apiTeam.stats,
           members: displayMembers,
-          recentMatches,
-          upcomingMatches
+          recentMatches: apiTeam.recentMatches || [],
+          upcomingMatches: apiTeam.upcomingMatches || []
         };
 
         setTeam(displayTeam);
@@ -304,9 +253,9 @@ export default function TeamDashboard() {
 
   // Get league standings from real data (simplified for now)
   const getLeagueStandings = (teamName: string, league: string): LeagueStanding[] => {
-    if (league === 'Metropolitan Football League') {
+    if (league === 'League1') {
       const standings = [
-        { position: 1, teamName: team.name, played: 17, wins: team.stats.wins, draws: team.stats.draws, losses: team.stats.losses, goalsFor: team.stats.goals, goalsAgainst: team.stats.goalsAgainst, goalDifference: team.stats.goals - team.stats.goalsAgainst, points: team.stats.points },
+        { position: 1, teamName: team.name, played: team.stats.totalMatches, wins: team.stats.wins, draws: team.stats.draws, losses: team.stats.losses, goalsFor: team.stats.goals, goalsAgainst: team.stats.goalsAgainst, goalDifference: team.stats.goals - team.stats.goalsAgainst, points: team.stats.points },
         { position: 2, teamName: 'Other Team 1', played: 17, wins: 12, draws: 3, losses: 2, goalsFor: 45, goalsAgainst: 18, goalDifference: 27, points: 39 },
         { position: 3, teamName: 'Mountain Lions', played: 17, wins: 11, draws: 4, losses: 2, goalsFor: 38, goalsAgainst: 16, goalDifference: 22, points: 37 },
         { position: 4, teamName: 'Storm Riders', played: 17, wins: 10, draws: 5, losses: 2, goalsFor: 35, goalsAgainst: 20, goalDifference: 15, points: 35 },
@@ -465,9 +414,18 @@ export default function TeamDashboard() {
                   </div>
                 )}
                 {team.isUserCaptain && (
-                  <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                    <Settings className="w-5 h-5" />
-                  </button>
+                  <>
+                    <button 
+                      onClick={() => setShowInviteModal(true)}
+                      className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      <Send className="w-4 h-4" />
+                      Invite Player
+                    </button>
+                    <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                      <Settings className="w-5 h-5" />
+                    </button>
+                  </>
                 )}
               </div>
             )}
@@ -745,6 +703,7 @@ export default function TeamDashboard() {
         {activeTab === 'roster' && (
           <TeamMemberManagement
             teamId={teamId}
+            teamName={team.name}
             isUserCaptain={team.isUserCaptain}
             onMemberAdded={(member) => {
               // Update the team member count
@@ -837,6 +796,18 @@ export default function TeamDashboard() {
             </div>
           </div>
         )}
+
+        {/* Team Invite Modal */}
+        <TeamInviteModal
+          isOpen={showInviteModal}
+          onClose={() => setShowInviteModal(false)}
+          teamId={teamId}
+          teamName={team.name}
+          onInvitationSent={() => {
+            // Could add team refresh logic here if needed
+            setShowInviteModal(false);
+          }}
+        />
       </div>
     </div>
   );

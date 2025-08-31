@@ -10,7 +10,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/components/auth/dev-auth-provider';
+import { useAuth } from '@/components/auth/supabase-auth-provider';
 import { MatchScheduler } from '@/components/matches/match-scheduler';
 import type { Team } from '@/components/matches/match-scheduler';
 

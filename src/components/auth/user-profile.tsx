@@ -51,7 +51,6 @@ const playerPositions = [
   { value: 'forward', label: 'Forward' },
   { value: 'winger', label: 'Winger' },
   { value: 'striker', label: 'Striker' },
-  { value: 'captain', label: 'Captain' },
   { value: 'versatile', label: 'Versatile Player' }
 ];
 

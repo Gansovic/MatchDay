@@ -234,8 +234,6 @@ export default function DatabaseViewer() {
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                           user.role === 'admin' 
                             ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300'
-                            : user.role === 'captain'
-                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300'
                             : 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
                         }`}>
                           {user.role}

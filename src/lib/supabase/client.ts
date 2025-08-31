@@ -42,19 +42,15 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    flowType: 'pkce',
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined
+    flowType: 'pkce',  // Restored to PKCE for cloud Supabase
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    debug: false
   },
-  // Temporarily remove X-Client-Info to debug CORS issues
-  // global: {
-  //   headers: {
-  //     'X-Client-Info': 'matchday-web@1.0.0'
-  //   }
-  // },
-  // Add retry logic for failed requests
   db: {
     schema: 'public'
   }
+  // Realtime re-enabled for Supabase Cloud (works reliably)
+  // Removed custom fetch wrapper - not needed with cloud service
 });
 
 /**
