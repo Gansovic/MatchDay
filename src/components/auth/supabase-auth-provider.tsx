@@ -28,7 +28,8 @@ interface AuthContextType {
     password: string;
   }) => Promise<{ success: boolean; error?: string }>;
   signInWithOAuth: (provider: 'google' | 'github' | 'discord') => Promise<{ success: boolean; error?: string }>;
-  signOut: () => Promise<{ success: boolean; error?: string }>;
+  signOut: () => Promise<{ success: boolean; error?: string; canForceLogout?: boolean }>;
+  forceSignOut: () => Promise<{ success: boolean; error?: string }>;
   updateProfile: (updates: {
     display_name?: string;
     avatar_url?: string;
@@ -51,19 +52,118 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasExplicitlyLoggedOut, setHasExplicitlyLoggedOut] = useState(false);
 
   // Initialize auth state
   useEffect(() => {
-    // Get initial session
+    // Get initial session with timeout protection
     const getInitialSession = async () => {
+      console.log('🔑 Starting getInitialSession...');
+      
       try {
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
-        setSession(initialSession);
-        setUser(initialSession?.user ?? null);
+        // Check if user has explicitly logged out
+        const loggedOutFlag = localStorage.getItem('explicitly_logged_out');
+        console.log('🔑 Checking logout flag:', loggedOutFlag);
+        
+        if (loggedOutFlag === 'true') {
+          console.log('🚪 User has explicitly logged out, clearing any existing session and skipping restore');
+          
+          // Force clear any existing session that might have persisted
+          try {
+            await supabase.auth.signOut({ scope: 'global' });
+            console.log('🚪 Session cleared successfully');
+          } catch (signOutError) {
+            console.warn('🚪 Error clearing session, but continuing:', signOutError);
+          }
+          
+          setSession(null);
+          setUser(null);
+          setHasExplicitlyLoggedOut(true);
+          setIsLoading(false);
+          console.log('🚪 Logout state set, loading: false');
+          return;
+        }
+        
+        console.log('🔑 No logout flag found, getting initial session...');
+        
+        // Add timeout protection to prevent infinite loading
+        console.log('🔑 Calling supabase.auth.getSession() with 10s timeout...');
+        
+        try {
+          const sessionPromise = supabase.auth.getSession();
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Session retrieval timeout after 10 seconds')), 10000)
+          );
+          
+          const result = await Promise.race([sessionPromise, timeoutPromise]) as any;
+          console.log('🔑 Session call completed successfully');
+          
+          const { data: { session: initialSession }, error } = result;
+          
+          if (error) {
+            console.error('🔑 Supabase returned error:', error);
+            throw error;
+          }
+          
+          console.log('🔑 Initial session found:', !!initialSession, initialSession?.user?.email || 'no email');
+          setSession(initialSession);
+          setUser(initialSession?.user ?? null);
+          console.log('🔑 Success case: session/user set, loading will be false');
+          
+        } catch (timeoutOrNetworkError) {
+          console.error('🔑 Session retrieval failed:', timeoutOrNetworkError);
+          
+          // If it's a timeout, try one more time with a longer timeout
+          if (timeoutOrNetworkError.message.includes('timeout')) {
+            console.log('🔑 First attempt timed out, trying once more with 15s timeout...');
+            
+            try {
+              const retryPromise = supabase.auth.getSession();
+              const longTimeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Final session retrieval timeout')), 15000)
+              );
+              
+              const retryResult = await Promise.race([retryPromise, longTimeoutPromise]) as any;
+              console.log('🔑 Retry session call succeeded');
+              
+              const { data: { session: retrySession }, error: retryError } = retryResult;
+              
+              if (retryError) {
+                console.error('🔑 Retry returned error:', retryError);
+                throw retryError;
+              }
+              
+              console.log('🔑 Retry session found:', !!retrySession, retrySession?.user?.email || 'no email');
+              setSession(retrySession);
+              setUser(retrySession?.user ?? null);
+              
+            } catch (finalError) {
+              console.error('🔑 Final retry also failed:', finalError);
+              console.log('🔑 Defaulting to logged out state due to connection issues');
+              setSession(null);
+              setUser(null);
+            }
+          } else {
+            console.log('🔑 Non-timeout error, defaulting to logged out state');
+            setSession(null);
+            setUser(null);
+          }
+        }
       } catch (error) {
-        console.error('Error getting initial session:', error);
+        console.error('🔑 Exception getting initial session (including timeout):', error);
+        console.log('🔑 Exception case: defaulting to logged out state');
+        setSession(null);
+        setUser(null);
       } finally {
+        console.log('🔑 Setting isLoading to false - auth state will be determined');
         setIsLoading(false);
+        
+        // Log final auth state for debugging
+        setTimeout(() => {
+          console.log('🔑 Final auth state - User:', user?.email || 'null', 'Session:', !!session, 'Loading:', false);
+        }, 100);
+        
+        console.log('🔑 getInitialSession completed');
       }
     };
 
@@ -73,15 +173,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state change:', event, session?.user?.email);
+      console.log('🔄 Auth state change:', event, session?.user?.email || 'no user');
       
+      // Always update state based on actual Supabase auth events
+      // This ensures UI reflects the true authentication state
+      console.log('🔄 Updating auth state - Event:', event, 'HasSession:', !!session, 'HasUser:', !!session?.user);
       setSession(session);
       setUser(session?.user ?? null);
       setIsLoading(false);
+      
+      console.log('🔄 Auth state updated - User:', session?.user?.email || 'null', 'Loading:', false);
 
-      // Handle sign in success - create/update user profile
+      // Handle sign in success - create/update user profile and clear logout flag
       if (event === 'SIGNED_IN' && session?.user) {
+        console.log('🔑 User signed in, clearing logout flag and ensuring profile');
+        // Clear logout flag since user is now successfully signed in
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('explicitly_logged_out');
+          setHasExplicitlyLoggedOut(false);
+        }
         await ensureUserProfile(session.user);
+      }
+      
+      // Handle sign out - respect the logout flag for UI consistency
+      if (event === 'SIGNED_OUT' || !session) {
+        console.log('🔄 User signed out or session ended');
+        const loggedOutFlag = localStorage.getItem('explicitly_logged_out');
+        if (loggedOutFlag === 'true') {
+          console.log('🔄 Logout flag present, maintaining explicit logout state');
+          setHasExplicitlyLoggedOut(true);
+        }
       }
     });
 
@@ -176,6 +297,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return { success: false, error: error.message };
       }
       
+      // Clear explicit logout flag on successful login
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('explicitly_logged_out');
+        setHasExplicitlyLoggedOut(false);
+        console.log('🔑 Cleared logout flag on successful login');
+      }
+      
       return { success: true };
     } catch (error) {
       console.error('Sign in exception:', error);
@@ -217,18 +345,189 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signOut = async (): Promise<{ success: boolean; error?: string }> => {
     try {
       setIsLoading(true);
+      console.log('🚪 Starting logout process...');
       
-      const { error } = await supabase.auth.signOut();
-
+      // Get current session before clearing
+      const currentSession = await supabase.auth.getSession();
+      console.log('🚪 Current session before logout:', !!currentSession.data.session);
+      
+      if (!currentSession.data.session) {
+        console.log('🚪 No active session found, user already logged out');
+        // Clean up any remaining state
+        setUser(null);
+        setSession(null);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('explicitly_logged_out', 'true');
+          setHasExplicitlyLoggedOut(true);
+        }
+        return { success: true };
+      }
+      
+      // Force clear Supabase auth session with global scope
+      console.log('🚪 Calling supabase.auth.signOut() with timeout protection...');
+      
+      // Add timeout protection for signOut (shorter timeout for faster feedback)
+      const signOutPromise = supabase.auth.signOut({ scope: 'global' });
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('SignOut timeout after 8 seconds')), 8000)
+      );
+      
+      const { error } = await Promise.race([signOutPromise, timeoutPromise]) as any;
+      
       if (error) {
-        return { success: false, error: error.message };
+        console.error('🚪 Supabase signOut failed:', error);
+        // Don't clear local state if signOut failed - keep user logged in
+        
+        // Provide more helpful error message based on error type
+        let errorMessage = `Logout failed: ${error.message}`;
+        if (error.message.includes('timeout')) {
+          errorMessage = 'Logout timed out due to network issues. You can try again or use "Force Logout" to clear local session only.';
+        }
+        
+        return { 
+          success: false, 
+          error: errorMessage,
+          canForceLogout: true  // Signal that force logout is available
+        };
+      }
+      
+      console.log('🚪 Supabase signOut call completed');
+      
+      // Verify session is actually cleared with retry
+      let sessionCleared = false;
+      let retries = 0;
+      const maxRetries = 3;
+      
+      while (!sessionCleared && retries < maxRetries) {
+        // Wait a bit for the session to be cleared
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const afterSession = await supabase.auth.getSession();
+        sessionCleared = !afterSession.data.session;
+        
+        console.log(`🚪 Session verification attempt ${retries + 1}: cleared=${sessionCleared}`);
+        
+        if (!sessionCleared && retries < maxRetries - 1) {
+          console.log('🚪 Session still active, retrying signOut...');
+          await supabase.auth.signOut({ scope: 'global' });
+        }
+        
+        retries++;
+      }
+      
+      if (!sessionCleared) {
+        console.error('🚪 Failed to clear session after multiple attempts');
+        return { 
+          success: false, 
+          error: 'Unable to complete logout. Please refresh the page and try again.' 
+        };
+      }
+      
+      console.log('🚪 Session successfully cleared, now safe to update UI state...');
+      
+      // Only now clear local state since we confirmed session is cleared
+      setUser(null);
+      setSession(null);
+      
+      // Set logout flag and clear storage only after successful signOut
+      if (typeof window !== 'undefined') {
+        console.log('🚪 Setting logout flag after successful signOut...');
+        localStorage.setItem('explicitly_logged_out', 'true');
+        setHasExplicitlyLoggedOut(true);
+        
+        console.log('🚪 Clearing Supabase-specific browser storage...');
+        
+        // Get all storage keys
+        const localKeys = Object.keys(localStorage);
+        console.log('🚪 LocalStorage keys before clear:', localKeys.length);
+        
+        // Identify and remove Supabase-specific keys from localStorage
+        const supabaseLocalKeys = localKeys.filter(key => 
+          key.includes('supabase') || 
+          key.includes('sb-') || 
+          (key.includes('auth') && key !== 'explicitly_logged_out') ||
+          key.startsWith('supabase.') ||
+          key.includes('access_token') ||
+          key.includes('refresh_token')
+        );
+        
+        console.log('🚪 Removing Supabase localStorage keys:', supabaseLocalKeys);
+        supabaseLocalKeys.forEach(key => {
+          localStorage.removeItem(key);
+          console.log(`🚪 Removed localStorage key: ${key}`);
+        });
+        
+        // Clear all sessionStorage
+        sessionStorage.clear();
+        console.log('🚪 Cleared all sessionStorage');
+        
+        // Ensure logout flag persists
+        localStorage.setItem('explicitly_logged_out', 'true');
+        
+        const remainingKeys = Object.keys(localStorage);
+        console.log('🚪 Remaining localStorage keys after cleanup:', remainingKeys);
       }
 
+      console.log('🚪 Logout completed successfully - session cleared and UI updated');
       return { success: true };
     } catch (error) {
+      console.error('🚪 SignOut exception:', error);
       return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to sign out' 
+        success: false,
+        error: error instanceof Error ? error.message : 'Logout failed due to unexpected error' 
+      };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const forceSignOut = async (): Promise<{ success: boolean; error?: string }> => {
+    try {
+      setIsLoading(true);
+      console.log('🚪 FORCE LOGOUT: Clearing local state without waiting for Supabase');
+      
+      // Clear local state immediately
+      setUser(null);
+      setSession(null);
+      
+      // Set logout flag
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('explicitly_logged_out', 'true');
+        setHasExplicitlyLoggedOut(true);
+        
+        // Clear all Supabase-related storage
+        const allKeys = Object.keys(localStorage);
+        const supabaseKeys = allKeys.filter(key => 
+          key.includes('supabase') || 
+          key.includes('sb-') || 
+          (key.includes('auth') && key !== 'explicitly_logged_out') ||
+          key.startsWith('supabase.') ||
+          key.includes('access_token') ||
+          key.includes('refresh_token')
+        );
+        
+        supabaseKeys.forEach(key => localStorage.removeItem(key));
+        sessionStorage.clear();
+        
+        // Restore logout flag
+        localStorage.setItem('explicitly_logged_out', 'true');
+      }
+      
+      // Try to signOut in background without waiting (best effort)
+      supabase.auth.signOut({ scope: 'global' }).catch(error => {
+        console.warn('🚪 Background signOut failed (expected with network issues):', error);
+      });
+      
+      console.log('🚪 FORCE LOGOUT: Local state cleared. Note: Server session may still be active.');
+      return { 
+        success: true,
+        error: 'Local logout completed. Server session may remain active due to network issues.'
+      };
+    } catch (error) {
+      console.error('🚪 Force logout error:', error);
+      return { 
+        success: false,
+        error: error instanceof Error ? error.message : 'Force logout failed' 
       };
     } finally {
       setIsLoading(false);
@@ -304,6 +603,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     signIn,
     signInWithOAuth,
     signOut,
+    forceSignOut,
     updateProfile,
     resetPassword,
     getSession

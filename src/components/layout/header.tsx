@@ -20,7 +20,11 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isLoading, signOut } = useAuth();
+  const { user, isLoading, signOut, forceSignOut } = useAuth();
+
+  // Debug logging for auth state
+  console.log('🎨 Header render - Loading:', isLoading, 'User:', user?.email || 'null', 'Will show:', 
+    isLoading ? 'loading' : user ? 'logout button' : 'login button');
 
   const navItems = [
     { href: '/dashboard', label: 'My Dashboard', icon: '📊' },
@@ -43,23 +47,49 @@ export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
 
   const handleLogout = async () => {
     try {
-      await signOut();
+      console.log('🎨 Header: Starting logout...');
+      const result = await signOut();
       
-      // Force a hard reload to clear all cached data
-      if (typeof window !== 'undefined') {
-        window.location.href = '/';
+      if (result.success) {
+        console.log('🎨 Header: Logout succeeded, redirecting...');
+        // Only redirect if logout actually succeeded
+        if (typeof window !== 'undefined') {
+          window.location.href = '/';
+        } else {
+          router.push('/');
+        }
       } else {
-        router.push('/');
+        console.error('🎨 Header: Logout failed:', result.error);
+        
+        // If logout failed due to network issues, offer force logout
+        if (result.canForceLogout) {
+          const forceLogout = confirm(
+            `${result.error}\n\nWould you like to force logout? This will clear your local session but the server session may remain active.`
+          );
+          
+          if (forceLogout) {
+            console.log('🎨 Header: User chose force logout');
+            const forceResult = await forceSignOut();
+            
+            if (forceResult.success) {
+              console.log('🎨 Header: Force logout succeeded');
+              if (forceResult.error) {
+                // Show warning about potential server session
+                alert(`Force logout completed. ${forceResult.error}`);
+              }
+              window.location.href = '/';
+            } else {
+              alert(`Force logout failed: ${forceResult.error}`);
+            }
+          }
+        } else {
+          // Regular error message for non-network issues
+          alert(`Logout failed: ${result.error}`);
+        }
       }
     } catch (error) {
-      console.error('Logout error:', error);
-      
-      // Even if logout fails, redirect to home page
-      if (typeof window !== 'undefined') {
-        window.location.href = '/';
-      } else {
-        router.push('/');
-      }
+      console.error('🎨 Header: Logout exception:', error);
+      alert('Logout failed due to unexpected error. Please try again.');
     }
   };
 
