@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import DirectDatabaseService from '@/lib/database/direct-db.service';
+import { createServerSupabaseClient } from '@/lib/supabase/server-client';
 import jwt from 'jsonwebtoken';
 
 export async function OPTIONS() {
@@ -48,55 +48,61 @@ export async function GET(request: NextRequest) {
       console.log('🧪 Development mode: Using default user for user stats API');
     }
 
-    const dbService = DirectDatabaseService.getInstance();
-    const client = await dbService['pool'].connect();
+    // Use Supabase to get user statistics
+    const supabase = createServerSupabaseClient();
     
-    try {
-      // Get user's team memberships count
-      const teamMembershipsResult = await client.query(`
-        SELECT COUNT(*) as teams_count
-        FROM team_members 
-        WHERE user_id = $1 AND is_active = true
-      `, [userId]);
+    // Get user's team memberships count
+    const { count: teamsCount } = await supabase
+      .from('team_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('is_active', true);
 
-      // Get user's player stats
-      const playerStatsResult = await client.query(`
-        SELECT 
-          goals,
-          assists,
-          minutes_played
-        FROM player_stats 
-        WHERE user_id = $1
-      `, [userId]);
+    // Get user's player stats (may not exist yet)
+    const { data: playerStatsData } = await supabase
+      .from('player_stats')
+      .select('goals, assists, minutes_played')
+      .eq('user_id', userId);
 
-      // Get unique leagues the user participates in
-      const leaguesResult = await client.query(`
-        SELECT COUNT(DISTINCT t.league_id) as leagues_count
-        FROM team_members tm
-        JOIN teams t ON tm.team_id = t.id
-        WHERE tm.user_id = $1 AND tm.is_active = true AND t.league_id IS NOT NULL
-      `, [userId]);
+    // Get unique leagues the user participates in
+    const { data: userTeamsWithLeagues } = await supabase
+      .from('team_members')
+      .select(`
+        teams (
+          league_id
+        )
+      `)
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .not('teams.league_id', 'is', null);
 
-      // Calculate aggregated stats
-      const playerStats = playerStatsResult.rows;
-      const totalMatches = playerStats.length;
-      const totalGoals = playerStats.reduce((sum, s) => sum + (s.goals || 0), 0);
-      const totalAssists = playerStats.reduce((sum, s) => sum + (s.assists || 0), 0);
-      
-      // For now, calculate win rate as 0 until we have match results data
-      const winRate = 0; // TODO: Calculate from match results when available
-      
-      // Upcoming matches placeholder
-      const upcomingMatches = 0; // TODO: Calculate from scheduled matches
-      
-      const dashboardStats = {
-        matchesPlayed: totalMatches,
-        teamsJoined: parseInt(teamMembershipsResult.rows[0]?.teams_count || '0'),
-        upcomingMatches,
-        winRate,
-        goalsScored: totalGoals,
-        assists: totalAssists,
-        leaguesParticipated: parseInt(leaguesResult.rows[0]?.leagues_count || '0')
+    // Calculate aggregated stats
+    const playerStats = playerStatsData || [];
+    const totalMatches = playerStats.length;
+    const totalGoals = playerStats.reduce((sum, s) => sum + (s.goals || 0), 0);
+    const totalAssists = playerStats.reduce((sum, s) => sum + (s.assists || 0), 0);
+    
+    // Count unique leagues
+    const uniqueLeagues = new Set(
+      (userTeamsWithLeagues || [])
+        .map(tm => tm.teams?.league_id)
+        .filter(Boolean)
+    );
+    
+    // For now, calculate win rate as 0 until we have match results data
+    const winRate = 0; // TODO: Calculate from match results when available
+    
+    // Upcoming matches placeholder
+    const upcomingMatches = 0; // TODO: Calculate from scheduled matches
+    
+    const dashboardStats = {
+      matchesPlayed: totalMatches,
+      teamsJoined: teamsCount || 0,
+      upcomingMatches,
+      winRate,
+      goalsScored: totalGoals,
+      assists: totalAssists,
+      leaguesParticipated: uniqueLeagues.size
       };
 
       // Calculate performance analysis
@@ -126,9 +132,6 @@ export async function GET(request: NextRequest) {
       response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
       
       return response;
-    } finally {
-      client.release();
-    }
   } catch (error) {
     console.error('User stats API error:', error);
     return NextResponse.json(

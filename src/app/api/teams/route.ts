@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TeamService } from '@/lib/services/team.service';
 import jwt from 'jsonwebtoken';
-import { createServerSupabaseClient } from '@/lib/supabase/server-client';
+import { createServerSupabaseClient, createUserSupabaseClient } from '@/lib/supabase/server-client';
 
 interface CreateTeamRequest {
   name: string;
@@ -235,45 +235,77 @@ export async function POST(request: NextRequest) {
 
     const teamData = validation.cleanData!;
 
-    // Development mode: Use a default user if no proper auth
-    let captainId: string = 'eec00b4f-7e94-4d76-8f2a-7364b49d1c86'; // Default to player@matchday.com
+    // Extract authenticated user ID from request
+    const authHeader = request.headers.get('authorization');
+    let captainId: string | null = null;
     
-    if (process.env.NODE_ENV === 'production') {
-      // Only enforce JWT in production
-      const authHeader = request.headers.get('authorization');
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return NextResponse.json(
-          { error: 'Unauthorized', message: 'Authentication required' },
-          { status: 401 }
-        );
-      }
-
+    if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.replace('Bearer ', '');
-
-      // Verify JWT token manually and extract user info
+      
       try {
-        const jwtSecret = process.env.SUPABASE_JWT_SECRET || 'jUZj2O0d4B9nxxsU6p7xN3x81z9UGdY/lqbfIlUKb/Q=';
-        const decoded = jwt.verify(token, jwtSecret) as any;
+        // In development, we can extract user ID from the Supabase JWT token
+        const jwtSecret = process.env.SUPABASE_JWT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY!;
+        const decoded = jwt.verify(token, jwtSecret, { algorithms: ['HS256'] }) as any;
         captainId = decoded.sub;
+        console.log('✅ Extracted user ID from token:', captainId);
+      } catch (jwtError) {
+        console.log('⚠️ JWT verification failed, trying fallback approach:', jwtError.message);
+      }
+    }
+    
+    // Fallback: Create a Supabase client with user context to get current user
+    if (!captainId) {
+      try {
+        const supabaseUserClient = createUserSupabaseClient(request);
+        const { data: { user }, error: userError } = await supabaseUserClient.auth.getUser();
         
-        if (!captainId) {
-          throw new Error('No user ID in token');
+        if (userError || !user) {
+          return NextResponse.json(
+            { error: 'Authentication required', message: 'Please log in to create a team' },
+            { status: 401 }
+          );
         }
         
-        console.log('✅ JWT token verified for user:', captainId);
-      } catch (jwtError) {
-        console.error('JWT verification failed:', jwtError);
+        captainId = user.id;
+        console.log('✅ Got user ID from Supabase auth context:', captainId);
+      } catch (error) {
+        console.error('Failed to get authenticated user:', error);
         return NextResponse.json(
-          { error: 'Unauthorized', message: 'Invalid or expired authentication token' },
+          { error: 'Authentication error', message: 'Failed to verify user authentication' },
           { status: 401 }
         );
       }
-    } else {
-      console.log('🧪 Development mode: Using default user for team creation');
     }
 
     // Use Supabase to create team
     const supabase = createServerSupabaseClient();
+    
+    // Ensure the user exists in the users table (required for foreign key constraint)
+    const { data: existingUser, error: userCheckError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', captainId)
+      .single();
+    
+    if (userCheckError || !existingUser) {
+      // User doesn't exist in users table, create a basic profile
+      console.log('Creating user profile for captain:', captainId);
+      const { error: userCreateError } = await supabase
+        .from('users')
+        .insert({
+          id: captainId,
+          email: 'unknown@email.com', // Will be updated when user updates profile
+          display_name: 'Team Captain'
+        });
+      
+      if (userCreateError) {
+        console.error('Failed to create user profile:', userCreateError);
+        return NextResponse.json(
+          { error: 'User setup failed', message: 'Could not prepare user account for team creation' },
+          { status: 500 }
+        );
+      }
+    }
     
     // Find the league by name (if provided)
     let league = null;

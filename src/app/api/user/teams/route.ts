@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import DirectDatabaseService from '@/lib/database/direct-db.service';
+import { createServerSupabaseClient } from '@/lib/supabase/server-client';
 import jwt from 'jsonwebtoken';
 
 export async function OPTIONS() {
@@ -48,52 +48,56 @@ export async function GET(request: NextRequest) {
       console.log('🧪 Development mode: Using default user for user teams API');
     }
 
-    const dbService = DirectDatabaseService.getInstance();
-    const client = await dbService['pool'].connect();
+    // Use Supabase to get user's team memberships
+    const supabase = createServerSupabaseClient();
     
-    try {
-      // Get user's team memberships with team details and league info
-      const result = await client.query(`
-        SELECT 
-          tm.id as membership_id,
-          tm.user_id,
-          tm.team_id,
-          tm.position,
-          tm.jersey_number,
-          tm.joined_at,
-          tm.is_active,
-          t.id as team_id,
-          t.name as team_name,
-          t.captain_id,
-          t.league_id,
-          t.max_players,
-          t.team_color,
-          t.created_at as team_created_at,
-          l.id as league_id,
-          l.name as league_name,
-          l.description as league_description
-        FROM team_members tm
-        JOIN teams t ON tm.team_id = t.id
-        LEFT JOIN leagues l ON t.league_id = l.id
-        WHERE tm.user_id = $1 AND tm.is_active = true
-        ORDER BY tm.joined_at DESC
-      `, [userId]);
+    // Get user's team memberships with team details and league info
+    const { data: teamMemberships, error: teamsError } = await supabase
+      .from('team_members')
+      .select(`
+        id,
+        user_id,
+        team_id,
+        position,
+        jersey_number,
+        joined_at,
+        is_active,
+        teams (
+          id,
+          name,
+          captain_id,
+          league_id,
+          max_players,
+          team_color,
+          created_at,
+          leagues (
+            id,
+            name,
+            description
+          )
+        )
+      `)
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .order('joined_at', { ascending: false });
 
-      // Get player stats for this user across all teams
-      const statsResult = await client.query(`
-        SELECT 
-          team_id,
-          goals,
-          assists,
-          minutes_played
-        FROM player_stats 
-        WHERE user_id = $1
-      `, [userId]);
+    if (teamsError) {
+      throw new Error(`Teams query error: ${teamsError.message}`);
+    }
+
+    // Get player stats for this user (if table exists)
+    const { data: playerStats } = await supabase
+      .from('player_stats')
+      .select('team_id, goals, assists, minutes_played')
+      .eq('user_id', userId);
 
       // Process the data to match expected format
-      const teams = result.rows.map(row => {
+      const teams = (teamMemberships || []).map(membership => {
+        const team = membership.teams;
+        if (!team) return null;
+        
         // Calculate stats for this team
-        const teamStats = statsResult.rows.filter(stat => stat.team_id === row.team_id);
+        const teamStats = (playerStats || []).filter(stat => stat.team_id === membership.team_id);
         const aggregatedStats = teamStats.length > 0 ? {
           goals: teamStats.reduce((sum, s) => sum + (s.goals || 0), 0),
           assists: teamStats.reduce((sum, s) => sum + (s.assists || 0), 0),
@@ -102,28 +106,28 @@ export async function GET(request: NextRequest) {
 
         return {
           team: {
-            id: row.team_id,
-            name: row.team_name,
-            league: row.league_id ? {
-              id: row.league_id,
-              name: row.league_name,
-              description: row.league_description
+            id: team.id,
+            name: team.name,
+            league: team.leagues ? {
+              id: team.leagues.id,
+              name: team.leagues.name,
+              description: team.leagues.description
             } : null,
-            captain_id: row.captain_id,
+            captain_id: team.captain_id,
             memberCount: 0, // Will be calculated if needed
             availableSpots: 0 // Will be calculated if needed
           },
-          role: row.captain_id === userId ? 'captain' : 'member',
-          position: row.position,
-          jerseyNumber: row.jersey_number,
-          joinedAt: row.joined_at,
+          role: team.captain_id === userId ? 'captain' : 'member',
+          position: membership.position,
+          jerseyNumber: membership.jersey_number,
+          joinedAt: membership.joined_at,
           stats: aggregatedStats
         };
-      });
+      }).filter(Boolean);
       
       const response = NextResponse.json({
         teams,
-        count: result.rowCount
+        count: teams.length
       });
       
       // Add CORS headers
@@ -132,9 +136,6 @@ export async function GET(request: NextRequest) {
       response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
       
       return response;
-    } finally {
-      client.release();
-    }
   } catch (error) {
     console.error('User teams API error:', error);
     return NextResponse.json(
