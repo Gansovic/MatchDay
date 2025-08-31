@@ -34,10 +34,24 @@ interface SummaryItem {
   count: number;
 }
 
+interface User {
+  id: string;
+  email: string;
+  full_name: string;
+  phone: string | null;
+  date_of_birth: string | null;
+  position: string | null;
+  role: string;
+  bio: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
 export default function DatabaseViewer() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [leagues, setLeagues] = useState<League[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [summary, setSummary] = useState<SummaryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,27 +61,30 @@ export default function DatabaseViewer() {
     setError(null);
     
     try {
-      const [teamsRes, membersRes, leaguesRes, summaryRes] = await Promise.all([
+      const [teamsRes, membersRes, leaguesRes, usersRes, summaryRes] = await Promise.all([
         fetch('/api/database/teams'),
         fetch('/api/database/members'),
         fetch('/api/database/leagues'),
+        fetch('/api/database/users'),
         fetch('/api/database/summary')
       ]);
 
-      if (!teamsRes.ok || !membersRes.ok || !leaguesRes.ok || !summaryRes.ok) {
+      if (!teamsRes.ok || !membersRes.ok || !leaguesRes.ok || !usersRes.ok || !summaryRes.ok) {
         throw new Error('Failed to fetch data');
       }
 
-      const [teamsData, membersData, leaguesData, summaryData] = await Promise.all([
+      const [teamsData, membersData, leaguesData, usersData, summaryData] = await Promise.all([
         teamsRes.json(),
         membersRes.json(),
         leaguesRes.json(),
+        usersRes.json(),
         summaryRes.json()
       ]);
 
       setTeams(teamsData.teams || []);
       setMembers(membersData.members || []);
       setLeagues(leaguesData.leagues || []);
+      setUsers(usersData.users || []);
       setSummary(summaryData.summary || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -176,6 +193,59 @@ export default function DatabaseViewer() {
                       </td>
                       <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">
                         {new Date(team.created_at).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Users Section */}
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+              👤 Registered Users ({users.length})
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="w-full border border-gray-200 dark:border-gray-700 rounded-lg">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Email</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Phone</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Role</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Position</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Joined</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {users.map((user) => (
+                    <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-4 py-4 text-sm font-medium text-gray-900 dark:text-white">
+                        {user.full_name}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">
+                        {user.email}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">
+                        {user.phone || '-'}
+                      </td>
+                      <td className="px-4 py-4 text-sm">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          user.role === 'admin' 
+                            ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300'
+                            : user.role === 'captain'
+                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300'
+                            : 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
+                        }`}>
+                          {user.role}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400 capitalize">
+                        {user.position || '-'}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">
+                        {new Date(user.created_at).toLocaleDateString()}
                       </td>
                     </tr>
                   ))}

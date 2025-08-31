@@ -158,6 +158,7 @@ export const LeagueStandings: React.FC<LeagueStandingsProps> = ({
       if (matchesData.success && teamsData.success) {
         setMatches(matchesData.data || []);
         setTeams(teamsData.data || []);
+        setLastUpdated(new Date()); // Update timestamp when data is successfully loaded
       } else {
         console.error('API returned error:', matchesData.error || teamsData.error);
         setMatches([]);
@@ -180,6 +181,7 @@ export const LeagueStandings: React.FC<LeagueStandingsProps> = ({
       setMatches(propMatches);
       setTeams(propTeams);
       setIsLoading(false);
+      setLastUpdated(new Date()); // Update timestamp when data is provided via props
       return;
     }
     
@@ -204,8 +206,8 @@ export const LeagueStandings: React.FC<LeagueStandingsProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propMatches, propTeams, leagueId, currentSeasonId]); // Don't depend on loadStandingsData to avoid circular dependency
 
-  // Calculate standings from match results
-  const standings: LeagueStandings = useMemo(() => {
+  // Calculate standings from match results (without timestamp to prevent infinite loop)
+  const standingsData = useMemo(() => {
     const teamStats: { [teamId: string]: StandingsTeam } = {};
     const completedMatches = matches.filter(m => m.status === 'completed' && m.home_score !== undefined && m.away_score !== undefined);
     
@@ -299,19 +301,23 @@ export const LeagueStandings: React.FC<LeagueStandingsProps> = ({
       previous_position: index + 1 // TODO: Track from previous calculation
     }));
 
-    setLastUpdated(new Date());
+    return standingsArray;
+  }, [matches, teams, pointSystem, promotionSpots, relegationSpots, playoffSpots]);
 
-    return {
-      id: leagueId,
-      name: leagueName || 'League Standings',
-      teams: standingsArray,
-      updated_at: new Date().toISOString(),
-      point_system: pointSystem,
-      promotion_spots: promotionSpots,
-      relegation_spots: relegationSpots,
-      playoff_spots: playoffSpots
-    };
-  }, [matches, teams, leagueId, leagueName, pointSystem, promotionSpots, relegationSpots, playoffSpots]);
+  // Create final standings object with stable timestamp
+  const standings: LeagueStandings = useMemo(() => ({
+    id: leagueId,
+    name: leagueName || 'League Standings',
+    teams: standingsData,
+    updated_at: lastUpdated.toISOString(),
+    point_system: pointSystem,
+    promotion_spots: promotionSpots,
+    relegation_spots: relegationSpots,
+    playoff_spots: playoffSpots
+  }), [leagueId, leagueName, standingsData, lastUpdated, pointSystem, promotionSpots, relegationSpots, playoffSpots]);
+
+  // Update timestamp when data is actually loaded, not reactively
+  // This will be handled by parent components or data loading functions
 
   const getPositionIcon = (current: number, previous?: number) => {
     if (!previous || current === previous) return <Minus className="w-4 h-4 text-gray-400" />;

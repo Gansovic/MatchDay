@@ -83,6 +83,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     environment:
+      APP_NAME: "realtime"
       DB_HOST: "postgres"
       DB_PORT: "5432"
       DB_USER: "supabase_realtime_admin"

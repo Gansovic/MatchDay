@@ -7,7 +7,7 @@
  * Generates proper JWT tokens that work with Supabase PostgREST.
  */
 
-import jwt from 'jsonwebtoken';
+import { SignJWT } from 'jose';
 
 export interface MockUser {
   id: string;
@@ -140,18 +140,21 @@ class MockAuthService {
     // Generate proper JWT token using Supabase JWT secret
     const jwtSecret = process.env.SUPABASE_JWT_SECRET || 'jUZj2O0d4B9nxxsU6p7xN3x81z9UGdY/lqbfIlUKb/Q=';
     
-    const payload = {
+    // Convert the secret to a Uint8Array for jose
+    const secret = new TextEncoder().encode(jwtSecret);
+    
+    // Create JWT with jose
+    const accessToken = await new SignJWT({
       aud: 'authenticated',
-      exp: Math.floor(Date.now() / 1000) + (60 * 60), // 1 hour
       sub: userEntry.user.id,
       email: userEntry.user.email,
       role: 'authenticated',
       user_metadata: userEntry.user.user_metadata || {}
-    };
-    
-    const accessToken = jwt.sign(payload, jwtSecret, {
-      algorithm: 'HS256'
-    });
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(secret);
     
     console.log('🔧 Generated JWT token for:', userEntry.user.email);
     console.log('🔧 Token preview:', accessToken.substring(0, 50) + '...');
