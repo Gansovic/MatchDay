@@ -147,7 +147,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Use TeamService to get user teams
-    const teamService = new TeamService();
+    const teamService = TeamService.getInstance(createServerSupabaseClient());
     const result = await teamService.getUserTeams(userId, { includeInactive: false });
     
     if (!result.success || !result.data) {

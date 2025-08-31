@@ -72,6 +72,9 @@ export class TeamService {
         throw new Error('SupabaseClient required for first initialization');
       }
       TeamService.instance = new TeamService(supabaseClient);
+    } else if (supabaseClient && !TeamService.instance.supabase) {
+      // Reinitialize if the existing instance has no supabase client
+      TeamService.instance.supabase = supabaseClient;
     }
     return TeamService.instance;
   }
