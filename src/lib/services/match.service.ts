@@ -275,7 +275,7 @@ export class MatchService {
               user_id,
               position,
               jersey_number,
-              user_profiles!inner(*)
+              users!inner(*)
             `)
             .eq('team_id', match.home_team_id)
             .eq('is_active', true);
@@ -286,7 +286,7 @@ export class MatchService {
               user_id,
               position,
               jersey_number,
-              user_profiles!inner(*)
+              users!inner(*)
             `)
             .eq('team_id', match.away_team_id)
             .eq('is_active', true);
@@ -306,8 +306,8 @@ export class MatchService {
             awayTeam: match.away_team,
             league: match.league,
             events: events || [],
-            homeTeamPlayers: (homePlayers || []).map(p => p.user_profiles),
-            awayTeamPlayers: (awayPlayers || []).map(p => p.user_profiles),
+            homeTeamPlayers: (homePlayers || []).map(p => p.users),
+            awayTeamPlayers: (awayPlayers || []).map(p => p.users),
             playerStats: playerStats ? [playerStats] : undefined
           };
         })
@@ -396,7 +396,7 @@ export class MatchService {
             user_id,
             position,
             jersey_number,
-            user_profiles!inner(*)
+            users!inner(*)
           `)
           .eq('team_id', match.home_team_id)
           .eq('is_active', true),
@@ -406,7 +406,7 @@ export class MatchService {
             user_id,
             position,
             jersey_number,
-            user_profiles!inner(*)
+            users!inner(*)
           `)
           .eq('team_id', match.away_team_id)
           .eq('is_active', true)
@@ -433,8 +433,8 @@ export class MatchService {
         awayTeam: match.away_team,
         league: match.league,
         events: match.match_events || [],
-        homeTeamPlayers: (homePlayers.data || []).map(p => p.user_profiles),
-        awayTeamPlayers: (awayPlayers.data || []).map(p => p.user_profiles),
+        homeTeamPlayers: (homePlayers.data || []).map(p => p.users),
+        awayTeamPlayers: (awayPlayers.data || []).map(p => p.users),
         playerStats: playerStats ? [playerStats] : undefined
       };
 

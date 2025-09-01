@@ -36,6 +36,8 @@ import {
 import { useAuth } from '@/components/auth/supabase-auth-provider';
 import { TeamMemberManagement } from '@/components/teams/team-member-management';
 import { EnhancedTeamInviteModal } from '@/components/teams/EnhancedTeamInviteModal';
+import { TeamStatsOverview } from '@/components/teams/team-stats-overview';
+import { TeamMatchesOverview } from '@/components/teams/team-matches-overview';
 import { Database } from '@/lib/types/database.types';
 
 interface Match {
@@ -550,188 +552,120 @@ export default function TeamDashboard() {
         {/* Tab Content */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
-            {/* League Table Preview */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {team.league} Standings
-                </h3>
-                <Trophy className="w-5 h-5 text-gray-400" />
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-600">
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">Pos</th>
-                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">Team</th>
-                      <th className="text-center py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">Pts</th>
-                      <th className="text-center py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">+/-</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {compactStandings.map((standing, index) => {
-                      // Handle separator row
-                      if (standing.position === -1) {
-                        return (
-                          <tr key="separator" className="border-b border-gray-100 dark:border-gray-700">
-                            <td className="py-2 px-2 text-center" colSpan={4}>
-                              <div className="text-gray-400 text-sm font-medium">...</div>
-                            </td>
-                          </tr>
-                        );
-                      }
-                      
-                      return (
-                        <tr 
-                          key={standing.position}
-                          className={`border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
-                            standing.isCurrentTeam 
-                              ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' 
-                              : ''
-                          }`}
-                        >
-                          <td className="py-3 px-2">
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                              standing.position <= 3 
-                                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                                : standing.position >= leagueStandings.length - 2
-                                ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                            }`}>
-                              {standing.position}
-                            </div>
-                          </td>
-                          <td className="py-3 px-2">
-                            <div className={`font-medium ${
-                              standing.isCurrentTeam 
-                                ? 'text-blue-900 dark:text-blue-300 font-semibold' 
-                                : 'text-gray-900 dark:text-white'
-                            }`}>
-                              {standing.teamName}
-                            </div>
-                          </td>
-                          <td className="py-3 px-2 text-center">
-                            <span className={`font-bold ${
-                              standing.isCurrentTeam 
-                                ? 'text-blue-900 dark:text-blue-300' 
-                                : 'text-gray-900 dark:text-white'
-                            }`}>
-                              {standing.points}
-                            </span>
-                          </td>
-                          <td className="py-3 px-2 text-center text-sm">
-                            <span className={`${
-                              standing.goalDifference > 0 
-                                ? 'text-green-600 dark:text-green-400' 
-                                : standing.goalDifference < 0
-                                ? 'text-red-600 dark:text-red-400'
-                                : 'text-gray-600 dark:text-gray-400'
-                            }`}>
-                              {standing.goalDifference > 0 ? '+' : ''}{standing.goalDifference}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              
-              {/* View Full League Button */}
-              <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
-                <Link 
-                  href={`/leagues/${leagueId}`}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors text-sm"
-                >
-                  <Trophy className="w-4 h-4" />
-                  View Full League Table
-                </Link>
-              </div>
-              
-              <div className="mt-4 flex items-center gap-6 text-xs text-gray-500 dark:text-gray-400">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-green-100 dark:bg-green-900/30 rounded-full"></div>
-                  <span>Top 3 (Championship spots)</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-red-100 dark:bg-red-900/30 rounded-full"></div>
-                  <span>Bottom 2 (Relegation zone)</span>
-                </div>
-              </div>
-            </div>
+            {/* Team Statistics Overview */}
+            <TeamStatsOverview teamId={teamId} teamName={team.name} />
 
-            {/* Matches Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Recent Matches */}
+            {/* League Table Preview - Keep existing league table if team is in a league */}
+            {team.league && (
               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Recent Matches
+                    {team.league} Standings
                   </h3>
                   <Trophy className="w-5 h-5 text-gray-400" />
                 </div>
-                <div className="space-y-3">
-                  {team.recentMatches.slice(0, 3).map((match) => (
-                    <div key={match.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className={`px-2 py-1 rounded text-xs font-medium ${getResultBadge(match.result!)}`}>
-                          {match.result?.toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="font-medium text-gray-900 dark:text-white">
-                            vs {match.opponent}
-                          </div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">
-                            {formatDate(match.date)}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold text-gray-900 dark:text-white">
-                          {match.score ? `${match.isHome ? match.score.home : match.score.away}-${match.isHome ? match.score.away : match.score.home}` : '-'}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {match.isHome ? 'Home' : 'Away'}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-600">
+                        <th className="text-left py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">Pos</th>
+                        <th className="text-left py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">Team</th>
+                        <th className="text-center py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">Pts</th>
+                        <th className="text-center py-3 px-2 text-sm font-medium text-gray-900 dark:text-white">+/-</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {compactStandings.map((standing, index) => {
+                        // Handle separator row
+                        if (standing.position === -1) {
+                          return (
+                            <tr key="separator" className="border-b border-gray-100 dark:border-gray-700">
+                              <td className="py-2 px-2 text-center" colSpan={4}>
+                                <div className="text-gray-400 text-sm font-medium">...</div>
+                              </td>
+                            </tr>
+                          );
+                        }
+                        
+                        return (
+                          <tr 
+                            key={standing.position}
+                            className={`border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
+                              standing.isCurrentTeam 
+                                ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' 
+                                : ''
+                            }`}
+                          >
+                            <td className="py-3 px-2">
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                standing.position <= 3 
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                                  : standing.position >= leagueStandings.length - 2
+                                  ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                              }`}>
+                                {standing.position}
+                              </div>
+                            </td>
+                            <td className="py-3 px-2">
+                              <div className={`font-medium ${
+                                standing.isCurrentTeam 
+                                  ? 'text-blue-900 dark:text-blue-300 font-semibold' 
+                                  : 'text-gray-900 dark:text-white'
+                              }`}>
+                                {standing.teamName}
+                              </div>
+                            </td>
+                            <td className="py-3 px-2 text-center">
+                              <span className={`font-bold ${
+                                standing.isCurrentTeam 
+                                  ? 'text-blue-900 dark:text-blue-300' 
+                                  : 'text-gray-900 dark:text-white'
+                              }`}>
+                                {standing.points}
+                              </span>
+                            </td>
+                            <td className="py-3 px-2 text-center text-sm">
+                              <span className={`${
+                                standing.goalDifference > 0 
+                                  ? 'text-green-600 dark:text-green-400' 
+                                  : standing.goalDifference < 0
+                                  ? 'text-red-600 dark:text-red-400'
+                                  : 'text-gray-600 dark:text-gray-400'
+                              }`}>
+                                {standing.goalDifference > 0 ? '+' : ''}{standing.goalDifference}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {/* View Full League Button */}
+                <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+                  <Link 
+                    href={`/leagues/${leagueId}`}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors text-sm"
+                  >
+                    <Trophy className="w-4 h-4" />
+                    View Full League Table
+                  </Link>
+                </div>
+                
+                <div className="mt-4 flex items-center gap-6 text-xs text-gray-500 dark:text-gray-400">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-green-100 dark:bg-green-900/30 rounded-full"></div>
+                    <span>Top 3 (Championship spots)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-red-100 dark:bg-red-900/30 rounded-full"></div>
+                    <span>Bottom 2 (Relegation zone)</span>
+                  </div>
                 </div>
               </div>
-
-              {/* Upcoming Matches */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Upcoming Matches
-                  </h3>
-                  <Clock className="w-5 h-5 text-gray-400" />
-                </div>
-                <div className="space-y-3">
-                  {team.upcomingMatches.slice(0, 3).map((match) => (
-                    <div key={match.id} className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                      <div>
-                        <div className="font-medium text-gray-900 dark:text-white">
-                          vs {match.opponent}
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          {formatDate(match.date)}
-                        </div>
-                        <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
-                          <MapPin className="w-3 h-3" />
-                          {match.venue}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-xs text-gray-500">
-                          {match.isHome ? 'Home' : 'Away'}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -758,78 +692,7 @@ export default function TeamDashboard() {
         )}
 
         {activeTab === 'matches' && (
-          <div className="space-y-8">
-            {/* Recent Matches */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                Recent Matches
-              </h3>
-              <div className="space-y-4">
-                {team.recentMatches.map((match) => (
-                  <div key={match.id} className="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
-                    <div className="flex items-center gap-4">
-                      <div className={`px-3 py-1 rounded text-sm font-medium ${getResultBadge(match.result!)}`}>
-                        {match.result?.toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900 dark:text-white">
-                          vs {match.opponent}
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-4">
-                          <span>{formatDate(match.date)}</span>
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-3 h-3" />
-                            {match.venue}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xl font-bold text-gray-900 dark:text-white">
-                        {match.score ? `${match.isHome ? match.score.home : match.score.away}-${match.isHome ? match.score.away : match.score.home}` : '-'}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {match.isHome ? 'Home' : 'Away'}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Upcoming Matches */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-                Upcoming Matches
-              </h3>
-              <div className="space-y-4">
-                {team.upcomingMatches.map((match) => (
-                  <div key={match.id} className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                    <div>
-                      <div className="font-medium text-gray-900 dark:text-white mb-1">
-                        vs {match.opponent}
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-4">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {formatDate(match.date)}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
-                          {match.venue}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm text-gray-500">
-                        {match.isHome ? 'Home' : 'Away'}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <TeamMatchesOverview teamId={teamId} teamName={team.name} />
         )}
 
         {/* Team Invite Modal */}

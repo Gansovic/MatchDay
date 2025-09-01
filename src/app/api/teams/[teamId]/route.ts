@@ -48,7 +48,8 @@ export async function GET(
 
     // Use TeamService to get team details
     console.log('🔍 Team Details - Getting team details for:', teamId);
-    const teamService = TeamService.getInstance(createServerSupabaseClient());
+    const supabaseServerClient = await createServerSupabaseClient();
+    const teamService = TeamService.getInstance(supabaseServerClient);
     const result = await teamService.getTeamDetails(teamId);
     
     if (!result.success || !result.data) {
