@@ -12,7 +12,7 @@ export async function OPTIONS() {
 export async function GET() {
   try {
     // Use Supabase to get leagues
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     
     const { data: leagues, error, count } = await supabase
       .from('leagues')
