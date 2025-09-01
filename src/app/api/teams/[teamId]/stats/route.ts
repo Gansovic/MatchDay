@@ -113,7 +113,7 @@ export async function GET(
       .from('matches')
       .select(`
         id,
-        scheduled_date,
+        match_date,
         status,
         home_score,
         away_score,
@@ -125,7 +125,7 @@ export async function GET(
       `)
       .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
       .eq('status', 'completed')
-      .order('scheduled_date', { ascending: false })
+      .order('match_date', { ascending: false })
       .limit(5);
 
     // Get upcoming matches
@@ -133,7 +133,7 @@ export async function GET(
       .from('matches')
       .select(`
         id,
-        scheduled_date,
+        match_date,
         status,
         home_team_id,
         away_team_id,
@@ -143,7 +143,7 @@ export async function GET(
       `)
       .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
       .in('status', ['scheduled', 'upcoming'])
-      .order('scheduled_date', { ascending: true })
+      .order('match_date', { ascending: true })
       .limit(5);
 
     // Calculate form (last 5 matches)
@@ -195,7 +195,7 @@ export async function GET(
       // Recent performance
       recentMatches: recentMatches?.map(match => ({
         id: match.id,
-        date: match.scheduled_date,
+        date: match.match_date,
         opponent: match.home_team_id === teamId ? match.away_team?.name : match.home_team?.name,
         isHome: match.home_team_id === teamId,
         score: {
@@ -215,7 +215,7 @@ export async function GET(
       // Upcoming fixtures
       upcomingMatches: upcomingMatches?.map(match => ({
         id: match.id,
-        date: match.scheduled_date,
+        date: match.match_date,
         opponent: match.home_team_id === teamId ? match.away_team?.name : match.home_team?.name,
         isHome: match.home_team_id === teamId,
         venue: match.venue

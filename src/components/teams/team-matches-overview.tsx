@@ -11,6 +11,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Calendar, 
   Clock, 
@@ -28,6 +29,7 @@ import {
 
 interface Match {
   id: string;
+  match_number?: number;
   date: string;
   status: string;
   isHome: boolean;
@@ -84,6 +86,7 @@ export const TeamMatchesOverview: React.FC<TeamMatchesOverviewProps> = ({
   teamId, 
   teamName = 'Team' 
 }) => {
+  const router = useRouter();
   const [matchData, setMatchData] = useState<MatchData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -144,6 +147,12 @@ export const TeamMatchesOverview: React.FC<TeamMatchesOverviewProps> = ({
       case 'D': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300';
       case 'L': return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300';
     }
+  };
+
+  const handleMatchClick = (match: Match) => {
+    // Use match_number for simplified URL if available, otherwise use UUID
+    const matchIdentifier = match.match_number ? match.match_number.toString() : match.id;
+    router.push(`/matches/${matchIdentifier}`);
   };
 
   if (isLoading) {
@@ -242,7 +251,8 @@ export const TeamMatchesOverview: React.FC<TeamMatchesOverviewProps> = ({
                     return (
                       <div 
                         key={match.id} 
-                        className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                        onClick={() => handleMatchClick(match)}
+                        className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer"
                       >
                         <div className="flex items-center gap-4">
                           {/* Result Badge */}
@@ -280,16 +290,19 @@ export const TeamMatchesOverview: React.FC<TeamMatchesOverviewProps> = ({
                           </div>
                         </div>
 
-                        {/* Score */}
-                        <div className="text-right">
-                          {match.scores && (
-                            <div className="text-xl font-bold text-gray-900 dark:text-white">
-                              {match.scores.team} - {match.scores.opponent}
+                        {/* Score and Navigation */}
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            {match.scores && (
+                              <div className="text-xl font-bold text-gray-900 dark:text-white">
+                                {match.scores.team} - {match.scores.opponent}
+                              </div>
+                            )}
+                            <div className="text-xs text-gray-500">
+                              {match.league?.name || 'Friendly Match'}
                             </div>
-                          )}
-                          <div className="text-xs text-gray-500">
-                            {match.league.name}
                           </div>
+                          <ChevronRight className="w-5 h-5 text-gray-400" />
                         </div>
                       </div>
                     );
@@ -313,7 +326,8 @@ export const TeamMatchesOverview: React.FC<TeamMatchesOverviewProps> = ({
                     return (
                       <div 
                         key={match.id} 
-                        className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors border border-blue-200 dark:border-blue-800"
+                        onClick={() => handleMatchClick(match)}
+                        className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors border border-blue-200 dark:border-blue-800 cursor-pointer"
                       >
                         <div className="flex items-center gap-4">
                           {/* Status Badge */}
@@ -352,16 +366,19 @@ export const TeamMatchesOverview: React.FC<TeamMatchesOverviewProps> = ({
                           </div>
                         </div>
 
-                        {/* League Info */}
-                        <div className="text-right">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">
-                            {match.league.name}
-                          </div>
-                          {match.matchDay && (
-                            <div className="text-xs text-gray-500">
-                              Matchday {match.matchDay}
+                        {/* League Info and Navigation */}
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                              {match.league?.name || 'Friendly Match'}
                             </div>
-                          )}
+                            {match.matchDay && (
+                              <div className="text-xs text-gray-500">
+                                Matchday {match.matchDay}
+                              </div>
+                            )}
+                          </div>
+                          <ChevronRight className="w-5 h-5 text-gray-400" />
                         </div>
                       </div>
                     );

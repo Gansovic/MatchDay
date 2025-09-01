@@ -24,6 +24,7 @@ import {
 
 interface MatchData {
   id: string;
+  match_number?: number;
   homeTeam: {
     id: string;
     name: string;
@@ -112,23 +113,7 @@ export default function MatchPage({ params }: { params: Promise<{ matchId: strin
     try {
       console.log('🔍 Loading match data:', resolvedParams.matchId);
 
-      // For now, use hardcoded data for our test match
-      if (resolvedParams.matchId === '11111111-2222-3333-4444-555555555555') {
-        console.log('✅ Using hardcoded match data for test match');
-        setMatchData({
-          id: '11111111-2222-3333-4444-555555555555',
-          homeTeam: { id: '39a9f0fb-517b-4f34-934e-9a280d206989', name: 'playerTeam', color: '#3B82F6' },
-          awayTeam: { id: '550e8400-e29b-41d4-a716-446655440999', name: 'adminTeam', color: '#DC2626' },
-          status: 'scheduled',
-          matchDate: '2025-09-08T15:00:00Z',
-          venue: 'Test Stadium',
-          homeScore: 0,
-          awayScore: 0
-        });
-        return;
-      }
-
-      const response = await fetch(`/api/matches/${resolvedParams.matchId}/score`, {
+      const response = await fetch(`/api/matches/${resolvedParams.matchId}`, {
         credentials: 'include',
         headers: {
           'Authorization': `Bearer ${session?.access_token}`
@@ -139,11 +124,15 @@ export default function MatchPage({ params }: { params: Promise<{ matchId: strin
         if (response.status === 404) {
           throw new Error('Match not found');
         }
+        if (response.status === 403) {
+          throw new Error('Access denied - you must be a member of one of the teams to view this match');
+        }
         throw new Error('Failed to load match data');
       }
 
       const result = await response.json();
       setMatchData(result.data);
+      console.log('✅ Match data loaded successfully:', result.data.id);
 
     } catch (err) {
       console.error('Error loading match data:', err);
@@ -154,28 +143,6 @@ export default function MatchPage({ params }: { params: Promise<{ matchId: strin
   const loadParticipants = async () => {
     try {
       console.log('👥 Loading participants:', resolvedParams.matchId);
-
-      // For now, use hardcoded participants data for our test match
-      if (resolvedParams.matchId === '11111111-2222-3333-4444-555555555555') {
-        console.log('✅ Using hardcoded participants data for test match');
-        setParticipants({
-          homeTeam: {
-            id: '39a9f0fb-517b-4f34-934e-9a280d206989',
-            name: 'playerTeam',
-            team_color: '#3B82F6',
-            participants: []
-          },
-          awayTeam: {
-            id: '550e8400-e29b-41d4-a716-446655440999', 
-            name: 'adminTeam',
-            team_color: '#DC2626',
-            participants: []
-          }
-        });
-        // Set user's team (assuming they're captain of playerTeam)
-        setUserTeamId('39a9f0fb-517b-4f34-934e-9a280d206989');
-        return;
-      }
 
       const response = await fetch(`/api/matches/${resolvedParams.matchId}/participants`, {
         credentials: 'include',
@@ -204,6 +171,32 @@ export default function MatchPage({ params }: { params: Promise<{ matchId: strin
         setUserTeamId(result.data.homeTeam.id);
       } else if (awayParticipant) {
         setUserTeamId(result.data.awayTeam.id);
+      } else {
+        // If user is not a participant, check team membership from match data
+        if (matchData) {
+          // Check if user is member of home or away team
+          const checkTeamMembership = async (teamId: string) => {
+            const membershipResponse = await fetch(`/api/teams/${teamId}/members`, {
+              credentials: 'include',
+              headers: {
+                'Authorization': `Bearer ${session?.access_token}`
+              }
+            });
+            if (membershipResponse.ok) {
+              const membershipResult = await membershipResponse.json();
+              const isMember = membershipResult.data.some((member: any) => member.user.id === user?.id);
+              if (isMember) {
+                setUserTeamId(teamId);
+                return true;
+              }
+            }
+            return false;
+          };
+          
+          if (!(await checkTeamMembership(matchData.homeTeam.id))) {
+            await checkTeamMembership(matchData.awayTeam.id);
+          }
+        }
       }
 
     } catch (err) {
@@ -348,7 +341,7 @@ export default function MatchPage({ params }: { params: Promise<{ matchId: strin
             <div className="flex items-center gap-3">
               {getStatusBadge(matchData.status)}
               <span className="text-sm text-gray-600 dark:text-gray-400">
-                Match ID: {matchData.id.substring(0, 8)}
+                {matchData.match_number ? `Match #${matchData.match_number}` : `Match ID: ${matchData.id.substring(0, 8)}`}
               </span>
             </div>
           </div>

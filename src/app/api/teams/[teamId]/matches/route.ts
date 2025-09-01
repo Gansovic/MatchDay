@@ -73,18 +73,17 @@ export async function GET(
       .from('matches')
       .select(`
         id,
-        scheduled_date,
+        match_date,
         status,
         home_score,
         away_score,
         home_team_id,
         away_team_id,
         venue,
-        match_day,
         league_id,
         home_team:teams!matches_home_team_id_fkey(id, name, logo_url, team_color),
         away_team:teams!matches_away_team_id_fkey(id, name, logo_url, team_color),
-        league:leagues!inner(id, name)
+        league:leagues!left(id, name)
       `)
       .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`);
 
@@ -96,7 +95,7 @@ export async function GET(
       console.log('🔍 Team Matches - Fetching recent matches');
       const { data: recent, error: recentError } = await baseQuery
         .eq('status', 'completed')
-        .order('scheduled_date', { ascending: false })
+        .order('match_date', { ascending: false })
         .limit(type === 'recent' ? limit : Math.floor(limit / 2));
 
       if (recentError) {
@@ -109,9 +108,25 @@ export async function GET(
 
     if (type === 'upcoming' || type === 'all') {
       console.log('🔍 Team Matches - Fetching upcoming matches');
-      const { data: upcoming, error: upcomingError } = await baseQuery
-        .in('status', ['scheduled', 'upcoming'])
-        .order('scheduled_date', { ascending: true })
+      const { data: upcoming, error: upcomingError } = await supabaseServerClient
+        .from('matches')
+        .select(`
+          id,
+          match_date,
+          status,
+          home_score,
+          away_score,
+          home_team_id,
+          away_team_id,
+          venue,
+          league_id,
+          home_team:teams!matches_home_team_id_fkey(id, name, logo_url, team_color),
+          away_team:teams!matches_away_team_id_fkey(id, name, logo_url, team_color),
+          league:leagues!left(id, name)
+        `)
+        .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+        .in('status', ['scheduled'])
+        .order('match_date', { ascending: true })
         .limit(type === 'upcoming' ? limit : Math.floor(limit / 2));
 
       if (upcomingError) {
@@ -119,6 +134,7 @@ export async function GET(
       } else {
         upcomingMatches = upcoming || [];
         console.log(`✅ Team Matches - Found ${upcomingMatches.length} upcoming matches`);
+        console.log('🔍 Team Matches - Upcoming matches raw data:', upcoming);
       }
     }
 
@@ -139,7 +155,7 @@ export async function GET(
 
       return {
         id: match.id,
-        date: match.scheduled_date,
+        date: match.match_date,
         status: match.status,
         isHome,
         opponent: {
@@ -154,11 +170,11 @@ export async function GET(
         } : null,
         result,
         venue: match.venue,
-        matchDay: match.match_day,
-        league: {
+        matchDay: null, // match_day column not available
+        league: match.league ? {
           id: match.league.id,
           name: match.league.name
-        }
+        } : null
       };
     };
 

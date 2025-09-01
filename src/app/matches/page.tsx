@@ -19,6 +19,7 @@ import type { Team } from '@/components/matches/match-scheduler';
 
 interface Match {
   id: string;
+  match_number?: number;
   homeTeam: {
     id: string;
     name: string;
@@ -114,28 +115,62 @@ export default function MatchesPage() {
     try {
       console.log('⚽ Loading matches...');
 
-      // Load the real match we created between playerTeam and adminTeam
-      const testMatches: Match[] = [
-        {
-          id: '11111111-2222-3333-4444-555555555555',
+      const response = await fetch('/api/matches', {
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const matches = result.data?.map((match: any) => ({
+          id: match.id,
+          match_number: match.match_number,
           homeTeam: {
-            id: '39a9f0fb-517b-4f34-934e-9a280d206989',
-            name: 'playerTeam',
-            color: '#3B82F6'
+            id: match.home_team_id || match.homeTeamId,
+            name: match.home_team?.name || match.homeTeamName || 'Unknown Team',
+            color: match.home_team?.team_color || match.homeTeamColor || '#3B82F6'
           },
           awayTeam: {
-            id: '550e8400-e29b-41d4-a716-446655440999',
-            name: 'adminTeam',
-            color: '#DC2626'
+            id: match.away_team_id || match.awayTeamId,
+            name: match.away_team?.name || match.awayTeamName || 'Unknown Team', 
+            color: match.away_team?.team_color || match.awayTeamColor || '#DC2626'
           },
-          status: 'scheduled',
-          matchDate: '2025-09-08T15:00:00Z',
-          venue: 'Test Stadium'
-        }
-      ];
-
-      console.log('✅ Loaded matches:', testMatches);
-      setMatches(testMatches);
+          status: match.status,
+          matchDate: match.match_date || match.scheduled_date,
+          venue: match.venue || 'TBD',
+          homeScore: match.home_score,
+          awayScore: match.away_score
+        })) || [];
+        
+        console.log('✅ Loaded matches from API:', matches);
+        setMatches(matches);
+      } else {
+        console.error('Failed to load matches:', response.status);
+        // Fallback to hardcoded data if API fails
+        const fallbackMatches: Match[] = [
+          {
+            id: '11111111-2222-3333-4444-555555555555',
+            match_number: 1,
+            homeTeam: {
+              id: '39a9f0fb-517b-4f34-934e-9a280d206989',
+              name: 'playerTeam',
+              color: '#3B82F6'
+            },
+            awayTeam: {
+              id: '550e8400-e29b-41d4-a716-446655440999',
+              name: 'adminTeam',
+              color: '#DC2626'
+            },
+            status: 'scheduled',
+            matchDate: '2025-09-08T15:00:00Z',
+            venue: 'Test Stadium'
+          }
+        ];
+        console.log('🔄 Using fallback matches:', fallbackMatches);
+        setMatches(fallbackMatches);
+      }
     } catch (error) {
       console.error('Error loading matches:', error);
     } finally {
@@ -189,8 +224,10 @@ export default function MatchesPage() {
     setShowCreateModal(false);
   };
 
-  const handleViewMatch = (matchId: string) => {
-    router.push(`/matches/${matchId}`);
+  const handleViewMatch = (match: Match) => {
+    // Use match_number if available (simpler URL), otherwise fallback to UUID
+    const matchIdentifier = match.match_number ? match.match_number.toString() : match.id;
+    router.push(`/matches/${matchIdentifier}`);
   };
 
   if (authLoading || isLoading) {
@@ -272,12 +309,12 @@ export default function MatchesPage() {
                     <div className="flex items-center gap-3">
                       {getStatusBadge(match.status)}
                       <span className="text-sm text-gray-600 dark:text-gray-400">
-                        {match.id.substring(0, 8)}
+                        {match.match_number ? `Match #${match.match_number}` : match.id.substring(0, 8)}
                       </span>
                     </div>
                     
                     <button
-                      onClick={() => handleViewMatch(match.id)}
+                      onClick={() => handleViewMatch(match)}
                       className="inline-flex items-center gap-2 px-3 py-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 font-medium rounded-lg transition-colors"
                     >
                       <Eye className="w-4 h-4" />

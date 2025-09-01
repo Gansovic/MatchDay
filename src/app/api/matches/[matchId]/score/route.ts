@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server-client';
 import { validateApiAuth } from '@/lib/auth/api-auth';
+// import { findMatchByIdOrNumber, findMatchForScoreUpdate } from '@/lib/utils/match-lookup';
 
 interface UpdateScoreRequest {
   homeScore: number;
@@ -37,7 +38,7 @@ export async function GET(
     const { user } = authResult;
     const supabase = await createServerSupabaseClient();
 
-    // Get match details with teams
+    // Get match details with teams using direct UUID lookup (temporary until database migration)
     const { data: match, error: matchError } = await supabase
       .from('matches')
       .select(`
@@ -52,6 +53,8 @@ export async function GET(
         notes,
         created_at,
         updated_at,
+        home_team_id,
+        away_team_id,
         home_team:teams!matches_home_team_id_fkey(id, name, team_color),
         away_team:teams!matches_away_team_id_fkey(id, name, team_color),
         league:leagues(id, name)
@@ -72,7 +75,7 @@ export async function GET(
       .select('team_id')
       .eq('user_id', user.id)
       .eq('is_active', true)
-      .in('team_id', [match.home_team.id, match.away_team.id]);
+      .in('team_id', [match.home_team_id, match.away_team_id]);
 
     if (membershipError || !userTeamMembership || userTeamMembership.length === 0) {
       return NextResponse.json(
@@ -166,7 +169,7 @@ export async function PUT(
       );
     }
 
-    // Get match details to verify access
+    // Get match details to verify access using direct UUID lookup (temporary until database migration)
     const { data: match, error: matchError } = await supabase
       .from('matches')
       .select(`
@@ -235,7 +238,7 @@ export async function PUT(
     const { data: updatedMatch, error: updateError } = await supabase
       .from('matches')
       .update(updateData)
-      .eq('id', matchId)
+      .eq('id', match.id)
       .select(`
         id,
         home_score,
