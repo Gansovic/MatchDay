@@ -284,7 +284,7 @@ export class TeamService {
           league:leagues(*),
           team_members(
             *,
-            user_profile:users!inner(*)
+            user_profile:users(*)
           )
         `)
         .eq('id', teamId)
@@ -760,7 +760,7 @@ export class TeamService {
           league:leagues(*),
           team_members(
             *,
-            user_profile:users!inner(*)
+            user_profile:users(*)
           )
         `, { count: 'exact' })
         .is('league_id', null);

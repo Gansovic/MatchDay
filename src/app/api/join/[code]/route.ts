@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TeamService } from '@/lib/services/team.service';
 import { createServerSupabaseClient, createUserSupabaseClient } from '@/lib/supabase/server-client';
-import jwt from 'jsonwebtoken';
+import jwt from 'jsonwebinvitation_code';
 
 export async function OPTIONS() {
   const response = new NextResponse(null, { status: 200 });
@@ -148,7 +148,7 @@ export async function POST(
       );
     }
 
-    // Get user ID from JWT token
+    // Get user ID from JWT invitation_code
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
@@ -157,16 +157,16 @@ export async function POST(
       );
     }
 
-    const token = authHeader.replace('Bearer ', '');
+    const invitation_code = authHeader.replace('Bearer ', '');
     let userId: string;
     
     try {
-      const jwtSecret = process.env.SUPABASE_JWT_SECRET || 'super-secret-jwt-token-with-at-least-32-characters-long';
-      const decoded = jwt.verify(token, jwtSecret) as any;
+      const jwtSecret = process.env.SUPABASE_JWT_SECRET || 'super-secret-jwt-invitation_code-with-at-least-32-characters-long';
+      const decoded = jwt.verify(invitation_code, jwtSecret) as any;
       userId = decoded.sub;
     } catch (jwtError) {
       return NextResponse.json(
-        { error: 'Invalid token', message: 'JWT verification failed' },
+        { error: 'Invalid invitation_code', message: 'JWT verification failed' },
         { status: 401 }
       );
     }
@@ -247,8 +247,6 @@ export async function POST(
         user_id: userId,
         position: invitation.position || 'midfielder',
         jersey_number: invitation.jersey_number,
-        role: 'player',
-        status: 'active',
         is_active: true
       });
 
@@ -265,8 +263,7 @@ export async function POST(
       .from('team_invitations')
       .update({
         status: 'accepted',
-        responded_at: new Date().toISOString(),
-        invited_user_id: userId
+        updated_at: new Date().toISOString()
       })
       .eq('id', invitation.id);
 

@@ -48,30 +48,30 @@ export async function POST(
     console.log('✅ Team Invitations - Authenticated user:', userId);
 
     // Parse request body
-    const body: SendInvitationForm & { invitationType?: 'email' | 'code' } = await request.json();
+    const body: SendInvitationForm & { invitationType?: 'invited_email' | 'code' } = await request.json();
     
-    const isEmailInvite = body.invitationType === 'email' || body.email;
-    const isCodeInvite = body.invitationType === 'code';
+    const isEmailInvite = body.invitationType === 'email' || (body.email && body.email.trim());
+    const isCodeInvite = body.invitationType === 'code' || (!body.email || !body.email.trim());
     
     // Validate required fields based on invitation type
     if (isEmailInvite && (!body.email || !body.email.trim())) {
       return NextResponse.json(
         { 
           error: 'Validation error',
-          validationErrors: [{ field: 'email', message: 'Email is required for email invitations' }]
+          validationErrors: [{ field: 'invited_email', message: 'Email is required for invited_email invitations' }]
         },
         { status: 400 }
       );
     }
 
-    // Validate email format if email is provided
+    // Validate invited_email format if invited_email is provided
     if (body.email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(body.email)) {
+      const invited_emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!invited_emailRegex.test(body.email)) {
         return NextResponse.json(
           { 
             error: 'Validation error',
-            validationErrors: [{ field: 'email', message: 'Please enter a valid email address' }]
+            validationErrors: [{ field: 'invited_email', message: 'Please enter a valid invited_email address' }]
           },
           { status: 400 }
         );
@@ -119,7 +119,7 @@ export async function POST(
         );
       }
 
-      // Check if user is already invited or a member (only for email invitations)
+      // Check if user is already invited or a member (only for invited_email invitations)
       if (isEmailInvite && body.email) {
         // Check for existing team member
         const { data: existingMember } = await supabase
@@ -130,7 +130,7 @@ export async function POST(
             supabase
               .from('users')
               .select('id')
-              .eq('email', body.email.trim().toLowerCase())
+              .eq('invited_email', body.email.trim().toLowerCase())
           )
           .eq('is_active', true)
           .limit(1);
@@ -150,7 +150,7 @@ export async function POST(
             { 
               error: 'Validation error',
               validationErrors: [{ 
-                field: 'email', 
+                field: 'invited_email', 
                 message: 'This user is already a member or has a pending invitation' 
               }]
             },
@@ -194,6 +194,7 @@ export async function POST(
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
       
+      
       const { data: invitation, error: invitationError } = await supabase
         .from('team_invitations')
         .insert({
@@ -211,7 +212,8 @@ export async function POST(
         .single();
         
       if (invitationError || !invitation) {
-        throw new Error('Failed to create invitation');
+        console.error('❌ Team Invitations - Database insertion error:', invitationError);
+        throw new Error(`Failed to create invitation: ${invitationError?.message || 'Unknown error'}`);
       }
 
       // Get team information for the response
@@ -249,7 +251,7 @@ export async function POST(
           whatsappMessage,
           expiresAt: invitation.expires_at,
           teamName,
-          invitationType: invitation.invitation_code ? 'code' : 'email'
+          invitationType: invitation.invitation_code ? 'code' : 'invited_email'
         },
         message: 'Invitation created successfully'
       });

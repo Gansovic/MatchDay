@@ -36,17 +36,24 @@ import {
 } from 'lucide-react';
 import { EnhancedTeamInviteModal } from './EnhancedTeamInviteModal';
 
-export interface TeamMember {
+export interface TeamMemberWithProfile {
   id: string;
   user_id: string;
   team_id: string;
-  email: string;
-  full_name: string;
   position?: 'goalkeeper' | 'defender' | 'midfielder' | 'forward';
   jersey_number?: number;
   joined_at: string;
   is_active: boolean;
-  is_captain: boolean;
+  user_profile: {
+    id: string;
+    display_name: string | null;
+    full_name: string | null;
+    avatar_url: string | null;
+    bio: string | null;
+    phone: string | null;
+    preferred_position: string | null;
+    location: string | null;
+  };
   stats?: {
     matches_played: number;
     goals: number;
@@ -62,7 +69,8 @@ interface TeamMemberManagementProps {
   teamId: string;
   teamName?: string;
   isUserCaptain: boolean;
-  onMemberAdded?: (member: TeamMember) => void;
+  captainId?: string;
+  onMemberAdded?: (member: TeamMemberWithProfile) => void;
   onMemberRemoved?: (memberId: string) => void;
 }
 
@@ -70,16 +78,18 @@ export const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
   teamId,
   teamName = 'Team',
   isUserCaptain,
+  captainId,
   onMemberAdded,
   onMemberRemoved
 }) => {
-  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [members, setMembers] = useState<TeamMemberWithProfile[]>([]);
+  const [teamCaptainId, setTeamCaptainId] = useState<string | null>(captainId || null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [positionFilter, setPositionFilter] = useState<string>('all');
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
+  const [editingMember, setEditingMember] = useState<TeamMemberWithProfile | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -95,76 +105,25 @@ export const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
       const response = await fetch(`/api/teams/${teamId}/members`);
       
       if (!response.ok) {
-        throw new Error('Failed to load team members');
+        const errorText = await response.text();
+        console.error('Failed to load team members:', response.status, errorText);
+        throw new Error(`Failed to load team members: ${response.status}`);
       }
 
       const result = await response.json();
+      console.log('Team members API response:', result);
       setMembers(result.data || []);
+      
+      // Update captain ID from API response
+      if (result.team?.captain_id) {
+        setTeamCaptainId(result.team.captain_id);
+      }
+      
+      setError(null);
     } catch (err) {
       console.error('Error loading members:', err);
-      // Set mock data for development
-      setMembers([
-        {
-          id: '1',
-          user_id: '550e8400-e29b-41d4-a716-446655440100',
-          team_id: teamId,
-          email: 'john.doe@example.com',
-          full_name: 'John Doe',
-          position: 'midfielder',
-          jersey_number: 10,
-          joined_at: '2024-01-15T08:00:00Z',
-          is_active: true,
-          is_captain: true,
-          stats: {
-            matches_played: 15,
-            goals: 8,
-            assists: 12,
-            yellow_cards: 2,
-            red_cards: 0,
-            minutes_played: 1350
-          }
-        },
-        {
-          id: '2',
-          user_id: '550e8400-e29b-41d4-a716-446655440101',
-          team_id: teamId,
-          email: 'jane.smith@example.com',
-          full_name: 'Jane Smith',
-          position: 'forward',
-          jersey_number: 9,
-          joined_at: '2024-01-20T10:30:00Z',
-          is_active: true,
-          is_captain: false,
-          stats: {
-            matches_played: 14,
-            goals: 15,
-            assists: 5,
-            yellow_cards: 1,
-            red_cards: 0,
-            minutes_played: 1260
-          }
-        },
-        {
-          id: '3',
-          user_id: '550e8400-e29b-41d4-a716-446655440102',
-          team_id: teamId,
-          email: 'mike.wilson@example.com',
-          full_name: 'Mike Wilson',
-          position: 'goalkeeper',
-          jersey_number: 1,
-          joined_at: '2024-01-25T14:15:00Z',
-          is_active: true,
-          is_captain: false,
-          stats: {
-            matches_played: 15,
-            goals: 0,
-            assists: 1,
-            yellow_cards: 0,
-            red_cards: 0,
-            minutes_played: 1350
-          }
-        }
-      ]);
+      setError('Failed to load team members. Please try again.');
+      setMembers([]);
     } finally {
       setIsLoading(false);
     }
@@ -182,9 +141,8 @@ export const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
       // Get display name with fallbacks
       const displayName = member.user_profile?.display_name || 
                          member.user_profile?.full_name || 
-                         member.full_name || 
                          'Unknown Player';
-      const email = member.user_profile?.email || member.email || '';
+      const email = member.user_profile?.email || '';
       
       // Safe lowercase search
       const matchesSearch = displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -226,7 +184,7 @@ export const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
     }
   };
 
-  const handleEditMember = (member: TeamMember) => {
+  const handleEditMember = (member: TeamMemberWithProfile) => {
     setEditingMember(member);
     setShowEditModal(true);
   };
@@ -331,16 +289,16 @@ export const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
               <div className="flex items-center gap-4">
                 {/* Avatar */}
                 <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                  {(member.user_profile?.display_name || member.user_profile?.full_name || member.full_name || 'U').charAt(0)}
+                  {(member.user_profile?.display_name || member.user_profile?.full_name || 'U').charAt(0)}
                 </div>
 
                 {/* Member Info */}
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold text-gray-900 dark:text-white">
-                      {member.user_profile?.display_name || member.user_profile?.full_name || member.full_name || 'Unknown Player'}
+                      {member.user_profile?.display_name || member.user_profile?.full_name || 'Unknown Player'}
                     </h3>
-                    {member.is_captain && (
+                    {teamCaptainId === member.user_id && (
                       <div className="flex items-center gap-1 px-2 py-1 bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300 rounded-full text-xs font-medium">
                         <Crown className="w-3 h-3" />
                         Captain
@@ -351,7 +309,7 @@ export const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
                   <div className="flex items-center gap-4 mt-1 text-sm text-gray-600 dark:text-gray-400">
                     <div className="flex items-center gap-1">
                       <Mail className="w-3 h-3" />
-                      {member.user_profile?.email || member.email || 'No email'}
+                      {member.user_profile?.email || 'No email'}
                     </div>
                     {member.position && (
                       <div className="flex items-center gap-1">
@@ -405,7 +363,7 @@ export const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
                     >
                       <Edit className="w-4 h-4" />
                     </button>
-                    {!member.is_captain && (
+                    {teamCaptainId !== member.user_id && (
                       <button
                         onClick={() => handleRemoveMember(member.id)}
                         className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"

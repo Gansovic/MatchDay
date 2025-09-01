@@ -26,6 +26,10 @@ export interface AuthValidationResult {
 export async function validateApiAuth(request: NextRequest): Promise<AuthValidationResult> {
   try {
     console.log('🔍 Validating API authentication...');
+    console.log('🔍 Request URL:', request.url);
+    console.log('🔍 Request method:', request.method);
+    console.log('🔍 Authorization header:', request.headers.get('authorization') ? 'Present' : 'Missing');
+    console.log('🔍 Cookie header:', request.headers.get('cookie') ? 'Present' : 'Missing');
     
     // Create user-scoped Supabase client
     const supabaseUserClient = createUserSupabaseClient(request);

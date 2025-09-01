@@ -16,6 +16,7 @@ declare -a TEST_USERS=(
   "admin@matchday.com:admin123!:Admin User:admin" 
   "captain@matchday.com:admin123!:Team Captain:captain"
   "member@matchday.com:admin123!:Team Member:player"
+  "sample@matchday.com:sample123!:Sample User:player"
 )
 
 echo "📍 Using Supabase Cloud: $SUPABASE_URL"

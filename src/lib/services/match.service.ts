@@ -915,6 +915,307 @@ export class MatchService {
   }
 
   /**
+   * Create a new match between two teams
+   */
+  async createMatch(data: {
+    homeTeamId: string;
+    awayTeamId: string;
+    matchDate: string;
+    venue?: string;
+    leagueId?: string;
+    matchType?: 'friendly' | 'league' | 'tournament' | 'regular_season';
+  }): Promise<ServiceResponse<any>> {
+    try {
+      console.log('🏟️ MatchService.createMatch:', data);
+
+      // Validate teams exist and are different
+      const { data: teams, error: teamsError } = await this.supabase
+        .from('teams')
+        .select('id, name')
+        .in('id', [data.homeTeamId, data.awayTeamId]);
+
+      if (teamsError) throw teamsError;
+
+      if (!teams || teams.length !== 2) {
+        return {
+          data: null,
+          error: { code: 'INVALID_TEAMS', message: 'One or both teams do not exist', timestamp: new Date().toISOString() },
+          success: false
+        };
+      }
+
+      // Create the match
+      const { data: match, error: matchError } = await this.supabase
+        .from('matches')
+        .insert({
+          home_team_id: data.homeTeamId,
+          away_team_id: data.awayTeamId,
+          match_date: data.matchDate,
+          scheduled_date: data.matchDate,
+          venue: data.venue || 'TBD',
+          league_id: data.leagueId || null,
+          match_type: data.matchType || 'friendly',
+          status: 'scheduled'
+        })
+        .select(`
+          *,
+          home_team:teams!matches_home_team_id_fkey(*),
+          away_team:teams!matches_away_team_id_fkey(*),
+          league:leagues(*)
+        `)
+        .single();
+
+      if (matchError) throw matchError;
+
+      // Clear cache
+      this.clearCache('getPlayerMatches');
+      this.clearCache('getActiveMatches');
+
+      return { data: match, error: null, success: true };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'createMatch'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Update match score and status
+   */
+  async updateMatchScore(
+    matchId: string, 
+    data: {
+      homeScore: number;
+      awayScore: number;
+      status?: MatchStatus;
+      duration?: number;
+      notes?: string;
+    }
+  ): Promise<ServiceResponse<any>> {
+    try {
+      console.log('⚽ MatchService.updateMatchScore:', matchId, data);
+
+      const updateData: any = {
+        home_score: data.homeScore,
+        away_score: data.awayScore,
+        updated_at: new Date().toISOString()
+      };
+
+      if (data.status) {
+        updateData.status = data.status;
+      }
+
+      if (data.duration !== undefined) {
+        updateData.match_duration = data.duration;
+      }
+
+      if (data.notes !== undefined) {
+        updateData.notes = data.notes;
+      }
+
+      const { data: match, error: updateError } = await this.supabase
+        .from('matches')
+        .update(updateData)
+        .eq('id', matchId)
+        .select(`
+          *,
+          home_team:teams!matches_home_team_id_fkey(*),
+          away_team:teams!matches_away_team_id_fkey(*),
+          league:leagues(*)
+        `)
+        .single();
+
+      if (updateError) throw updateError;
+
+      // Clear cache
+      this.clearCache('getPlayerMatches');
+      this.clearCache('getMatchDetails');
+      this.clearCache('getActiveMatches');
+
+      return { data: match, error: null, success: true };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'updateMatchScore'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Get match participants
+   */
+  async getMatchParticipants(matchId: string): Promise<ServiceResponse<{
+    homeTeam: { id: string; name: string; participants: any[] };
+    awayTeam: { id: string; name: string; participants: any[] };
+  }>> {
+    try {
+      console.log('👥 MatchService.getMatchParticipants:', matchId);
+
+      const cacheKey = this.getCacheKey('getMatchParticipants', { matchId });
+      const cached = this.getFromCache<any>(cacheKey);
+      
+      if (cached) {
+        return { data: cached, error: null, success: true };
+      }
+
+      // Get match details
+      const { data: match, error: matchError } = await this.supabase
+        .from('matches')
+        .select(`
+          id,
+          home_team_id,
+          away_team_id,
+          home_team:teams!matches_home_team_id_fkey(id, name, team_color),
+          away_team:teams!matches_away_team_id_fkey(id, name, team_color)
+        `)
+        .eq('id', matchId)
+        .single();
+
+      if (matchError) throw matchError;
+
+      // Get participants
+      const { data: participants, error: participantsError } = await this.supabase
+        .from('match_participants')
+        .select(`
+          *,
+          user:user_profiles(id, display_name, full_name, avatar_url, preferred_position)
+        `)
+        .eq('match_id', matchId)
+        .order('jersey_number', { ascending: true });
+
+      if (participantsError) throw participantsError;
+
+      // Group by team
+      const homeParticipants = participants?.filter(p => p.team_id === match.home_team_id) || [];
+      const awayParticipants = participants?.filter(p => p.team_id === match.away_team_id) || [];
+
+      const result = {
+        homeTeam: {
+          ...match.home_team,
+          participants: homeParticipants.map(p => ({
+            id: p.id,
+            userId: p.user_id,
+            position: p.position,
+            jerseyNumber: p.jersey_number,
+            isStarter: p.is_starter,
+            isCaptain: p.is_captain,
+            selectedAt: p.selected_at,
+            player: p.user
+          }))
+        },
+        awayTeam: {
+          ...match.away_team,
+          participants: awayParticipants.map(p => ({
+            id: p.id,
+            userId: p.user_id,
+            position: p.position,
+            jerseyNumber: p.jersey_number,
+            isStarter: p.is_starter,
+            isCaptain: p.is_captain,
+            selectedAt: p.selected_at,
+            player: p.user
+          }))
+        }
+      };
+
+      // Cache for 5 minutes
+      this.setCache(cacheKey, result, 300);
+
+      return { data: result, error: null, success: true };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'getMatchParticipants'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Add participant to match
+   */
+  async addMatchParticipant(data: {
+    matchId: string;
+    teamId: string;
+    userId: string;
+    position?: string;
+    jerseyNumber?: number;
+    isStarter?: boolean;
+    isCaptain?: boolean;
+  }): Promise<ServiceResponse<any>> {
+    try {
+      console.log('➕ MatchService.addMatchParticipant:', data);
+
+      const { data: participant, error } = await this.supabase
+        .from('match_participants')
+        .upsert({
+          match_id: data.matchId,
+          team_id: data.teamId,
+          user_id: data.userId,
+          position: data.position || null,
+          jersey_number: data.jerseyNumber || null,
+          is_starter: data.isStarter || false,
+          is_captain: data.isCaptain || false
+        }, {
+          onConflict: 'match_id,user_id'
+        })
+        .select(`
+          *,
+          user:user_profiles(id, display_name, full_name)
+        `)
+        .single();
+
+      if (error) throw error;
+
+      // Clear cache
+      this.clearCache('getMatchParticipants');
+
+      return { data: participant, error: null, success: true };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'addMatchParticipant'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Remove participant from match
+   */
+  async removeMatchParticipant(participantId: string): Promise<ServiceResponse<void>> {
+    try {
+      console.log('🗑️ MatchService.removeMatchParticipant:', participantId);
+
+      const { error } = await this.supabase
+        .from('match_participants')
+        .delete()
+        .eq('id', participantId);
+
+      if (error) throw error;
+
+      // Clear cache
+      this.clearCache('getMatchParticipants');
+
+      return { data: null, error: null, success: true };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'removeMatchParticipant'),
+        success: false
+      };
+    }
+  }
+
+  /**
    * Clear cache
    */
   clearCache(pattern?: string): void {
