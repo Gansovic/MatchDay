@@ -7,7 +7,7 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   User, 
   Settings, 
@@ -21,7 +21,7 @@ import {
   Trash2,
   Loader2
 } from 'lucide-react';
-import { useAuth } from '@/components/auth/auth-provider';
+import { useAuth } from '@/components/auth/supabase-auth-provider';
 import { UserService } from '@/lib/services/user.service';
 import type { UserProfile } from '@/lib/types/database.types';
 
@@ -74,26 +74,24 @@ export default function ProfileSettingsPage() {
 
   const [originalProfile, setOriginalProfile] = useState<ProfileFormData | null>(null);
 
-  useEffect(() => {
-    if (!authLoading && user) {
-      loadUserProfile();
-    } else if (!authLoading && !user) {
-      setError('Please sign in to view your profile');
-      setIsLoading(false);
+  const loadUserProfile = useCallback(async () => {
+    if (!user) {
+      console.log('❌ Profile - loadUserProfile called without user');
+      return;
     }
-  }, [user, authLoading]);
-
-  const loadUserProfile = async () => {
-    if (!user) return;
     
+    console.log('🔄 Profile - starting loadUserProfile for user:', user.id, 'at', new Date().toISOString());
     setIsLoading(true);
     setError(null);
     
     try {
+      console.log('📡 Profile - calling UserService.getUserProfile...');
       const userService = UserService.getInstance();
       const result = await userService.getUserProfile(user.id);
+      console.log('📡 Profile - getUserProfile result:', { success: result.success, hasData: !!result.data, error: result.error?.message });
       
       if (result.success && result.data) {
+        console.log('✅ Profile - profile data found, setting profile state');
         const profileData: ProfileFormData = {
           display_name: result.data.display_name || '',
           email: user.email || '',
@@ -106,7 +104,9 @@ export default function ProfileSettingsPage() {
         };
         setProfile(profileData);
         setOriginalProfile({ ...profileData });
+        console.log('✅ Profile - profile state set successfully');
       } else {
+        console.log('🔧 Profile - no profile data found, creating default profile');
         // Profile doesn't exist, create with user email data
         const defaultProfile: ProfileFormData = {
           display_name: user.user_metadata?.display_name || user.email?.split('@')[0] || 'User',
@@ -119,14 +119,43 @@ export default function ProfileSettingsPage() {
         };
         setProfile(defaultProfile);
         setOriginalProfile({ ...defaultProfile });
+        console.log('✅ Profile - default profile state set successfully');
       }
     } catch (err) {
-      console.error('Error loading profile:', err);
+      console.error('❌ Profile - Error loading profile:', err);
       setError('Failed to load profile data');
     } finally {
+      console.log('🏁 Profile - loadUserProfile completed, setting isLoading to false');
       setIsLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    console.log('🔄 Profile useEffect triggered:', {
+      authLoading,
+      hasUser: !!user,
+      userId: user?.id,
+      userEmail: user?.email,
+      isLoading,
+      timestamp: new Date().toISOString()
+    });
+
+    if (!authLoading && user?.id && !isLoading) {
+      console.log('✅ Profile - calling loadUserProfile for user:', user.id);
+      loadUserProfile();
+    } else if (!authLoading && !user) {
+      console.log('❌ Profile - no user found, setting error state');
+      setError('Please sign in to view your profile');
+      setIsLoading(false);
+    } else {
+      console.log('⏳ Profile - still loading auth state or profile already loading:', { 
+        authLoading, 
+        hasUser: !!user, 
+        userId: user?.id,
+        profileIsLoading: isLoading 
+      });
+    }
+  }, [user?.id, authLoading, loadUserProfile, isLoading]);
 
   const [notifications, setNotifications] = useState<NotificationSettings>({
     matchReminders: true,

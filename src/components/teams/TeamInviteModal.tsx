@@ -49,7 +49,7 @@ export const TeamInviteModal: React.FC<TeamInviteModalProps> = ({
   teamName,
   onInvitationSent
 }) => {
-  const { getSession, isAuthenticated } = useAuth();
+  const { session, isAuthenticated } = useAuth();
   const [formData, setFormData] = useState<SendInvitationForm>({
     email: '',
     position: '',
@@ -126,9 +126,7 @@ export const TeamInviteModal: React.FC<TeamInviteModalProps> = ({
         throw new Error('You must be logged in to send invitations');
       }
 
-      // Get current session for authentication
-      const session = await getSession();
-      
+      // Check if user is authenticated
       if (!session) {
         throw new Error('Authentication session expired. Please sign in again.');
       }

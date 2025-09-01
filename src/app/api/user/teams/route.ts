@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server-client';
-import jwt from 'jsonwebtoken';
+import { validateApiAuth } from '@/lib/auth/api-auth';
 
 export async function OPTIONS() {
   const response = new NextResponse(null, { status: 200 });
@@ -18,38 +18,17 @@ export async function OPTIONS() {
 
 export async function GET(request: NextRequest) {
   try {
-    // Development mode: Use a default user if no proper auth
-    let userId: string = 'eec00b4f-7e94-4d76-8f2a-7364b49d1c86'; // Default to player@matchday.com
-    
-    if (process.env.NODE_ENV === 'production') {
-      // Only enforce JWT in production
-      const authHeader = request.headers.get('authorization');
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return NextResponse.json(
-          { error: 'Unauthorized', message: 'Authentication required' },
-          { status: 401 }
-        );
-      }
-
-      const token = authHeader.replace('Bearer ', '');
-      
-      // Verify JWT token manually and extract user info
-      try {
-        const jwtSecret = process.env.SUPABASE_JWT_SECRET || 'jUZj2O0d4B9nxxsU6p7xN3x81z9UGdY/lqbfIlUKb/Q=';
-        const decoded = jwt.verify(token, jwtSecret) as any;
-        userId = decoded.sub;
-      } catch (jwtError) {
-        return NextResponse.json(
-          { error: 'Invalid token', message: 'JWT verification failed' },
-          { status: 401 }
-        );
-      }
-    } else {
-      console.log('🧪 Development mode: Using default user for user teams API');
+    // Validate authentication with consistent error handling
+    const authResult = await validateApiAuth(request);
+    if (!authResult.success) {
+      return authResult.response!;
     }
+    
+    const { user } = authResult;
+    console.log('✅ User Teams - Authenticated user:', user.id);
 
     // Use Supabase to get user's team memberships
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     
     // Get user's team memberships with team details and league info
     const { data: teamMemberships, error: teamsError } = await supabase
@@ -77,7 +56,7 @@ export async function GET(request: NextRequest) {
           )
         )
       `)
-      .eq('user_id', userId)
+      .eq('user_id', user.id)
       .eq('is_active', true)
       .order('joined_at', { ascending: false });
 
@@ -89,7 +68,7 @@ export async function GET(request: NextRequest) {
     const { data: playerStats } = await supabase
       .from('player_stats')
       .select('team_id, goals, assists, minutes_played')
-      .eq('user_id', userId);
+      .eq('user_id', user.id);
 
       // Process the data to match expected format
       const teams = (teamMemberships || []).map(membership => {
@@ -117,7 +96,7 @@ export async function GET(request: NextRequest) {
             memberCount: 0, // Will be calculated if needed
             availableSpots: 0 // Will be calculated if needed
           },
-          role: team.captain_id === userId ? 'captain' : 'member',
+          role: team.captain_id === user.id ? 'captain' : 'member',
           position: membership.position,
           jerseyNumber: membership.jersey_number,
           joinedAt: membership.joined_at,

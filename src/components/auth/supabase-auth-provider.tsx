@@ -1,639 +1,376 @@
 /**
- * Supabase Authentication Provider
+ * Robust Supabase Authentication Provider
  * 
- * Real authentication system using Supabase Auth.
- * Provides authentication context and hooks for the entire application.
+ * Advanced authentication system with:
+ * - Atomic state management (no split-brain issues)
+ * - Proactive health monitoring
+ * - Automatic token refresh and recovery
+ * - Consistent frontend/backend authentication state
  */
 
-'use client';
+'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session, AuthError } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase/client';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
+import { User, Session, AuthError } from '@supabase/supabase-js'
+import { supabase, clearAuthCookies, isInvalidJWTError } from '@/lib/supabase/client'
+import { 
+  validateAuthenticationState, 
+  validateSessionHealth, 
+  isTokenNearExpiry, 
+  refreshAuthSession,
+  AuthValidationResult 
+} from '@/lib/auth/validator'
+
+interface AuthState {
+  user: User | null
+  session: Session | null
+  isValid: boolean
+  isLoading: boolean
+  lastValidated: Date | null
+  validationStatus: string
+}
 
 interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  isLoading: boolean;
-  isAuthenticated: boolean;
+  // State
+  user: User | null
+  session: Session | null
+  isLoading: boolean
+  isAuthenticated: boolean
+  isValid: boolean
+  lastValidated: Date | null
+  
+  // Actions
   signUp: (data: {
-    email: string;
-    password: string;
-    displayName?: string;
-    preferredPosition?: string;
-    location?: string;
-  }) => Promise<{ success: boolean; error?: string }>;
+    email: string
+    password: string
+    displayName?: string
+    preferredPosition?: string
+    location?: string
+  }) => Promise<{ success: boolean; error?: string }>
   signIn: (data: {
-    email: string;
-    password: string;
-  }) => Promise<{ success: boolean; error?: string }>;
-  signInWithOAuth: (provider: 'google' | 'github' | 'discord') => Promise<{ success: boolean; error?: string }>;
-  signOut: () => Promise<{ success: boolean; error?: string; canForceLogout?: boolean }>;
-  forceSignOut: () => Promise<{ success: boolean; error?: string }>;
-  updateProfile: (updates: {
-    display_name?: string;
-    avatar_url?: string;
-    preferred_position?: string;
-    bio?: string;
-    date_of_birth?: string;
-    location?: string;
-  }) => Promise<{ success: boolean; error?: string }>;
-  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
-  getSession: () => Promise<Session | null>;
+    email: string
+    password: string
+  }) => Promise<{ success: boolean; error?: string }>
+  signInWithOAuth: (provider: 'google' | 'github' | 'discord') => Promise<{ success: boolean; error?: string }>
+  signOut: () => Promise<{ success: boolean; error?: string }>
+  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>
+  
+  // Advanced
+  validateAuth: () => Promise<AuthValidationResult>
+  refreshSession: () => Promise<boolean>
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 interface AuthProviderProps {
-  children: React.ReactNode;
+  children: React.ReactNode
 }
 
-export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasExplicitlyLoggedOut, setHasExplicitlyLoggedOut] = useState(false);
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  // Atomic authentication state
+  const [authState, setAuthState] = useState<AuthState>({
+    user: null,
+    session: null,
+    isValid: false,
+    isLoading: true,
+    lastValidated: null,
+    validationStatus: 'initial'
+  })
+  
+  // Refs for cleanup
+  const mounted = useRef(true)
+  const healthCheckInterval = useRef<NodeJS.Timeout>()
+  const refreshCheckInterval = useRef<NodeJS.Timeout>()
 
-  // Initialize auth state
-  useEffect(() => {
-    // Get initial session with timeout protection
-    const getInitialSession = async () => {
-      console.log('🔑 Starting getInitialSession...');
-      
-      try {
-        // Check if user has explicitly logged out
-        const loggedOutFlag = localStorage.getItem('explicitly_logged_out');
-        console.log('🔑 Checking logout flag:', loggedOutFlag);
-        
-        if (loggedOutFlag === 'true') {
-          console.log('🚪 User has explicitly logged out, clearing any existing session and skipping restore');
-          
-          // Force clear any existing session that might have persisted
-          try {
-            await supabase.auth.signOut({ scope: 'global' });
-            console.log('🚪 Session cleared successfully');
-          } catch (signOutError) {
-            console.warn('🚪 Error clearing session, but continuing:', signOutError);
-          }
-          
-          setSession(null);
-          setUser(null);
-          setHasExplicitlyLoggedOut(true);
-          setIsLoading(false);
-          console.log('🚪 Logout state set, loading: false');
-          return;
-        }
-        
-        console.log('🔑 No logout flag found, getting initial session...');
-        
-        // Add timeout protection to prevent infinite loading
-        console.log('🔑 Calling supabase.auth.getSession() with 10s timeout...');
-        
-        try {
-          const sessionPromise = supabase.auth.getSession();
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Session retrieval timeout after 10 seconds')), 10000)
-          );
-          
-          const result = await Promise.race([sessionPromise, timeoutPromise]) as any;
-          console.log('🔑 Session call completed successfully');
-          
-          const { data: { session: initialSession }, error } = result;
-          
-          if (error) {
-            console.error('🔑 Supabase returned error:', error);
-            throw error;
-          }
-          
-          console.log('🔑 Initial session found:', !!initialSession, initialSession?.user?.email || 'no email');
-          setSession(initialSession);
-          setUser(initialSession?.user ?? null);
-          console.log('🔑 Success case: session/user set, loading will be false');
-          
-        } catch (timeoutOrNetworkError) {
-          console.error('🔑 Session retrieval failed:', timeoutOrNetworkError);
-          
-          // If it's a timeout, try one more time with a longer timeout
-          if (timeoutOrNetworkError.message.includes('timeout')) {
-            console.log('🔑 First attempt timed out, trying once more with 15s timeout...');
-            
-            try {
-              const retryPromise = supabase.auth.getSession();
-              const longTimeoutPromise = new Promise((_, reject) => 
-                setTimeout(() => reject(new Error('Final session retrieval timeout')), 15000)
-              );
-              
-              const retryResult = await Promise.race([retryPromise, longTimeoutPromise]) as any;
-              console.log('🔑 Retry session call succeeded');
-              
-              const { data: { session: retrySession }, error: retryError } = retryResult;
-              
-              if (retryError) {
-                console.error('🔑 Retry returned error:', retryError);
-                throw retryError;
-              }
-              
-              console.log('🔑 Retry session found:', !!retrySession, retrySession?.user?.email || 'no email');
-              setSession(retrySession);
-              setUser(retrySession?.user ?? null);
-              
-            } catch (finalError) {
-              console.error('🔑 Final retry also failed:', finalError);
-              console.log('🔑 Defaulting to logged out state due to connection issues');
-              setSession(null);
-              setUser(null);
-            }
-          } else {
-            console.log('🔑 Non-timeout error, defaulting to logged out state');
-            setSession(null);
-            setUser(null);
-          }
-        }
-      } catch (error) {
-        console.error('🔑 Exception getting initial session (including timeout):', error);
-        console.log('🔑 Exception case: defaulting to logged out state');
-        setSession(null);
-        setUser(null);
-      } finally {
-        console.log('🔑 Setting isLoading to false - auth state will be determined');
-        setIsLoading(false);
-        
-        // Log final auth state for debugging
-        setTimeout(() => {
-          console.log('🔑 Final auth state - User:', user?.email || 'null', 'Session:', !!session, 'Loading:', false);
-        }, 100);
-        
-        console.log('🔑 getInitialSession completed');
-      }
-    };
-
-    getInitialSession();
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔄 Auth state change:', event, session?.user?.email || 'no user');
-      
-      // Always update state based on actual Supabase auth events
-      // This ensures UI reflects the true authentication state
-      console.log('🔄 Updating auth state - Event:', event, 'HasSession:', !!session, 'HasUser:', !!session?.user);
-      setSession(session);
-      setUser(session?.user ?? null);
-      setIsLoading(false);
-      
-      console.log('🔄 Auth state updated - User:', session?.user?.email || 'null', 'Loading:', false);
-
-      // Handle sign in success - create/update user profile and clear logout flag
-      if (event === 'SIGNED_IN' && session?.user) {
-        console.log('🔑 User signed in, clearing logout flag and ensuring profile');
-        // Clear logout flag since user is now successfully signed in
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('explicitly_logged_out');
-          setHasExplicitlyLoggedOut(false);
-        }
-        await ensureUserProfile(session.user);
-      }
-      
-      // Handle sign out - respect the logout flag for UI consistency
-      if (event === 'SIGNED_OUT' || !session) {
-        console.log('🔄 User signed out or session ended');
-        const loggedOutFlag = localStorage.getItem('explicitly_logged_out');
-        if (loggedOutFlag === 'true') {
-          console.log('🔄 Logout flag present, maintaining explicit logout state');
-          setHasExplicitlyLoggedOut(true);
-        }
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  // Ensure user profile exists in database
-  const ensureUserProfile = async (user: User) => {
-    try {
-      // Check if user profile exists
-      const { data: existingProfile } = await supabase
-        .from('users')
-        .select('id')
-        .eq('id', user.id)
-        .single();
-
-      if (!existingProfile) {
-        // Create user profile if it doesn't exist
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert({
-            id: user.id,
-            email: user.email!,
-            role: 'player',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          });
-
-        if (insertError) {
-          console.error('Error creating user profile:', insertError);
-        } else {
-          console.log('Created user profile for:', user.email);
-        }
-      }
-    } catch (error) {
-      console.error('Error ensuring user profile:', error);
+  // Atomic state update function
+  const updateAuthState = useCallback(async (validation: AuthValidationResult) => {
+    if (!mounted.current) return
+    
+    console.log('🔄 Updating auth state:', validation.status)
+    
+    setAuthState({
+      user: validation.user,
+      session: validation.session,
+      isValid: validation.isValid,
+      isLoading: false,
+      lastValidated: new Date(),
+      validationStatus: validation.status
+    })
+    
+    // Handle recovery actions
+    if (validation.shouldClearCookies) {
+      console.log('🧹 Clearing corrupted cookies')
+      clearAuthCookies()
     }
-  };
+  }, [])
 
-  const signUp = async (data: {
-    email: string;
-    password: string;
-    displayName?: string;
-    preferredPosition?: string;
-    location?: string;
-  }): Promise<{ success: boolean; error?: string }> => {
+  // Comprehensive authentication validation
+  const validateAuth = useCallback(async (): Promise<AuthValidationResult> => {
+    const validation = await validateAuthenticationState()
+    await updateAuthState(validation)
+    return validation
+  }, [updateAuthState])
+
+  // Refresh session manually
+  const refreshSession = useCallback(async (): Promise<boolean> => {
     try {
-      setIsLoading(true);
+      const { success, session: newSession } = await refreshAuthSession()
+      
+      if (success && newSession) {
+        // Validate the new session
+        const validation = await validateAuthenticationState()
+        await updateAuthState(validation)
+        return validation.isValid
+      }
+      
+      return false
+    } catch (error) {
+      console.error('Manual session refresh failed:', error)
+      return false
+    }
+  }, [updateAuthState])
+
+  // Initial authentication setup
+  useEffect(() => {
+    mounted.current = true
+    
+    const initializeAuth = async () => {
+      console.log('🚀 Initializing robust authentication...')
+      await validateAuth()
+    }
+    
+    initializeAuth()
+    
+    // Listen for auth state changes from Supabase
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted.current) return
+      
+      console.log('🔑 Auth event:', event, !!session)
+      
+      // Re-validate after any auth state change
+      setTimeout(() => validateAuth(), 100)
+    })
+    
+    return () => {
+      mounted.current = false
+      subscription.unsubscribe()
+    }
+  }, [validateAuth])
+
+  // Proactive health monitoring
+  useEffect(() => {
+    if (!authState.session || !authState.isValid) {
+      // Clear intervals if no valid session
+      if (healthCheckInterval.current) clearInterval(healthCheckInterval.current)
+      if (refreshCheckInterval.current) clearInterval(refreshCheckInterval.current)
+      return
+    }
+    
+    // Health check every 5 minutes
+    healthCheckInterval.current = setInterval(async () => {
+      if (!mounted.current) return
+      
+      console.log('🏥 Running periodic health check...')
+      await validateAuth()
+    }, 5 * 60 * 1000)
+    
+    // Refresh check every minute (check if token needs refresh)
+    refreshCheckInterval.current = setInterval(async () => {
+      if (!mounted.current || !authState.session) return
+      
+      if (isTokenNearExpiry(authState.session)) {
+        console.log('🔄 Token near expiry, refreshing...')
+        await refreshSession()
+      }
+    }, 60 * 1000)
+    
+    return () => {
+      if (healthCheckInterval.current) clearInterval(healthCheckInterval.current)
+      if (refreshCheckInterval.current) clearInterval(refreshCheckInterval.current)
+    }
+  }, [authState.session, authState.isValid, validateAuth, refreshSession])
+
+  const isAuthenticated = authState.isValid && !!authState.user && !!authState.session
+
+  // Sign up with email/password
+  const signUp = async (data: {
+    email: string
+    password: string
+    displayName?: string
+    preferredPosition?: string
+    location?: string
+  }) => {
+    try {
+      setAuthState(prev => ({ ...prev, isLoading: true }))
       
       const { data: authData, error } = await supabase.auth.signUp({
         email: data.email,
         password: data.password,
         options: {
           data: {
-            display_name: data.displayName,
-            preferred_position: data.preferredPosition,
-            location: data.location,
+            display_name: data.displayName || '',
+            preferred_position: data.preferredPosition || '',
+            location: data.location || ''
           }
         }
-      });
+      })
 
       if (error) {
-        return { success: false, error: error.message };
+        console.error('Sign up error:', error)
+        return { success: false, error: error.message }
       }
 
-      return { success: true };
+      // Validate the new auth state
+      await validateAuth()
+      return { success: true }
     } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to sign up' 
-      };
-    } finally {
-      setIsLoading(false);
+      console.error('Sign up error:', error)
+      return { success: false, error: 'An unexpected error occurred' }
     }
-  };
+  }
 
-  const signIn = async (data: {
-    email: string;
-    password: string;
-  }): Promise<{ success: boolean; error?: string }> => {
+  // Sign in with email/password
+  const signIn = async (data: { email: string; password: string }) => {
     try {
-      setIsLoading(true);
+      setAuthState(prev => ({ ...prev, isLoading: true }))
       
       const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
-      });
+      })
 
       if (error) {
-        return { success: false, error: error.message };
+        console.error('Sign in error:', error)
+        return { success: false, error: error.message }
       }
-      
-      // Clear explicit logout flag on successful login
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('explicitly_logged_out');
-        setHasExplicitlyLoggedOut(false);
-        console.log('🔑 Cleared logout flag on successful login');
-      }
-      
-      return { success: true };
-    } catch (error) {
-      console.error('Sign in exception:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to sign in' 
-      };
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  const signInWithOAuth = async (provider: 'google' | 'github' | 'discord'): Promise<{ success: boolean; error?: string }> => {
+      // Validate the new auth state
+      await validateAuth()
+      return { success: true }
+    } catch (error) {
+      console.error('Sign in error:', error)
+      return { success: false, error: 'An unexpected error occurred' }
+    }
+  }
+
+  // Sign in with OAuth
+  const signInWithOAuth = async (provider: 'google' | 'github' | 'discord') => {
     try {
-      setIsLoading(true);
+      setAuthState(prev => ({ ...prev, isLoading: true }))
       
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
           redirectTo: `${window.location.origin}/dashboard`
         }
-      });
+      })
 
       if (error) {
-        return { success: false, error: error.message };
+        console.error('OAuth sign in error:', error)
+        return { success: false, error: error.message }
       }
 
-      return { success: true };
+      return { success: true }
     } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to sign in with OAuth' 
-      };
-    } finally {
-      setIsLoading(false);
+      console.error('OAuth sign in error:', error)
+      return { success: false, error: 'An unexpected error occurred' }
     }
-  };
+  }
 
-  const signOut = async (): Promise<{ success: boolean; error?: string }> => {
+  // Sign out
+  const signOut = async () => {
     try {
-      setIsLoading(true);
-      console.log('🚪 Starting logout process...');
+      setAuthState(prev => ({ ...prev, isLoading: true }))
       
-      // Get current session before clearing
-      const currentSession = await supabase.auth.getSession();
-      console.log('🚪 Current session before logout:', !!currentSession.data.session);
-      
-      if (!currentSession.data.session) {
-        console.log('🚪 No active session found, user already logged out');
-        // Clean up any remaining state
-        setUser(null);
-        setSession(null);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('explicitly_logged_out', 'true');
-          setHasExplicitlyLoggedOut(true);
-        }
-        return { success: true };
-      }
-      
-      // Force clear Supabase auth session with global scope
-      console.log('🚪 Calling supabase.auth.signOut() with timeout protection...');
-      
-      // Add timeout protection for signOut (shorter timeout for faster feedback)
-      const signOutPromise = supabase.auth.signOut({ scope: 'global' });
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('SignOut timeout after 8 seconds')), 8000)
-      );
-      
-      const { error } = await Promise.race([signOutPromise, timeoutPromise]) as any;
-      
+      const { error } = await supabase.auth.signOut()
+
       if (error) {
-        console.error('🚪 Supabase signOut failed:', error);
-        // Don't clear local state if signOut failed - keep user logged in
-        
-        // Provide more helpful error message based on error type
-        let errorMessage = `Logout failed: ${error.message}`;
-        if (error.message.includes('timeout')) {
-          errorMessage = 'Logout timed out due to network issues. You can try again or use "Force Logout" to clear local session only.';
-        }
-        
-        return { 
-          success: false, 
-          error: errorMessage,
-          canForceLogout: true  // Signal that force logout is available
-        };
-      }
-      
-      console.log('🚪 Supabase signOut call completed');
-      
-      // Verify session is actually cleared with retry
-      let sessionCleared = false;
-      let retries = 0;
-      const maxRetries = 3;
-      
-      while (!sessionCleared && retries < maxRetries) {
-        // Wait a bit for the session to be cleared
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        const afterSession = await supabase.auth.getSession();
-        sessionCleared = !afterSession.data.session;
-        
-        console.log(`🚪 Session verification attempt ${retries + 1}: cleared=${sessionCleared}`);
-        
-        if (!sessionCleared && retries < maxRetries - 1) {
-          console.log('🚪 Session still active, retrying signOut...');
-          await supabase.auth.signOut({ scope: 'global' });
-        }
-        
-        retries++;
-      }
-      
-      if (!sessionCleared) {
-        console.error('🚪 Failed to clear session after multiple attempts');
-        return { 
-          success: false, 
-          error: 'Unable to complete logout. Please refresh the page and try again.' 
-        };
-      }
-      
-      console.log('🚪 Session successfully cleared, now safe to update UI state...');
-      
-      // Only now clear local state since we confirmed session is cleared
-      setUser(null);
-      setSession(null);
-      
-      // Set logout flag and clear storage only after successful signOut
-      if (typeof window !== 'undefined') {
-        console.log('🚪 Setting logout flag after successful signOut...');
-        localStorage.setItem('explicitly_logged_out', 'true');
-        setHasExplicitlyLoggedOut(true);
-        
-        console.log('🚪 Clearing Supabase-specific browser storage...');
-        
-        // Get all storage keys
-        const localKeys = Object.keys(localStorage);
-        console.log('🚪 LocalStorage keys before clear:', localKeys.length);
-        
-        // Identify and remove Supabase-specific keys from localStorage
-        const supabaseLocalKeys = localKeys.filter(key => 
-          key.includes('supabase') || 
-          key.includes('sb-') || 
-          (key.includes('auth') && key !== 'explicitly_logged_out') ||
-          key.startsWith('supabase.') ||
-          key.includes('access_token') ||
-          key.includes('refresh_token')
-        );
-        
-        console.log('🚪 Removing Supabase localStorage keys:', supabaseLocalKeys);
-        supabaseLocalKeys.forEach(key => {
-          localStorage.removeItem(key);
-          console.log(`🚪 Removed localStorage key: ${key}`);
-        });
-        
-        // Clear all sessionStorage
-        sessionStorage.clear();
-        console.log('🚪 Cleared all sessionStorage');
-        
-        // Ensure logout flag persists
-        localStorage.setItem('explicitly_logged_out', 'true');
-        
-        const remainingKeys = Object.keys(localStorage);
-        console.log('🚪 Remaining localStorage keys after cleanup:', remainingKeys);
+        console.error('Sign out error:', error)
+        return { success: false, error: error.message }
       }
 
-      console.log('🚪 Logout completed successfully - session cleared and UI updated');
-      return { success: true };
+      // Clear all auth state
+      setAuthState({
+        user: null,
+        session: null,
+        isValid: false,
+        isLoading: false,
+        lastValidated: null,
+        validationStatus: 'signed_out'
+      })
+      
+      // Clear cookies as well
+      clearAuthCookies()
+
+      return { success: true }
     } catch (error) {
-      console.error('🚪 SignOut exception:', error);
-      return { 
-        success: false,
-        error: error instanceof Error ? error.message : 'Logout failed due to unexpected error' 
-      };
-    } finally {
-      setIsLoading(false);
+      console.error('Sign out error:', error)
+      return { success: false, error: 'An unexpected error occurred' }
     }
-  };
+  }
 
-  const forceSignOut = async (): Promise<{ success: boolean; error?: string }> => {
-    try {
-      setIsLoading(true);
-      console.log('🚪 FORCE LOGOUT: Clearing local state without waiting for Supabase');
-      
-      // Clear local state immediately
-      setUser(null);
-      setSession(null);
-      
-      // Set logout flag
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('explicitly_logged_out', 'true');
-        setHasExplicitlyLoggedOut(true);
-        
-        // Clear all Supabase-related storage
-        const allKeys = Object.keys(localStorage);
-        const supabaseKeys = allKeys.filter(key => 
-          key.includes('supabase') || 
-          key.includes('sb-') || 
-          (key.includes('auth') && key !== 'explicitly_logged_out') ||
-          key.startsWith('supabase.') ||
-          key.includes('access_token') ||
-          key.includes('refresh_token')
-        );
-        
-        supabaseKeys.forEach(key => localStorage.removeItem(key));
-        sessionStorage.clear();
-        
-        // Restore logout flag
-        localStorage.setItem('explicitly_logged_out', 'true');
-      }
-      
-      // Try to signOut in background without waiting (best effort)
-      supabase.auth.signOut({ scope: 'global' }).catch(error => {
-        console.warn('🚪 Background signOut failed (expected with network issues):', error);
-      });
-      
-      console.log('🚪 FORCE LOGOUT: Local state cleared. Note: Server session may still be active.');
-      return { 
-        success: true,
-        error: 'Local logout completed. Server session may remain active due to network issues.'
-      };
-    } catch (error) {
-      console.error('🚪 Force logout error:', error);
-      return { 
-        success: false,
-        error: error instanceof Error ? error.message : 'Force logout failed' 
-      };
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const updateProfile = async (updates: {
-    display_name?: string;
-    avatar_url?: string;
-    preferred_position?: string;
-    bio?: string;
-    date_of_birth?: string;
-    location?: string;
-  }): Promise<{ success: boolean; error?: string }> => {
-    try {
-      if (!user) {
-        return { success: false, error: 'Not authenticated' };
-      }
-
-      // Update user metadata
-      const { error: authError } = await supabase.auth.updateUser({
-        data: updates
-      });
-
-      if (authError) {
-        return { success: false, error: authError.message };
-      }
-
-      return { success: true };
-    } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to update profile' 
-      };
-    }
-  };
-
-  const resetPassword = async (email: string): Promise<{ success: boolean; error?: string }> => {
+  // Reset password
+  const resetPassword = async (email: string) => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth/reset-password`
-      });
+      })
 
       if (error) {
-        return { success: false, error: error.message };
+        console.error('Password reset error:', error)
+        return { success: false, error: error.message }
       }
 
-      return { success: true };
+      return { success: true }
     } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to send reset email' 
-      };
+      console.error('Password reset error:', error)
+      return { success: false, error: 'An unexpected error occurred' }
     }
-  };
-
-  const getSession = async (): Promise<Session | null> => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      return session;
-    } catch (error) {
-      console.error('Error getting session:', error);
-      return null;
-    }
-  };
+  }
 
   const value: AuthContextType = {
-    user,
-    session,
-    isLoading,
-    isAuthenticated: !!user,
+    // State
+    user: authState.user,
+    session: authState.session,
+    isLoading: authState.isLoading,
+    isAuthenticated,
+    isValid: authState.isValid,
+    lastValidated: authState.lastValidated,
+    
+    // Actions
     signUp,
     signIn,
     signInWithOAuth,
     signOut,
-    forceSignOut,
-    updateProfile,
     resetPassword,
-    getSession
-  };
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
-
-export function useAuth(): AuthContextType {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    
+    // Advanced
+    validateAuth,
+    refreshSession,
   }
-  return context;
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-// Helper hook for protected routes
-export function useRequireAuth() {
-  const { isAuthenticated, isLoading } = useAuth();
-  
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      // Redirect to login page
-      window.location.href = '/auth/login';
-    }
-  }, [isAuthenticated, isLoading]);
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider')
+  }
+  return context
+}
 
-  return { isAuthenticated, isLoading };
+// Export a helper for getting session in client components
+export const getSession = async () => {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession()
+    if (error) {
+      console.error('Error getting session:', error)
+      return null
+    }
+    return session
+  } catch (error) {
+    console.error('Error getting session:', error)
+    return null
+  }
 }

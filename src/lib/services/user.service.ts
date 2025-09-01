@@ -22,14 +22,33 @@ export class UserService {
    * Get user profile by ID
    */
   async getUserProfile(userId: string): Promise<ServiceResponse<UserProfile>> {
+    console.log('📡 UserService - getUserProfile called for userId:', userId);
+    
     try {
-      const { data, error } = await supabase
-        .from('user_profiles')
+      console.log('📡 UserService - querying user_profiles table...');
+      
+      // Add timeout handling
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('getUserProfile request timed out after 10 seconds')), 10000)
+      );
+      
+      const queryPromise = supabase
+        .from('users')
         .select('*')
         .eq('id', userId)
         .single();
 
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+
+      console.log('📡 UserService - supabase response:', { 
+        hasData: !!data, 
+        error: error?.message, 
+        errorCode: error?.code,
+        dataDisplayName: data?.display_name 
+      });
+
       if (error) {
+        console.log('❌ UserService - returning error response:', error.message);
         return {
           data: null,
           error: {
@@ -41,6 +60,7 @@ export class UserService {
         };
       }
 
+      console.log('✅ UserService - returning success response');
       return {
         data: data,
         error: null,
@@ -65,7 +85,7 @@ export class UserService {
   async updateUserProfile(userId: string, updates: UpdateUserProfile): Promise<ServiceResponse<UserProfile>> {
     try {
       const { data, error } = await supabase
-        .from('user_profiles')
+        .from('users')
         .update({
           ...updates,
           updated_at: new Date().toISOString()
@@ -117,7 +137,7 @@ export class UserService {
   }): Promise<ServiceResponse<UserProfile>> {
     try {
       const { data, error } = await supabase
-        .from('user_profiles')
+        .from('users')
         .insert({
           id: userId,
           display_name: profileData.display_name,
@@ -168,7 +188,7 @@ export class UserService {
   async profileExists(userId: string): Promise<ServiceResponse<boolean>> {
     try {
       const { data, error } = await supabase
-        .from('user_profiles')
+        .from('users')
         .select('id')
         .eq('id', userId)
         .maybeSingle();

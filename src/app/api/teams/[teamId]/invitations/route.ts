@@ -5,9 +5,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import DirectDatabaseService from '@/lib/database/direct-db.service';
-import jwt from 'jsonwebtoken';
+import { createClient } from '@supabase/supabase-js';
 import { SendInvitationForm } from '@/lib/types/database.types';
+import { createUserSupabaseClient } from '@/lib/supabase/server-client';
 
 export async function OPTIONS() {
   const response = new NextResponse(null, { status: 200 });
@@ -31,59 +31,51 @@ export async function POST(
       );
     }
 
-    // Development mode: Use a default user if no proper auth
-    let userId: string = 'eec00b4f-7e94-4d76-8f2a-7364b49d1c86'; // Default to player@matchday.com
+    // Get authenticated user from Supabase client
+    console.log('🔍 Team Invitations - Authenticating user');
+    const supabaseUserClient = createUserSupabaseClient(request);
+    const { data: { user }, error: userError } = await supabaseUserClient.auth.getUser();
     
-    if (process.env.NODE_ENV === 'production') {
-      // Only enforce JWT in production
-      const authHeader = request.headers.get('authorization');
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return NextResponse.json(
-          { error: 'Unauthorized', message: 'Authentication required' },
-          { status: 401 }
-        );
-      }
-
-      const token = authHeader.replace('Bearer ', '');
-      
-      try {
-        const jwtSecret = process.env.SUPABASE_JWT_SECRET || 'jUZj2O0d4B9nxxsU6p7xN3x81z9UGdY/lqbfIlUKb/Q=';
-        const decoded = jwt.verify(token, jwtSecret) as any;
-        userId = decoded.sub;
-      } catch (jwtError) {
-        return NextResponse.json(
-          { error: 'Invalid token', message: 'JWT verification failed' },
-          { status: 401 }
-        );
-      }
-    } else {
-      console.log('🧪 Development mode: Using default user for team invitations API');
+    if (userError || !user) {
+      console.log('❌ Team Invitations - Authentication failed:', userError?.message || 'No user found');
+      return NextResponse.json(
+        { error: 'Authentication required', message: 'Please log in to create team invitations' },
+        { status: 401 }
+      );
     }
+    
+    const userId = user.id;
+    console.log('✅ Team Invitations - Authenticated user:', userId);
 
     // Parse request body
-    const body: SendInvitationForm = await request.json();
+    const body: SendInvitationForm & { invitationType?: 'email' | 'code' } = await request.json();
     
-    // Validate required fields
-    if (!body.email || !body.email.trim()) {
+    const isEmailInvite = body.invitationType === 'email' || body.email;
+    const isCodeInvite = body.invitationType === 'code';
+    
+    // Validate required fields based on invitation type
+    if (isEmailInvite && (!body.email || !body.email.trim())) {
       return NextResponse.json(
         { 
           error: 'Validation error',
-          validationErrors: [{ field: 'email', message: 'Email is required' }]
+          validationErrors: [{ field: 'email', message: 'Email is required for email invitations' }]
         },
         { status: 400 }
       );
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(body.email)) {
-      return NextResponse.json(
-        { 
-          error: 'Validation error',
-          validationErrors: [{ field: 'email', message: 'Please enter a valid email address' }]
-        },
-        { status: 400 }
-      );
+    // Validate email format if email is provided
+    if (body.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(body.email)) {
+        return NextResponse.json(
+          { 
+            error: 'Validation error',
+            validationErrors: [{ field: 'email', message: 'Please enter a valid email address' }]
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Validate jersey number if provided
@@ -100,60 +92,84 @@ export async function POST(
       }
     }
 
-    const dbService = DirectDatabaseService.getInstance();
-    const client = await dbService['pool'].connect();
+    // Initialize Supabase client
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
     
     try {
       // Check if user is captain of the team
-      const captainCheck = await client.query(`
-        SELECT captain_id FROM teams WHERE id = $1
-      `, [teamId]);
+      const { data: team, error: teamError } = await supabase
+        .from('teams')
+        .select('captain_id')
+        .eq('id', teamId)
+        .single();
 
-      if (captainCheck.rows.length === 0) {
+      if (teamError || !team) {
         return NextResponse.json(
           { error: 'Team not found' },
           { status: 404 }
         );
       }
 
-      if (captainCheck.rows[0].captain_id !== userId) {
+      if (team.captain_id !== userId) {
         return NextResponse.json(
           { error: 'Unauthorized', message: 'Only team captains can send invitations' },
           { status: 403 }
         );
       }
 
-      // Check if user is already invited or a member
-      const existingCheck = await client.query(`
-        SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = (
-          SELECT id FROM users WHERE email = $2
-        ) AND is_active = true
-        UNION
-        SELECT 1 FROM team_invitations 
-        WHERE team_id = $1 AND email = $2 AND status = 'pending' AND expires_at > NOW()
-      `, [teamId, body.email.trim().toLowerCase()]);
+      // Check if user is already invited or a member (only for email invitations)
+      if (isEmailInvite && body.email) {
+        // Check for existing team member
+        const { data: existingMember } = await supabase
+          .from('team_members')
+          .select('id')
+          .eq('team_id', teamId)
+          .in('user_id', 
+            supabase
+              .from('users')
+              .select('id')
+              .eq('email', body.email.trim().toLowerCase())
+          )
+          .eq('is_active', true)
+          .limit(1);
 
-      if (existingCheck.rows.length > 0) {
-        return NextResponse.json(
-          { 
-            error: 'Validation error',
-            validationErrors: [{ 
-              field: 'email', 
-              message: 'This user is already a member or has a pending invitation' 
-            }]
-          },
-          { status: 400 }
-        );
+        // Check for existing pending invitation
+        const { data: existingInvitation } = await supabase
+          .from('team_invitations')
+          .select('id')
+          .eq('team_id', teamId)
+          .eq('invited_email', body.email.trim().toLowerCase())
+          .eq('status', 'pending')
+          .gt('expires_at', new Date().toISOString())
+          .limit(1);
+
+        if (existingMember?.length > 0 || existingInvitation?.length > 0) {
+          return NextResponse.json(
+            { 
+              error: 'Validation error',
+              validationErrors: [{ 
+                field: 'email', 
+                message: 'This user is already a member or has a pending invitation' 
+              }]
+            },
+            { status: 400 }
+          );
+        }
       }
 
       // Check if jersey number is already taken (if provided)
       if (body.jersey_number) {
-        const jerseyCheck = await client.query(`
-          SELECT 1 FROM team_members 
-          WHERE team_id = $1 AND jersey_number = $2 AND is_active = true
-        `, [teamId, body.jersey_number]);
+        const { data: existingJersey } = await supabase
+          .from('team_members')
+          .select('id')
+          .eq('team_id', teamId)
+          .eq('jersey_number', body.jersey_number)
+          .eq('is_active', true)
+          .limit(1);
 
-        if (jerseyCheck.rows.length > 0) {
+        if (existingJersey?.length > 0) {
           return NextResponse.json(
             { 
               error: 'Validation error',
@@ -167,54 +183,73 @@ export async function POST(
         }
       }
 
-      // Create invitation
-      const invitationResult = await client.query(`
-        INSERT INTO team_invitations (
-          team_id, 
-          invited_by, 
-          email, 
-          position, 
-          jersey_number, 
-          message,
-          status,
-          expires_at
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW() + INTERVAL '7 days')
-        RETURNING id, token, expires_at
-      `, [
-        teamId,
-        userId,
-        body.email.trim().toLowerCase(),
-        body.position || null,
-        body.jersey_number || null,
-        body.message?.trim() || null
-      ]);
+      // Generate invitation code for shareable invitations
+      let invitationCode = null;
+      if (isCodeInvite) {
+        // Generate a 6-character code
+        invitationCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      }
 
-      const invitation = invitationResult.rows[0];
+      // Create invitation
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
+      
+      const { data: invitation, error: invitationError } = await supabase
+        .from('team_invitations')
+        .insert({
+          team_id: teamId,
+          invited_by: userId,
+          invited_email: body.email ? body.email.trim().toLowerCase() : null,
+          invitation_code: invitationCode,
+          position: body.position || null,
+          jersey_number: body.jersey_number || null,
+          message: body.message?.trim() || null,
+          status: 'pending',
+          expires_at: expiresAt.toISOString()
+        })
+        .select('id, invitation_code, expires_at')
+        .single();
+        
+      if (invitationError || !invitation) {
+        throw new Error('Failed to create invitation');
+      }
 
       // Get team information for the response
-      const teamResult = await client.query(`
-        SELECT name FROM teams WHERE id = $1
-      `, [teamId]);
+      const { data: teamData } = await supabase
+        .from('teams')
+        .select('name')
+        .eq('id', teamId)
+        .single();
 
-      const teamName = teamResult.rows[0]?.name || 'Team';
+      const teamName = teamData?.name || 'Team';
 
       // Generate invitation URL
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-      const invitationUrl = `${baseUrl}/invitations/${invitation.token}`;
-
-      // Generate WhatsApp message
-      const whatsappMessage = `Hi! You've been invited to join ${teamName} on MatchDay! Click the link to accept: ${invitationUrl}`;
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3002';
+      let invitationUrl;
+      let whatsappMessage;
+      
+      if (invitation.invitation_code) {
+        // Code-based invitation
+        invitationUrl = `${baseUrl}/join/${invitation.invitation_code}`;
+        whatsappMessage = `🏆 Join my team "${teamName}" on MatchDay!\n\n⚽ Tap here to join: ${invitationUrl}\n\nMatchDay - Where teams are born! 🚀`;
+      } else {
+        // Token-based invitation (legacy support)
+        invitationUrl = `${baseUrl}/invitations/${invitation.id}`;
+        whatsappMessage = `Hi! You've been invited to join ${teamName} on MatchDay! Click the link to accept: ${invitationUrl}`;
+      }
+      
       const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(whatsappMessage)}`;
 
       const response = NextResponse.json({
         data: {
           id: invitation.id,
-          token: invitation.token,
+          code: invitation.invitation_code,
           invitationUrl,
           whatsappUrl,
+          whatsappMessage,
           expiresAt: invitation.expires_at,
-          teamName
+          teamName,
+          invitationType: invitation.invitation_code ? 'code' : 'email'
         },
         message: 'Invitation created successfully'
       });
@@ -225,8 +260,9 @@ export async function POST(
       response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
       
       return response;
-    } finally {
-      client.release();
+    } catch (error) {
+      console.error('Database operation error:', error);
+      throw error;
     }
   } catch (error) {
     console.error('Team invitations API error:', error);

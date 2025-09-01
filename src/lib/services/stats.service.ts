@@ -238,7 +238,7 @@ export class StatsService {
 
       // Get player profile
       const { data: profile, error: profileError } = await this.supabase
-        .from('user_profiles')
+        .from('users')
         .select('display_name, avatar_url, preferred_position')
         .eq('id', userId)
         .single();
@@ -470,7 +470,7 @@ export class StatsService {
 
       // Get player profile
       const { data: profile, error: profileError } = await this.supabase
-        .from('user_profiles')
+        .from('users')
         .select('display_name')
         .eq('id', userId)
         .single();

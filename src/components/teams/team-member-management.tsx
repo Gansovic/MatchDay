@@ -34,7 +34,7 @@ import {
   Loader2,
   Send
 } from 'lucide-react';
-import { TeamInviteModal } from './TeamInviteModal';
+import { EnhancedTeamInviteModal } from './EnhancedTeamInviteModal';
 
 export interface TeamMember {
   id: string;
@@ -178,10 +178,23 @@ export const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
   ];
 
   const filteredMembers = members.filter(member => {
-    const matchesSearch = member.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         member.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesPosition = positionFilter === 'all' || member.position === positionFilter;
-    return matchesSearch && matchesPosition && member.is_active;
+    try {
+      // Get display name with fallbacks
+      const displayName = member.user_profile?.display_name || 
+                         member.user_profile?.full_name || 
+                         member.full_name || 
+                         'Unknown Player';
+      const email = member.user_profile?.email || member.email || '';
+      
+      // Safe lowercase search
+      const matchesSearch = displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           email.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesPosition = positionFilter === 'all' || member.position === positionFilter;
+      return matchesSearch && matchesPosition && member.is_active;
+    } catch (error) {
+      console.warn('Error filtering member:', member, error);
+      return false; // Filter out problematic members
+    }
   });
 
   const formatDate = (dateString: string) => {
@@ -250,24 +263,13 @@ export const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
       {/* Header */}
       <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-              Team Members ({filteredMembers.length})
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400">
-              Manage your team roster and player positions
-            </p>
-          </div>
-          {isUserCaptain && (
-            <button
-              onClick={() => setShowInviteModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
-            >
-              <Send className="w-4 h-4" />
-              Invite Player
-            </button>
-          )}
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+            Team Members ({filteredMembers.length})
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            Manage your team roster and player positions
+          </p>
         </div>
       </div>
 
@@ -329,14 +331,14 @@ export const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
               <div className="flex items-center gap-4">
                 {/* Avatar */}
                 <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
-                  {member.full_name.charAt(0)}
+                  {(member.user_profile?.display_name || member.user_profile?.full_name || member.full_name || 'U').charAt(0)}
                 </div>
 
                 {/* Member Info */}
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold text-gray-900 dark:text-white">
-                      {member.full_name}
+                      {member.user_profile?.display_name || member.user_profile?.full_name || member.full_name || 'Unknown Player'}
                     </h3>
                     {member.is_captain && (
                       <div className="flex items-center gap-1 px-2 py-1 bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300 rounded-full text-xs font-medium">
@@ -349,7 +351,7 @@ export const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
                   <div className="flex items-center gap-4 mt-1 text-sm text-gray-600 dark:text-gray-400">
                     <div className="flex items-center gap-1">
                       <Mail className="w-3 h-3" />
-                      {member.email}
+                      {member.user_profile?.email || member.email || 'No email'}
                     </div>
                     {member.position && (
                       <div className="flex items-center gap-1">
@@ -436,7 +438,7 @@ export const TeamMemberManagement: React.FC<TeamMemberManagementProps> = ({
       )}
 
       {/* Team Invite Modal */}
-      <TeamInviteModal
+      <EnhancedTeamInviteModal
         isOpen={showInviteModal}
         onClose={() => setShowInviteModal(false)}
         teamId={teamId}

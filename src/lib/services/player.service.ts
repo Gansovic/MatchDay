@@ -102,7 +102,7 @@ export class PlayerService {
 
       // Get basic profile
       const { data: profile, error: profileError } = await this.supabase
-        .from('user_profiles')
+        .from('users')
         .select('*')
         .eq('id', userId)
         .single();
@@ -202,7 +202,7 @@ export class PlayerService {
   ): Promise<ServiceResponse<UserProfile>> {
     try {
       const { data, error } = await this.supabase
-        .from('user_profiles')
+        .from('users')
         .update({
           ...updates,
           updated_at: new Date().toISOString()

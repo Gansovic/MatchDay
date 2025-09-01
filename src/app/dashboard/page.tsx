@@ -45,7 +45,7 @@ export default function DashboardPage() {
     if (user?.id) {
       const fetchUserProfile = async () => {
         const { data } = await supabase
-          .from('user_profiles')
+          .from('users')
           .select('display_name, preferred_position, location, avatar_url')
           .eq('id', user.id)
           .single();

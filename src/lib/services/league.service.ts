@@ -413,7 +413,7 @@ export class LeagueService {
 
       // Get user profile and stats
       const { data: userProfile, error: profileError } = await this.supabase
-        .from('user_profiles')
+        .from('users')
         .select('*')
         .eq('id', userId)
         .single();
@@ -505,7 +505,7 @@ export class LeagueService {
       // Get captain details
       const captainIds = teams?.map(t => t.captain_id).filter(Boolean) || [];
       const { data: captains } = captainIds.length > 0 ? await this.supabase
-        .from('user_profiles')
+        .from('users')
         .select('id, display_name')
         .in('id', captainIds) : { data: [] };
 

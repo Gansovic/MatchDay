@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import DirectDatabaseService from '@/lib/database/direct-db.service';
-import jwt from 'jsonwebtoken';
+import { createUserSupabaseClient } from '@/lib/supabase/server-client';
 
 export async function OPTIONS() {
   const response = new NextResponse(null, { status: 200 });
@@ -152,36 +152,22 @@ export async function POST(
       );
     }
 
-    // Development mode: Use a default user if no proper auth
-    let userId: string = 'eec00b4f-7e94-4d76-8f2a-7364b49d1c86'; // Default to player@matchday.com
-    let userEmail: string = 'player@matchday.com';
+    // Get authenticated user from Supabase client
+    console.log('🔍 Invitation Accept - Authenticating user');
+    const supabaseUserClient = createUserSupabaseClient(request);
+    const { data: { user }, error: userError } = await supabaseUserClient.auth.getUser();
     
-    if (process.env.NODE_ENV === 'production') {
-      // Only enforce JWT in production
-      const authHeader = request.headers.get('authorization');
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return NextResponse.json(
-          { error: 'Unauthorized', message: 'Authentication required' },
-          { status: 401 }
-        );
-      }
-
-      const jwtToken = authHeader.replace('Bearer ', '');
-      
-      try {
-        const jwtSecret = process.env.SUPABASE_JWT_SECRET || 'jUZj2O0d4B9nxxsU6p7xN3x81z9UGdY/lqbfIlUKb/Q=';
-        const decoded = jwt.verify(jwtToken, jwtSecret) as any;
-        userId = decoded.sub;
-        userEmail = decoded.email;
-      } catch (jwtError) {
-        return NextResponse.json(
-          { error: 'Invalid token', message: 'JWT verification failed' },
-          { status: 401 }
-        );
-      }
-    } else {
-      console.log('🧪 Development mode: Using default user for invitation acceptance API');
+    if (userError || !user) {
+      console.log('❌ Invitation Accept - Authentication failed:', userError?.message || 'No user found');
+      return NextResponse.json(
+        { error: 'Authentication required', message: 'Please log in to accept the invitation' },
+        { status: 401 }
+      );
     }
+    
+    const userId = user.id;
+    const userEmail = user.email || null;
+    console.log('✅ Invitation Accept - Authenticated user:', userId);
 
     const dbService = DirectDatabaseService.getInstance();
     const client = await dbService['pool'].connect();
@@ -237,7 +223,7 @@ export async function POST(
       }
 
       // Check if invitation email matches user email (if specified)
-      if (invitation.email && invitation.email !== userEmail.toLowerCase()) {
+      if (invitation.email && userEmail && invitation.email !== userEmail.toLowerCase()) {
         return NextResponse.json(
           { error: 'This invitation was sent to a different email address' },
           { status: 403 }

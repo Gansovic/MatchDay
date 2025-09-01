@@ -656,7 +656,7 @@ export class MatchService {
   private async calculateMatchPlayerStats(matchId: string, playerId: string): Promise<PlayerMatchStats | null> {
     // Get player profile
     const { data: player, error: playerError } = await this.supabase
-      .from('user_profiles')
+      .from('users')
       .select('display_name')
       .eq('id', playerId)
       .single();

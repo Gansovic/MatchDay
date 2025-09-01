@@ -9,23 +9,18 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/components/auth/supabase-auth-provider';
 
 export default function DebugAuthPage() {
-  const { user, isLoading: authLoading, getSession } = useAuth();
+  const { user, session, isLoading: authLoading } = useAuth();
   const [output, setOutput] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sessionInfo, setSessionInfo] = useState<any>(null);
 
   // Load session info when auth state changes
   useEffect(() => {
-    const checkSession = async () => {
-      if (!authLoading) {
-        const session = await getSession();
-        setSessionInfo(session);
-        console.log('🔍 Current dev auth session:', session);
-      }
-    };
-    
-    checkSession();
-  }, [authLoading, user, getSession]);
+    if (!authLoading) {
+      setSessionInfo(session);
+      console.log('🔍 Current dev auth session:', session);
+    }
+  }, [authLoading, user, session]);
 
   const addOutput = (message: string) => {
     setOutput(prev => [...prev, `[${new Date().toISOString()}] ${message}`]);

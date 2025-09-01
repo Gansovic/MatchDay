@@ -15,7 +15,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/supabase-auth-provider';
 import DevAuthHelper from './dev-auth-helper';
-import { supabase } from '@/lib/supabase/client';
+import { supabase, clearAuthCookies } from '@/lib/supabase/client';
 import { 
   Users, 
   Calendar, 
@@ -92,7 +92,7 @@ interface AvailableTeam {
 
 export default function TeamsPage() {
   const router = useRouter();
-  const { user, isLoading, getSession } = useAuth();
+  const { user, session, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<'my-teams' | 'discover'>('my-teams');
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -100,6 +100,8 @@ export default function TeamsPage() {
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [newlyCreatedTeamId, setNewlyCreatedTeamId] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [formData, setFormData] = useState<CreateTeamForm>({
     name: '',
     league: '',
@@ -117,11 +119,20 @@ export default function TeamsPage() {
   useEffect(() => {
     const loadTeams = async () => {
       try {
-        // Get current user session for authentication
-        const session = await getSession();
+        console.log('🚀 Starting loadTeams function...');
+        console.log('🧪 Current user:', user);
+        console.log('🧪 Is loading:', isLoading);
+        
+        // Check if user is authenticated
+        console.log('🔍 Session result:', { 
+          hasSession: !!session, 
+          hasAccessToken: !!session?.access_token,
+          hasUser: !!session?.user,
+          userEmail: session?.user?.email 
+        });
         
         if (!session?.access_token) {
-          console.log('❌ No authentication session found, skipping team load');
+          console.log('❌ No authentication session found');
           setMyTeams([]);
           return;
         }
@@ -130,6 +141,7 @@ export default function TeamsPage() {
         console.log('🔑 Access token preview:', session.access_token?.substring(0, 50) + '...');
 
         const response = await fetch('/api/teams', {
+          credentials: 'include', // Include cookies
           headers: {
             'Authorization': `Bearer ${session.access_token}`
           }
@@ -138,23 +150,37 @@ export default function TeamsPage() {
         if (!response.ok) {
           const errorText = await response.text();
           console.error('Failed to load teams:', response.status, errorText);
+          
+          // Handle authentication errors specifically
+          if (response.status === 401) {
+            console.log('🚨 Authentication failed - setting auth error state');
+            setAuthError('Authentication failed. Please sign in again.');
+            setMyTeams([]);
+            return;
+          }
+          
           throw new Error(`Failed to load teams: ${response.status}`);
         }
 
         const result = await response.json();
+        console.log('✅ API call succeeded with auth:', result);
+        console.log('🔍 Authenticated API result.data type:', typeof result.data);
+        console.log('🔍 Authenticated API result.data length:', result.data?.length);
+        console.log('🔍 Authenticated API result.data contents:', JSON.stringify(result.data, null, 2));
         
         // Convert API response to local Team format (if any teams exist)
         const teams: Team[] = (result.data || []).map((teamData: any) => {
+          console.log('🔍 Processing authenticated team data:', JSON.stringify(teamData, null, 2));
           return {
             id: teamData.id,
             name: teamData.name,
-            league: teamData.league?.name || teamData.league || 'Unknown League',
-            position: 'Captain', // Mock as captain for testing
-            isCaptain: true,
-            memberCount: teamData.memberCount || 1,
+            league: teamData.league?.name || 'Independent',
+            position: 'Captain', // Default to Captain for now
+            isCaptain: true,     // Default to true for now  
+            memberCount: teamData.current_members || teamData.memberCount || 0,
             maxMembers: teamData.max_players || 22,
-            location: teamData.league?.location || 'Test Location',
-            description: teamData.team_bio || teamData.description,
+            location: teamData.location || 'TBD',
+            description: teamData.description || '',
             stats: teamData.stats || {
               wins: 0,
               draws: 0,
@@ -163,22 +189,50 @@ export default function TeamsPage() {
               position: 1,
               totalTeams: 1
             },
-            color: teamData.team_color || '#2563eb'
+            color: teamData.color || '#2563eb'
           };
         });
 
+        console.log('🎯 Final authenticated mapped teams array:', JSON.stringify(teams, null, 2));
+        console.log('🎯 Final authenticated teams array length:', teams.length);
+
         setMyTeams(teams);
+        console.log('🎯 Authenticated setMyTeams called with:', teams.length, 'teams');
+        
+        // Clear auth error and retry count on successful load
+        setAuthError(null);
+        setRetryCount(0);
       } catch (error) {
         console.error('Error loading teams:', error);
-        // For now, fall back to empty array - could show error state
         setMyTeams([]);
+        
+        // Prevent infinite retries by limiting retry count
+        if (retryCount < 3) {
+          setRetryCount(prev => prev + 1);
+        } else {
+          console.log('🚨 Too many retries, giving up on loading teams');
+          setAuthError('Failed to load teams after multiple attempts. Please refresh the page.');
+        }
       }
     };
 
-    if (user) {
+    // Load teams if session exists and no auth error, with retry limit
+    if (session?.access_token && !authError && retryCount < 3) {
       loadTeams();
+    } else if (!session?.access_token) {
+      // Clear auth error if no session (user logged out)
+      setAuthError(null);
+      setRetryCount(0);
     }
-  }, [user, getSession]);
+  }, [user, session, authError, retryCount]);
+
+  // Debug: Log whenever myTeams state changes
+  useEffect(() => {
+    console.log('🔄 myTeams state changed:', {
+      length: myTeams.length,
+      teams: myTeams.map(t => ({ id: t.id, name: t.name }))
+    });
+  }, [myTeams]);
 
   // Authentication redirect effect
   useEffect(() => {
@@ -365,9 +419,7 @@ export default function TeamsPage() {
     setIsSubmitting(true);
     
     try {
-      // Get current user session for authentication using dev auth
-      const session = await getSession();
-      
+      // Check if user is authenticated
       if (!session?.access_token) {
         throw new Error('Authentication required. Please sign in and try again.');
       }
@@ -586,6 +638,61 @@ export default function TeamsPage() {
         {/* My Teams Tab */}
         {activeTab === 'my-teams' && (
           <div className="space-y-6">
+            {/* DEBUG: Show current myTeams state */}
+            <div className="bg-yellow-100 border border-yellow-300 rounded p-4 text-sm">
+              <strong>DEBUG:</strong> myTeams.length = {myTeams.length} | 
+              Teams: {JSON.stringify(myTeams.map(t => ({id: t.id, name: t.name})), null, 2)}
+            </div>
+
+            {/* Authentication Error Display */}
+            {authError && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+                <div className="flex items-start gap-3">
+                  <X className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
+                  <div className="flex-1">
+                    <h3 className="font-medium text-red-800 dark:text-red-300 mb-1">
+                      Authentication Error
+                    </h3>
+                    <p className="text-sm text-red-700 dark:text-red-400 mb-4">
+                      {authError}
+                    </p>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        onClick={() => {
+                          clearAuthCookies();
+                          setAuthError(null);
+                          setRetryCount(0);
+                          setTimeout(() => window.location.reload(), 500);
+                        }}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
+                      >
+                        Clear Cookies & Refresh
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAuthError(null);
+                          setRetryCount(0);
+                          window.location.reload();
+                        }}
+                        className="px-4 py-2 border border-red-300 dark:border-red-600 text-red-700 dark:text-red-300 text-sm font-medium rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                      >
+                        Just Refresh
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAuthError(null);
+                          setRetryCount(0);
+                        }}
+                        className="px-4 py-2 border border-red-300 dark:border-red-600 text-red-700 dark:text-red-300 text-sm font-medium rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {myTeams.length === 0 ? (
               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
                 <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />

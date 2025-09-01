@@ -8,8 +8,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { TeamService } from '@/lib/services/team.service';
-import jwt from 'jsonwebtoken';
-import { createServerSupabaseClient, createUserSupabaseClient } from '@/lib/supabase/server-client';
+import { createServerSupabaseClient } from '@/lib/supabase/server-client';
+import { validateApiAuth } from '@/lib/auth/api-auth';
 
 interface CreateTeamRequest {
   name: string;
@@ -104,51 +104,18 @@ function validateTeamCreationRequest(data: any): {
  */
 export async function GET(request: NextRequest) {
   try {
-    // Extract authenticated user ID from request
-    const authHeader = request.headers.get('authorization');
-    let userId: string | null = null;
-    
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.replace('Bearer ', '');
-      
-      try {
-        // In development, we can extract user ID from the Supabase JWT token
-        const jwtSecret = process.env.SUPABASE_JWT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY!;
-        const decoded = jwt.verify(token, jwtSecret, { algorithms: ['HS256'] }) as any;
-        userId = decoded.sub;
-        console.log('✅ Extracted user ID from token:', userId);
-      } catch (jwtError) {
-        console.log('⚠️ JWT verification failed, trying fallback approach:', jwtError.message);
-      }
+    // Validate authentication with consistent error handling
+    const authResult = await validateApiAuth(request);
+    if (!authResult.success) {
+      return authResult.response!;
     }
     
-    // Fallback: Create a Supabase client with user context to get current user
-    if (!userId) {
-      try {
-        const supabaseUserClient = createUserSupabaseClient(request);
-        const { data: { user }, error: userError } = await supabaseUserClient.auth.getUser();
-        
-        if (userError || !user) {
-          return NextResponse.json(
-            { error: 'Authentication required', message: 'Please log in to view your teams' },
-            { status: 401 }
-          );
-        }
-        
-        userId = user.id;
-        console.log('✅ Got user ID from Supabase auth context:', userId);
-      } catch (error) {
-        console.error('Failed to get authenticated user:', error);
-        return NextResponse.json(
-          { error: 'Authentication error', message: 'Failed to verify user authentication' },
-          { status: 401 }
-        );
-      }
-    }
+    const { user } = authResult;
+    console.log('✅ Authenticated user for teams API:', user.id);
 
     // Use TeamService to get user teams
-    const teamService = TeamService.getInstance(createServerSupabaseClient());
-    const result = await teamService.getUserTeams(userId, { includeInactive: false });
+    const teamService = TeamService.getInstance(await createServerSupabaseClient());
+    const result = await teamService.getUserTeams(user.id, { includeInactive: false });
     
     if (!result.success || !result.data) {
       console.error('Error fetching user teams:', result.error);
@@ -223,50 +190,19 @@ export async function POST(request: NextRequest) {
 
     const teamData = validation.cleanData!;
 
-    // Extract authenticated user ID from request
-    const authHeader = request.headers.get('authorization');
-    let captainId: string | null = null;
-    
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.replace('Bearer ', '');
-      
-      try {
-        // In development, we can extract user ID from the Supabase JWT token
-        const jwtSecret = process.env.SUPABASE_JWT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY!;
-        const decoded = jwt.verify(token, jwtSecret, { algorithms: ['HS256'] }) as any;
-        captainId = decoded.sub;
-        console.log('✅ Extracted user ID from token:', captainId);
-      } catch (jwtError) {
-        console.log('⚠️ JWT verification failed, trying fallback approach:', jwtError.message);
-      }
+    // Validate authentication with consistent error handling
+    const authResult = await validateApiAuth(request);
+    if (!authResult.success) {
+      return authResult.response!;
     }
     
-    // Fallback: Create a Supabase client with user context to get current user
-    if (!captainId) {
-      try {
-        const supabaseUserClient = createUserSupabaseClient(request);
-        const { data: { user }, error: userError } = await supabaseUserClient.auth.getUser();
-        
-        if (userError || !user) {
-          return NextResponse.json(
-            { error: 'Authentication required', message: 'Please log in to create a team' },
-            { status: 401 }
-          );
-        }
-        
-        captainId = user.id;
-        console.log('✅ Got user ID from Supabase auth context:', captainId);
-      } catch (error) {
-        console.error('Failed to get authenticated user:', error);
-        return NextResponse.json(
-          { error: 'Authentication error', message: 'Failed to verify user authentication' },
-          { status: 401 }
-        );
-      }
-    }
+    const { user } = authResult;
+    const captainId = user.id;
+    const captainEmail = user.email || 'unknown@matchday.com';
+    console.log('✅ Authenticated captain for team creation:', captainId, captainEmail);
 
     // Use Supabase to create team
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
     
     // Ensure the user exists in the users table (required for foreign key constraint)
     const { data: existingUser, error: userCheckError } = await supabase
@@ -282,8 +218,9 @@ export async function POST(request: NextRequest) {
         .from('users')
         .insert({
           id: captainId,
-          email: 'unknown@email.com', // Will be updated when user updates profile
-          display_name: 'Team Captain'
+          email: captainEmail,
+          full_name: 'Team Captain',
+          role: 'player'
         });
       
       if (userCreateError) {
@@ -350,17 +287,36 @@ export async function POST(request: NextRequest) {
     }
 
     // Add the captain as a team member
-    const { error: memberError } = await supabase
+    console.log('🔍 Adding captain as team member:', { teamId: teamResult.id, captainId, position: 'midfielder' });
+    const { data: memberData, error: memberError } = await supabase
       .from('team_members')
       .insert({
         team_id: teamResult.id,
         user_id: captainId,
-        position: 'Captain'
-      });
+        position: 'midfielder' // Captain will be indicated by captain_id field in teams table
+      })
+      .select('*');
 
     if (memberError) {
-      console.error('Failed to add captain as team member:', memberError);
-      // Don't fail the whole operation for this
+      console.error('❌ Failed to add captain as team member:', {
+        error: memberError,
+        errorCode: memberError.code,
+        errorMessage: memberError.message,
+        errorDetails: memberError.details,
+        teamId: teamResult.id,
+        captainId
+      });
+      // This is critical for team functionality - return error instead of ignoring
+      return NextResponse.json(
+        { 
+          error: 'Team membership creation failed', 
+          message: 'Team was created but captain membership failed',
+          details: memberError.message
+        },
+        { status: 500 }
+      );
+    } else {
+      console.log('✅ Captain successfully added as team member:', memberData);
     }
 
     // Format response to match expected frontend format

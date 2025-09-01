@@ -106,9 +106,20 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           {/* Mock Development Accounts */}
           <div className="mb-3 p-3 bg-green-100 dark:bg-green-800/30 rounded">
             <div className="text-xs text-green-600 dark:text-green-400 space-y-1 mb-2">
-              <div><strong>Player Account:</strong> <code className="bg-green-200 dark:bg-green-700 px-1 rounded">player@matchday.com</code></div>
-              <div><strong>Password:</strong> <code className="bg-green-200 dark:bg-green-700 px-1 rounded">player123!</code></div>
+              <div><strong>Working Account:</strong> <code className="bg-green-200 dark:bg-green-700 px-1 rounded">knezevicoluka@gmail.com</code></div>
+              <div><strong>Password:</strong> <code className="bg-green-200 dark:bg-green-700 px-1 rounded">password123</code></div>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setValue('email', 'knezevicoluka@gmail.com');
+                setValue('password', 'password123');
+                clearErrors();
+              }}
+              className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded transition-colors mr-2"
+            >
+              Use Working Account
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -116,20 +127,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({
                 setValue('password', 'player123!');
                 clearErrors();
               }}
-              className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded transition-colors mr-2"
-            >
-              Use Player Account
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setValue('email', 'john.doe@example.com');
-                setValue('password', 'admin123!');
-                clearErrors();
-              }}
               className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors"
             >
-              Use Captain Account
+              Try Player Account
             </button>
           </div>
           
@@ -182,8 +182,10 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
       {/* Error Message */}
       {error && (
-        <div className="mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm">
-          {error}
+        <div className="mb-4 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 text-sm">
+          <div className="whitespace-pre-line">
+            {error}
+          </div>
         </div>
       )}
 
@@ -252,6 +254,27 @@ export const LoginForm: React.FC<LoginFormProps> = ({
             Forgot your password?
           </button>
         </div>
+
+        {/* Development Login Button - Only in development */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+            <button
+              type="button"
+              onClick={() => {
+                setValue('email', 'knezevicoluka@gmail.com');
+                setValue('password', 'password123');
+                clearErrors();
+              }}
+              disabled={isLoading || isSubmitting}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-medium rounded-xl transition-colors text-sm"
+            >
+              🚀 Real Account (knezevicoluka@gmail.com)
+            </button>
+            <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
+              Real user account - manually verify password
+            </p>
+          </div>
+        )}
 
         {/* Submit Button */}
         <button

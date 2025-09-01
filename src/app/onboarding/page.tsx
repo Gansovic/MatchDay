@@ -10,7 +10,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { PlayerOnboarding } from '@/components/player/player-onboarding';
-import { useAuth } from '@/components/auth/auth-provider';
+import { useAuth } from '@/components/auth/supabase-auth-provider';
 import { Loader2 } from 'lucide-react';
 
 export default function OnboardingPage() {

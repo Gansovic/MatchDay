@@ -8,7 +8,7 @@
 'use client';
 
 import React from 'react';
-import { useAuth } from '@/components/auth/auth-provider';
+import { useAuth } from '@/components/auth/supabase-auth-provider';
 import { Loader2 } from 'lucide-react';
 
 export default function DemoDashboardPage() {

@@ -35,7 +35,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/supabase-auth-provider';
 import { TeamMemberManagement } from '@/components/teams/team-member-management';
-import { TeamInviteModal } from '@/components/teams/TeamInviteModal';
+import { EnhancedTeamInviteModal } from '@/components/teams/EnhancedTeamInviteModal';
 import { Database } from '@/lib/types/database.types';
 
 interface Match {
@@ -169,7 +169,7 @@ export default function TeamDashboard() {
         const displayTeam: DisplayTeamData = {
           id: apiTeam.id,
           name: apiTeam.name,
-          league: apiTeam.league.name,
+          league: apiTeam.league?.name || 'Independent',
           color: apiTeam.color,
           description: apiTeam.description || 'A competitive football team focused on teamwork and excellence.',
           founded: apiTeam.founded,
@@ -254,8 +254,9 @@ export default function TeamDashboard() {
   // Get league standings from real data (simplified for now)
   const getLeagueStandings = (teamName: string, league: string): LeagueStanding[] => {
     if (league === 'League1') {
+      const stats = team.stats || {};
       const standings = [
-        { position: 1, teamName: team.name, played: team.stats.totalMatches, wins: team.stats.wins, draws: team.stats.draws, losses: team.stats.losses, goalsFor: team.stats.goals, goalsAgainst: team.stats.goalsAgainst, goalDifference: team.stats.goals - team.stats.goalsAgainst, points: team.stats.points },
+        { position: 1, teamName: team.name, played: stats.totalMatches || 0, wins: stats.wins || 0, draws: stats.draws || 0, losses: stats.losses || 0, goalsFor: stats.goals || 0, goalsAgainst: stats.goalsAgainst || 0, goalDifference: (stats.goals || 0) - (stats.goalsAgainst || 0), points: stats.points || 0 },
         { position: 2, teamName: 'Other Team 1', played: 17, wins: 12, draws: 3, losses: 2, goalsFor: 45, goalsAgainst: 18, goalDifference: 27, points: 39 },
         { position: 3, teamName: 'Mountain Lions', played: 17, wins: 11, draws: 4, losses: 2, goalsFor: 38, goalsAgainst: 16, goalDifference: 22, points: 37 },
         { position: 4, teamName: 'Storm Riders', played: 17, wins: 10, draws: 5, losses: 2, goalsFor: 35, goalsAgainst: 20, goalDifference: 15, points: 35 },
@@ -274,11 +275,12 @@ export default function TeamDashboard() {
       ];
       return standings.map(standing => ({ ...standing, isCurrentTeam: standing.teamName === teamName }));
     } else if (league === 'Elite Soccer League') {
+      const stats = team.stats || {};
       const standings = [
         { position: 1, teamName: 'Velocity United', played: 14, wins: 10, draws: 3, losses: 1, goalsFor: 35, goalsAgainst: 12, goalDifference: 23, points: 33 },
         { position: 2, teamName: 'Coastal Rovers', played: 14, wins: 9, draws: 2, losses: 3, goalsFor: 28, goalsAgainst: 15, goalDifference: 13, points: 29 },
         { position: 3, teamName: 'Rapid Strikers', played: 14, wins: 8, draws: 4, losses: 2, goalsFor: 30, goalsAgainst: 18, goalDifference: 12, points: 28 },
-        { position: team.stats.position, teamName: team.name, played: 14, wins: team.stats.wins, draws: team.stats.draws, losses: team.stats.losses, goalsFor: team.stats.goals, goalsAgainst: team.stats.goalsAgainst, goalDifference: team.stats.goals - team.stats.goalsAgainst, points: team.stats.points },
+        { position: stats.position || 4, teamName: team.name, played: 14, wins: stats.wins || 0, draws: stats.draws || 0, losses: stats.losses || 0, goalsFor: stats.goals || 0, goalsAgainst: stats.goalsAgainst || 0, goalDifference: (stats.goals || 0) - (stats.goalsAgainst || 0), points: stats.points || 0 },
         { position: 5, teamName: 'Thunder FC', played: 14, wins: 7, draws: 3, losses: 4, goalsFor: 25, goalsAgainst: 20, goalDifference: 5, points: 24 },
         { position: 6, teamName: 'Elite Warriors', played: 14, wins: 6, draws: 4, losses: 4, goalsFor: 22, goalsAgainst: 19, goalDifference: 3, points: 22 },
         { position: 7, teamName: 'Metro United', played: 14, wins: 5, draws: 5, losses: 4, goalsFor: 20, goalsAgainst: 18, goalDifference: 2, points: 20 },
@@ -292,8 +294,21 @@ export default function TeamDashboard() {
     }
     
     // Default fallback for other leagues
+    const stats = team.stats || {};
     return [
-      { position: team.stats.position, teamName: team.name, played: team.stats.wins + team.stats.draws + team.stats.losses, wins: team.stats.wins, draws: team.stats.draws, losses: team.stats.losses, goalsFor: team.stats.goals, goalsAgainst: team.stats.goalsAgainst, goalDifference: team.stats.goals - team.stats.goalsAgainst, points: team.stats.points, isCurrentTeam: true }
+      { 
+        position: stats.position || 1, 
+        teamName: team.name, 
+        played: (stats.wins || 0) + (stats.draws || 0) + (stats.losses || 0), 
+        wins: stats.wins || 0, 
+        draws: stats.draws || 0, 
+        losses: stats.losses || 0, 
+        goalsFor: stats.goals || 0, 
+        goalsAgainst: stats.goalsAgainst || 0, 
+        goalDifference: (stats.goals || 0) - (stats.goalsAgainst || 0), 
+        points: stats.points || 0, 
+        isCurrentTeam: true 
+      }
     ];
   };
 
@@ -432,83 +447,103 @@ export default function TeamDashboard() {
           </div>
 
           {/* Team Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-gray-900 dark:text-white">
-                {team.stats.position}
+          {(() => {
+            const stats = team.stats || {};
+            return (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                    {stats.position || 1}
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    of {stats.totalTeams || 1}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-500">League Position</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                    {calculateWinRate(stats.wins || 0, stats.draws || 0, stats.losses || 0)}%
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-500">Win Rate</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                    {stats.points || 0}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-500">Points</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                    {stats.goals || 0}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-500">
+                    Goals Scored
+                  </div>
+                </div>
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                of {team.stats.totalTeams}
-              </div>
-              <div className="text-xs text-gray-500 dark:text-gray-500">League Position</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-gray-900 dark:text-white">
-                {calculateWinRate(team.stats.wins, team.stats.draws, team.stats.losses)}%
-              </div>
-              <div className="text-xs text-gray-500 dark:text-gray-500">Win Rate</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-gray-900 dark:text-white">
-                {team.stats.points}
-              </div>
-              <div className="text-xs text-gray-500 dark:text-gray-500">Points</div>
-            </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-gray-900 dark:text-white">
-                {team.stats.goals}
-              </div>
-              <div className="text-xs text-gray-500 dark:text-gray-500">
-                Goals Scored
-              </div>
-            </div>
-          </div>
+            );
+          })()}
         </div>
 
         {/* Tab Navigation */}
         <div className="mb-8">
           <div className="border-b border-gray-200 dark:border-gray-700">
-            <nav className="-mb-px flex space-x-8">
-              <button
-                onClick={() => setActiveTab('overview')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === 'overview'
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4" />
-                  Overview
+            <div className="flex items-center justify-between">
+              <nav className="-mb-px flex space-x-8">
+                <button
+                  onClick={() => setActiveTab('overview')}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    activeTab === 'overview'
+                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4" />
+                    Overview
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveTab('roster')}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    activeTab === 'roster'
+                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    Roster ({team.memberCount})
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveTab('matches')}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    activeTab === 'matches'
+                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Matches
+                  </div>
+                </button>
+              </nav>
+              
+              {/* Invite Button - Always Visible */}
+              {team.isUserCaptain && (
+                <div className="pb-4">
+                  <button
+                    onClick={() => setShowInviteModal(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors text-sm"
+                  >
+                    <Send className="w-4 h-4" />
+                    Invite Player
+                  </button>
                 </div>
-              </button>
-              <button
-                onClick={() => setActiveTab('roster')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === 'roster'
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4" />
-                  Roster ({team.memberCount})
-                </div>
-              </button>
-              <button
-                onClick={() => setActiveTab('matches')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === 'matches'
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  Matches
-                </div>
-              </button>
-            </nav>
+              )}
+            </div>
           </div>
         </div>
 
@@ -798,7 +833,7 @@ export default function TeamDashboard() {
         )}
 
         {/* Team Invite Modal */}
-        <TeamInviteModal
+        <EnhancedTeamInviteModal
           isOpen={showInviteModal}
           onClose={() => setShowInviteModal(false)}
           teamId={teamId}
