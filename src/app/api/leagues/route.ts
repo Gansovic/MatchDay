@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
           max_players,
           min_players,
           is_recruiting,
-          team_members!inner (
+          team_members (
             id,
             is_active
           )
@@ -60,6 +60,13 @@ export async function GET(request: NextRequest) {
     }
 
     const { data: leagues, error } = await query;
+
+    console.log('[Leagues API] Query result:', {
+      leagues: leagues?.length || 0,
+      leagueNames: leagues?.map(l => l.name) || [],
+      error: error?.message || null,
+      filters: { sportType, leagueType, isActive, isPublic }
+    });
 
     if (error) {
       console.error('Supabase error:', error);

@@ -207,13 +207,15 @@ export default function LeagueDashboardPage() {
         fetchSeasons()
       ]);
 
-      if (leagueData && seasonsData) {
-        const activityData = await fetchRecentActivity(seasonsData);
-        const currentSeason = seasonsData.find((s: Season) => s.is_current) || seasonsData[0] || null;
+      if (leagueData) {
+        // Handle case where league exists but has no seasons
+        const safeSeasons = seasonsData || [];
+        const activityData = await fetchRecentActivity(safeSeasons);
+        const currentSeason = safeSeasons.find((s: Season) => s.is_current) || safeSeasons[0] || null;
 
         setDashboardData({
           league: leagueData,
-          seasons: seasonsData,
+          seasons: safeSeasons,
           currentSeason,
           recentActivity: activityData
         });
@@ -236,7 +238,7 @@ export default function LeagueDashboardPage() {
 
   // Loading states check
   const isLoading = loading.league || loading.seasons;
-  const hasAnyError = errors.league || errors.seasons;
+  const hasLeagueError = errors.league !== null;
   
   // Show loading spinner while fetching initial data
   if (isLoading) {
@@ -254,8 +256,8 @@ export default function LeagueDashboardPage() {
     );
   }
   
-  // Show error if league not found
-  if (hasAnyError) {
+  // Show error only if league not found (not if seasons are missing)
+  if (hasLeagueError) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
         <div className="container mx-auto px-4 py-8">
@@ -271,7 +273,7 @@ export default function LeagueDashboardPage() {
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">League Not Found</h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">{errors.league || errors.seasons}</p>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">{errors.league}</p>
             <Link 
               href="/leagues"
               className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
