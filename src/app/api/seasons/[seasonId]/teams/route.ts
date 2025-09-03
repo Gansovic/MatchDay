@@ -1,10 +1,10 @@
 /**
- * Individual Season API Routes
+ * Season Teams API Routes
  * 
- * Handles individual season operations:
- * - GET /api/seasons/[seasonId] - Get detailed season information
- * - PUT /api/seasons/[seasonId] - Update season information
- * - DELETE /api/seasons/[seasonId] - Delete season
+ * Handles team registration for seasons:
+ * - GET /api/seasons/[seasonId]/teams - Get all teams registered for a season
+ * - POST /api/seasons/[seasonId]/teams - Register a team for a season
+ * - DELETE /api/seasons/[seasonId]/teams/[teamId] - Remove team from season
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -24,8 +24,8 @@ export async function OPTIONS() {
 }
 
 /**
- * GET /api/seasons/[seasonId]
- * Get detailed information for a specific season
+ * GET /api/seasons/[seasonId]/teams
+ * Get all teams registered for a season
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
@@ -60,15 +60,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         );
       }
       return NextResponse.json(
-        { success: false, error: result.error || 'Failed to get season details' },
+        { success: false, error: result.error || 'Failed to get season teams' },
         { status: 500 }
       );
     }
 
     const jsonResponse = NextResponse.json({
       success: true,
-      data: result.data,
-      message: result.message || 'Season details retrieved successfully'
+      data: result.data?.teams || [],
+      message: 'Season teams retrieved successfully'
     });
 
     // Add CORS headers
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return jsonResponse;
 
   } catch (error) {
-    console.error('Error in GET /api/seasons/[seasonId]:', error);
+    console.error('Error in GET /api/seasons/[seasonId]/teams:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error', message: 'An unexpected error occurred' },
       { status: 500 }
@@ -88,10 +88,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 }
 
 /**
- * PUT /api/seasons/[seasonId]
- * Update season information
+ * POST /api/seasons/[seasonId]/teams
+ * Register a team for a season
  */
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { seasonId } = await params;
     const body = await request.json();
@@ -112,32 +112,53 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Validate dates if provided
-    if (body.start_date && body.end_date) {
-      const startDate = new Date(body.start_date);
-      const endDate = new Date(body.end_date);
-      if (startDate >= endDate) {
-        return NextResponse.json(
-          { success: false, error: 'End date must be after start date' },
-          { status: 400 }
-        );
-      }
+    const { team_id } = body;
+    if (!team_id) {
+      return NextResponse.json(
+        { success: false, error: 'Team ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate team_id format
+    if (!uuidRegex.test(team_id)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid team ID format' },
+        { status: 400 }
+      );
     }
 
     const supabase = createAdminSupabaseClient();
     const seasonService = SeasonService.getInstance(supabase);
 
-    const result = await seasonService.updateSeason(seasonId, body);
+    // Check if team exists
+    const { data: team, error: teamError } = await supabase
+      .from('teams')
+      .select('id, name, team_color, captain_id')
+      .eq('id', team_id)
+      .single();
 
-    if (!result.success) {
-      if (result.error?.code === 'PGRST116') {
+    if (teamError) {
+      if (teamError.code === 'PGRST116') {
         return NextResponse.json(
-          { success: false, error: 'Season not found' },
+          { success: false, error: 'Team not found' },
           { status: 404 }
         );
       }
+      throw teamError;
+    }
+
+    const result = await seasonService.registerTeamForSeason(seasonId, team_id);
+
+    if (!result.success) {
+      if (result.error?.code === 'ALREADY_REGISTERED') {
+        return NextResponse.json(
+          { success: false, error: 'Team is already registered for this season' },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
-        { success: false, error: result.error || 'Failed to update season' },
+        { success: false, error: result.error || 'Failed to register team for season' },
         { status: 500 }
       );
     }
@@ -145,7 +166,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const jsonResponse = NextResponse.json({
       success: true,
       data: result.data,
-      message: result.message || 'Season updated successfully'
+      message: result.message || 'Team registered for season successfully'
     });
 
     // Add CORS headers
@@ -156,7 +177,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     return jsonResponse;
 
   } catch (error) {
-    console.error('Error in PUT /api/seasons/[seasonId]:', error);
+    console.error('Error in POST /api/seasons/[seasonId]/teams:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error', message: 'An unexpected error occurred' },
       { status: 500 }

@@ -1,10 +1,9 @@
 /**
- * Individual Season API Routes
+ * Season Fixtures API Routes
  * 
- * Handles individual season operations:
- * - GET /api/seasons/[seasonId] - Get detailed season information
- * - PUT /api/seasons/[seasonId] - Update season information
- * - DELETE /api/seasons/[seasonId] - Delete season
+ * Handles fixture operations for a season:
+ * - GET /api/seasons/[seasonId]/fixtures - Get all fixtures for a season
+ * - POST /api/seasons/[seasonId]/fixtures - Generate fixtures for a season
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -24,8 +23,8 @@ export async function OPTIONS() {
 }
 
 /**
- * GET /api/seasons/[seasonId]
- * Get detailed information for a specific season
+ * GET /api/seasons/[seasonId]/fixtures
+ * Get all fixtures/matches for a season
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
@@ -50,17 +49,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const supabase = createAdminSupabaseClient();
     const seasonService = SeasonService.getInstance(supabase);
 
-    const result = await seasonService.getSeasonDetails(seasonId);
+    const result = await seasonService.getSeasonMatches(seasonId);
 
     if (!result.success) {
-      if (result.error?.code === 'SEASON_NOT_FOUND') {
-        return NextResponse.json(
-          { success: false, error: 'Season not found' },
-          { status: 404 }
-        );
-      }
       return NextResponse.json(
-        { success: false, error: result.error || 'Failed to get season details' },
+        { success: false, error: result.error || 'Failed to get season fixtures' },
         { status: 500 }
       );
     }
@@ -68,7 +61,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const jsonResponse = NextResponse.json({
       success: true,
       data: result.data,
-      message: result.message || 'Season details retrieved successfully'
+      message: result.message || 'Season fixtures retrieved successfully'
     });
 
     // Add CORS headers
@@ -79,7 +72,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return jsonResponse;
 
   } catch (error) {
-    console.error('Error in GET /api/seasons/[seasonId]:', error);
+    console.error('Error in GET /api/seasons/[seasonId]/fixtures:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error', message: 'An unexpected error occurred' },
       { status: 500 }
@@ -88,13 +81,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 }
 
 /**
- * PUT /api/seasons/[seasonId]
- * Update season information
+ * POST /api/seasons/[seasonId]/fixtures
+ * Generate fixtures for a season
  */
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { seasonId } = await params;
-    const body = await request.json();
 
     if (!seasonId) {
       return NextResponse.json(
@@ -112,32 +104,32 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Validate dates if provided
-    if (body.start_date && body.end_date) {
-      const startDate = new Date(body.start_date);
-      const endDate = new Date(body.end_date);
-      if (startDate >= endDate) {
-        return NextResponse.json(
-          { success: false, error: 'End date must be after start date' },
-          { status: 400 }
-        );
-      }
-    }
-
     const supabase = createAdminSupabaseClient();
     const seasonService = SeasonService.getInstance(supabase);
 
-    const result = await seasonService.updateSeason(seasonId, body);
-
-    if (!result.success) {
-      if (result.error?.code === 'PGRST116') {
+    // Check if season exists
+    const seasonDetails = await seasonService.getSeasonDetails(seasonId);
+    if (!seasonDetails.success) {
+      if (seasonDetails.error?.code === 'SEASON_NOT_FOUND') {
         return NextResponse.json(
           { success: false, error: 'Season not found' },
           { status: 404 }
         );
       }
+      throw seasonDetails.error;
+    }
+
+    const result = await seasonService.generateFixtures(seasonId);
+
+    if (!result.success) {
+      if (result.error?.code === 'INSUFFICIENT_TEAMS') {
+        return NextResponse.json(
+          { success: false, error: 'Need at least 2 teams to generate fixtures' },
+          { status: 400 }
+        );
+      }
       return NextResponse.json(
-        { success: false, error: result.error || 'Failed to update season' },
+        { success: false, error: result.error || 'Failed to generate fixtures' },
         { status: 500 }
       );
     }
@@ -145,7 +137,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const jsonResponse = NextResponse.json({
       success: true,
       data: result.data,
-      message: result.message || 'Season updated successfully'
+      message: result.message || 'Fixtures generated successfully'
     });
 
     // Add CORS headers
@@ -156,7 +148,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     return jsonResponse;
 
   } catch (error) {
-    console.error('Error in PUT /api/seasons/[seasonId]:', error);
+    console.error('Error in POST /api/seasons/[seasonId]/fixtures:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error', message: 'An unexpected error occurred' },
       { status: 500 }

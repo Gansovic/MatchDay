@@ -28,7 +28,8 @@ import {
   ChevronRight,
   Activity,
   BarChart3,
-  Play
+  Play,
+  Settings
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { LeagueService } from '@/lib/services/league.service';
@@ -84,12 +85,23 @@ export default function LeagueDashboardPage() {
       setLoading(prev => ({ ...prev, league: true }));
       setErrors(prev => ({ ...prev, league: null }));
       
-      const response = await leagueService.getLeagueDetails(leagueId);
-      
-      if (response.success && response.data) {
-        return response.data;
+      const response = await fetch(`/api/leagues/${leagueId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          return result.data;
+        } else {
+          setErrors(prev => ({ ...prev, league: result.error || 'Failed to load league details' }));
+          return null;
+        }
       } else {
-        setErrors(prev => ({ ...prev, league: response.error?.message || 'Failed to load league details' }));
+        setErrors(prev => ({ ...prev, league: `HTTP ${response.status}: Failed to load league` }));
         return null;
       }
     } catch (error) {
@@ -99,7 +111,7 @@ export default function LeagueDashboardPage() {
     } finally {
       setLoading(prev => ({ ...prev, league: false }));
     }
-  }, [leagueId, leagueService]);
+  }, [leagueId]);
 
   // Fetch seasons
   const fetchSeasons = useCallback(async () => {
@@ -413,7 +425,16 @@ export default function LeagueDashboardPage() {
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">All Seasons</h2>
-            <Trophy className="w-5 h-5 text-gray-400" />
+            <div className="flex items-center gap-3">
+              <Link
+                href={`/leagues/${leagueId}/seasons`}
+                className="flex items-center gap-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                <Settings className="w-4 h-4" />
+                Manage Seasons
+              </Link>
+              <Trophy className="w-5 h-5 text-gray-400" />
+            </div>
           </div>
           
           {seasons.length === 0 ? (

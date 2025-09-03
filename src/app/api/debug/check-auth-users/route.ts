@@ -4,10 +4,10 @@
  * Try to check what users exist in Supabase Auth
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createAdminSupabaseClient } from '@/lib/supabase/server-client';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     console.log('🔍 Checking Supabase Auth users...');
     

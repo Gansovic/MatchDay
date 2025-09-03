@@ -4,10 +4,10 @@
  * Simple endpoint to test Supabase connection and check user existence
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server-client';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     console.log('🔍 Testing Supabase connection...');
     

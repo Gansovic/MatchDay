@@ -6,9 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { TeamService } from '@/lib/services/team.service';
-import { createServerSupabaseClient, createUserSupabaseClient } from '@/lib/supabase/server-client';
-import jwt from 'jsonwebinvitation_code';
+import { createServerSupabaseClient } from '@/lib/supabase/server-client';
+import jwt from 'jsonwebtoken';
 
 export async function OPTIONS() {
   const response = new NextResponse(null, { status: 200 });
@@ -162,9 +161,9 @@ export async function POST(
     
     try {
       const jwtSecret = process.env.SUPABASE_JWT_SECRET || 'super-secret-jwt-invitation_code-with-at-least-32-characters-long';
-      const decoded = jwt.verify(invitation_code, jwtSecret) as any;
-      userId = decoded.sub;
-    } catch (jwtError) {
+      const decoded = jwt.verify(invitation_code, jwtSecret) as jwt.JwtPayload;
+      userId = decoded.sub as string;
+    } catch {
       return NextResponse.json(
         { error: 'Invalid invitation_code', message: 'JWT verification failed' },
         { status: 401 }

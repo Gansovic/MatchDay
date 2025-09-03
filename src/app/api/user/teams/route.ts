@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
           team: {
             id: team.id,
             name: team.name,
+            team_color: team.team_color,
             league: team.leagues ? {
               id: team.leagues.id,
               name: team.leagues.name,
@@ -105,7 +106,8 @@ export async function GET(request: NextRequest) {
       }).filter(Boolean);
       
       const response = NextResponse.json({
-        teams,
+        success: true,
+        data: teams,
         count: teams.length
       });
       
@@ -118,7 +120,11 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('User teams API error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch user teams' },
+      { 
+        success: false,
+        error: 'Failed to fetch user teams',
+        data: []
+      },
       { status: 500 }
     );
   }

@@ -252,21 +252,7 @@ export default function TeamsPage() {
     }
   }, [user, isLoading, router]);
 
-  // Show loading while checking authentication
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  // Show nothing while redirecting
-  if (!user) {
-    return null;
-  }
-
-  // Load discover teams data from API
+  // Load discover teams data from API - MOVED BEFORE EARLY RETURNS TO FIX HOOKS RULE
   const loadDiscoverTeams = useCallback(async () => {
     setIsLoadingDiscoverTeams(true);
     try {

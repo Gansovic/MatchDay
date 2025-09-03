@@ -4,10 +4,10 @@
  * Find teams that exist but don't have proper captain membership
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server-client';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     console.log('🔍 Checking for orphaned teams...');
     
