@@ -284,8 +284,10 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
     if (!selectedLeague || !selectedTeam) return;
 
     setIsSubmitting(true);
+    setError(null);
+    
     try {
-      // Real API call to join team to league
+      // Real API call to join team to league (now season-based)
       const response = await fetch(`/api/teams/${selectedTeam}/join-league`, {
         method: 'POST',
         headers: {
@@ -299,10 +301,26 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
       const result = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || 'Failed to join league');
+        // Check for specific error types
+        if (result.error?.includes('already registered')) {
+          // Team is already in this season
+          setError(result.error);
+          setShowJoinModal(false);
+        } else if (result.error?.includes('No active season')) {
+          // No active season available
+          setError(result.error);
+        } else if (result.error?.includes('is full')) {
+          // Season is full
+          setError(result.error);
+        } else {
+          // Generic error
+          throw new Error(result.error || 'Failed to join league');
+        }
+        return;
       }
       
-      // Update local state
+      // Update local state with season information
+      const seasonInfo = result.data?.season;
       setUserTeams(prev => prev.map(team => 
         team.id === selectedTeam 
           ? { ...team, league_id: selectedLeague.id, league_name: selectedLeague.name }
@@ -320,24 +338,33 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
       ));
 
       setShowJoinModal(false);
-      setSuccess(result.data?.message || `Successfully joined ${selectedLeague.name}!`);
+      
+      // Show success message with season information
+      const successMessage = result.data?.message || 
+        (seasonInfo 
+          ? `Successfully joined ${selectedLeague.name} for the ${seasonInfo.display_name} season!`
+          : `Successfully joined ${selectedLeague.name}!`);
+      
+      setSuccess(successMessage);
       onTeamJoinedLeague?.(selectedTeam, selectedLeague.id);
       
-      setTimeout(() => setSuccess(null), 3000);
+      setTimeout(() => setSuccess(null), 5000);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to join league. Please try again.';
       setError(errorMessage);
-      setTimeout(() => setError(null), 5000);
+      setTimeout(() => setError(null), 7000);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleLeaveLeague = async (teamId: string, leagueId: string) => {
-    if (!confirm('Are you sure you want to leave this league?')) return;
+    if (!confirm('Are you sure you want to leave this league? This will remove your team from the current season.')) return;
 
+    setError(null);
+    
     try {
-      // Real API call to leave league
+      // Real API call to leave league (now leaves the season)
       const response = await fetch(`/api/teams/${teamId}/leave-league`, {
         method: 'POST',
         headers: {
@@ -352,6 +379,7 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
       }
       
       const league = leagues.find(l => l.id === leagueId);
+      const seasonInfo = result.data?.season;
       
       // Update local state
       setUserTeams(prev => prev.map(team => 
@@ -370,10 +398,16 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
           : league
       ));
 
-      setSuccess(result.data?.message || `Left ${league?.name} successfully!`);
+      // Show success message with season information
+      const successMessage = result.data?.message || 
+        (seasonInfo 
+          ? `Left the ${seasonInfo.display_name} season of ${league?.name} successfully!`
+          : `Left ${league?.name} successfully!`);
+      
+      setSuccess(successMessage);
       onTeamLeftLeague?.(teamId, leagueId);
       
-      setTimeout(() => setSuccess(null), 3000);
+      setTimeout(() => setSuccess(null), 5000);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to leave league. Please try again.';
       setError(errorMessage);

@@ -301,44 +301,35 @@ export class LeagueService {
         return { data: cached, error: null, success: true };
       }
 
-      // Use direct Supabase query for better performance and consistency
-      const { data: league, error } = await this.supabase
-        .from('leagues')
-        .select(`
-          *,
-          teams (
-            id,
-            name,
-            team_color,
-            captain_id,
-            max_players,
-            min_players,
-            is_recruiting,
-            team_bio,
-            location,
-            founded_year,
-            team_members (
-              id,
-              user_id,
-              position,
-              jersey_number,
-              joined_at,
-              is_active
-            )
-          )
-        `)
-        .eq('id', leagueId)
-        .single();
-
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return {
-            data: null,
-            error: { code: 'LEAGUE_NOT_FOUND', message: 'League not found', timestamp: new Date().toISOString() },
-            success: false
-          };
+      // Use API endpoint instead of direct Supabase query to avoid RLS issues
+      let league;
+      try {
+        const response = await fetch(`/api/leagues/${leagueId}`);
+        const result = await response.json();
+        
+        if (!response.ok || !result.success) {
+          if (response.status === 404) {
+            return {
+              data: null,
+              error: { code: 'LEAGUE_NOT_FOUND', message: 'League not found', timestamp: new Date().toISOString() },
+              success: false
+            };
+          }
+          throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
         }
-        throw error;
+        
+        league = result.data;
+      } catch (error) {
+        console.error('LeagueService.getLeagueDetails - API request error:', error);
+        return {
+          data: null,
+          error: { 
+            code: 'API_ERROR', 
+            message: error instanceof Error ? error.message : 'Failed to fetch league details via API', 
+            timestamp: new Date().toISOString() 
+          },
+          success: false
+        };
       }
 
       // Process the league data to include statistics

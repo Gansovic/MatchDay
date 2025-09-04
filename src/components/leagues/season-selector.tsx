@@ -68,8 +68,10 @@ export const SeasonSelector: React.FC<SeasonSelectorProps> = ({
   };
 
   const getSeasonProgress = (season: Season) => {
-    if (season.stats.total_matches === 0) return 0;
-    return Math.round((season.stats.completed_matches / season.stats.total_matches) * 100);
+    const totalMatches = season.stats?.total_matches || season.total_matches_planned || 0;
+    const completedMatches = season.stats?.completed_matches || 0;
+    if (totalMatches === 0) return 0;
+    return Math.round((completedMatches / totalMatches) * 100);
   };
 
   const isSeasonActive = (season: Season) => {
@@ -110,7 +112,7 @@ export const SeasonSelector: React.FC<SeasonSelectorProps> = ({
             <span className="text-xs font-medium">Matches</span>
           </div>
           <div className="text-lg font-bold text-blue-900 dark:text-blue-300">
-            {currentSeason.stats.completed_matches}/{currentSeason.stats.total_matches}
+            {currentSeason.stats?.completed_matches || 0}/{currentSeason.stats?.total_matches || currentSeason.total_matches_planned || 0}
           </div>
         </div>
         
@@ -120,7 +122,7 @@ export const SeasonSelector: React.FC<SeasonSelectorProps> = ({
             <span className="text-xs font-medium">Teams</span>
           </div>
           <div className="text-lg font-bold text-green-900 dark:text-green-300">
-            {currentSeason.stats.registered_teams}
+            {currentSeason.stats?.registered_teams || currentSeason.registered_teams_count || 0}
           </div>
         </div>
 

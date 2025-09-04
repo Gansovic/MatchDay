@@ -48,27 +48,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const supabase = createAdminSupabaseClient();
 
-    // Get league with detailed team and member information
+    // Get league basic information first
     const { data: league, error } = await supabase
       .from('leagues')
-      .select(`
-        *,
-        teams (
-          id,
-          name,
-          team_color,
-          captain_id,
-          max_players,
-          team_members (
-            id,
-            user_id,
-            position,
-            jersey_number,
-            joined_at,
-            is_active
-          )
-        )
-      `)
+      .select('*')
       .eq('id', leagueId)
       .single();
 
@@ -86,8 +69,46 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Get current season for this league
+    const { data: currentSeason } = await supabase
+      .from('seasons')
+      .select('id')
+      .eq('league_id', leagueId)
+      .eq('is_current', true)
+      .single();
+
+    let teams = [];
+    
+    if (currentSeason) {
+      // Get teams registered for the current season
+      const { data: seasonTeams } = await supabase
+        .from('season_teams')
+        .select(`
+          team:teams (
+            id,
+            name,
+            team_color,
+            captain_id,
+            max_players,
+            team_members (
+              id,
+              user_id,
+              position,
+              jersey_number,
+              joined_at,
+              is_active
+            )
+          )
+        `)
+        .eq('season_id', currentSeason.id)
+        .in('status', ['registered', 'confirmed']);
+
+      if (seasonTeams) {
+        teams = seasonTeams.map(st => st.team).filter(Boolean);
+      }
+    }
+
     // Process the league data to include statistics
-    const teams = league.teams || [];
     const teamCount = teams.length;
     
     // Calculate total active players across all teams
@@ -271,25 +292,34 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // Use admin client for deletion
     const supabase = createAdminSupabaseClient();
 
-    // First, check if the league has any teams
-    const { data: teams, error: teamsError } = await supabase
-      .from('teams')
+    // First, check if any teams are registered in any season of this league
+    const { data: seasons } = await supabase
+      .from('seasons')
       .select('id')
       .eq('league_id', leagueId);
 
-    if (teamsError) {
-      console.error('Error checking league teams:', teamsError);
-      return NextResponse.json(
-        { success: false, error: 'Database error', message: teamsError.message },
-        { status: 500 }
-      );
-    }
+    if (seasons && seasons.length > 0) {
+      const seasonIds = seasons.map(s => s.id);
+      const { data: seasonTeams, error: teamsError } = await supabase
+        .from('season_teams')
+        .select('id')
+        .in('season_id', seasonIds)
+        .in('status', ['registered', 'confirmed']);
 
-    if (teams && teams.length > 0) {
-      return NextResponse.json(
-        { success: false, error: 'Cannot delete league with active teams', message: 'Remove all teams from the league before deletion' },
-        { status: 409 }
-      );
+      if (teamsError) {
+        console.error('Error checking league teams:', teamsError);
+        return NextResponse.json(
+          { success: false, error: 'Database error', message: teamsError.message },
+          { status: 500 }
+        );
+      }
+
+      if (seasonTeams && seasonTeams.length > 0) {
+        return NextResponse.json(
+          { success: false, error: 'Cannot delete league with active teams', message: 'Remove all teams from the league seasons before deletion' },
+          { status: 409 }
+        );
+      }
     }
 
     // Delete the league

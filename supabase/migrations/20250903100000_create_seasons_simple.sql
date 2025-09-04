@@ -4,6 +4,15 @@
 -- Enable UUID extension if not already enabled
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Create handle_updated_at function if it doesn't exist
+CREATE OR REPLACE FUNCTION public.handle_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = timezone('utc'::text, now());
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Create seasons table
 CREATE TABLE IF NOT EXISTS public.seasons (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,

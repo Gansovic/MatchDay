@@ -29,8 +29,8 @@ export async function GET(
       );
     }
 
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    // Validate UUID format (more lenient to accept all valid UUID formats)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(leagueId)) {
       return NextResponse.json(
         { 
@@ -60,7 +60,6 @@ export async function GET(
       let query = `
         SELECT 
           m.id,
-          m.league_id,
           m.season_id,
           m.home_team_id,
           m.away_team_id,
@@ -72,11 +71,15 @@ export async function GET(
           m.created_at,
           m.updated_at,
           ht.name as home_team_name,
-          at.name as away_team_name
+          at.name as away_team_name,
+          s.league_id,
+          s.name as season_name,
+          s.display_name as season_display_name
         FROM matches m
         JOIN teams ht ON m.home_team_id = ht.id
         JOIN teams at ON m.away_team_id = at.id
-        WHERE m.league_id = $1
+        JOIN seasons s ON m.season_id = s.id
+        WHERE s.league_id = $1
       `;
       
       const queryParams = [leagueId];
@@ -93,7 +96,6 @@ export async function GET(
 
       const matches = matchesResult.rows.map(match => ({
         id: match.id,
-        league_id: match.league_id,
         season_id: match.season_id,
         home_team_id: match.home_team_id,
         home_team_name: match.home_team_name || 'Unknown Team',
@@ -105,7 +107,11 @@ export async function GET(
         match_date: match.match_date,
         venue: match.venue,
         created_at: match.created_at,
-        updated_at: match.updated_at
+        updated_at: match.updated_at,
+        // Season and league info derived through season relationship
+        league_id: match.league_id,
+        season_name: match.season_name,
+        season_display_name: match.season_display_name
       }));
 
       const response = NextResponse.json({

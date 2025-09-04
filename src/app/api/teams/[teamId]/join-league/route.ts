@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import DirectDatabaseService from '@/lib/database/direct-db.service';
+import { createAdminSupabaseClient } from '@/lib/supabase/server-client';
+import { SeasonService } from '@/lib/services/season.service';
 
 export async function OPTIONS() {
   const response = new NextResponse(null, { status: 200 });
@@ -27,120 +28,159 @@ export async function POST(
       );
     }
 
-    const dbService = DirectDatabaseService.getInstance();
-    const client = await dbService['pool'].connect();
+    const supabase = createAdminSupabaseClient();
+    const seasonService = SeasonService.getInstance(supabase);
     
-    try {
-      // Start transaction
-      await client.query('BEGIN');
+    // Check if team exists
+    const { data: team, error: teamError } = await (supabase as any)
+      .from('teams')
+      .select('id, name')
+      .eq('id', teamId)
+      .single();
 
-      // Check if team exists and is not already in a league
-      const teamResult = await client.query(`
-        SELECT id, name, league_id, captain_id
-        FROM teams 
-        WHERE id = $1
-      `, [teamId]);
+    if (teamError || !team) {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Team not found' 
+        },
+        { status: 404 }
+      );
+    }
 
-      if (teamResult.rows.length === 0) {
-        await client.query('ROLLBACK');
-        return NextResponse.json(
-          { 
-            success: false,
-            error: 'Team not found' 
-          },
-          { status: 404 }
-        );
-      }
+    // Check if league exists and is active
+    const { data: league, error: leagueError } = await (supabase as any)
+      .from('leagues')
+      .select('id, name, max_teams, is_active, is_public')
+      .eq('id', leagueId)
+      .eq('is_active', true)
+      .single();
 
-      const team = teamResult.rows[0];
+    if (leagueError || !league) {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'League not found or inactive' 
+        },
+        { status: 404 }
+      );
+    }
 
-      if (team.league_id) {
-        await client.query('ROLLBACK');
-        return NextResponse.json(
-          { 
-            success: false,
-            error: 'Team is already in a league' 
-          },
-          { status: 400 }
-        );
-      }
+    // Find the current active season for this league
+    const { data: activeSeason, error: seasonError } = await (supabase as any)
+      .from('seasons')
+      .select('id, name, display_name, max_teams, status')
+      .eq('league_id', leagueId)
+      .or('is_current.eq.true,status.eq.active')
+      .order('is_current', { ascending: false })
+      .order('start_date', { ascending: false })
+      .limit(1)
+      .single();
 
-      // Check if league exists and is active
-      const leagueResult = await client.query(`
-        SELECT id, name, max_teams, is_active, is_public
-        FROM leagues 
-        WHERE id = $1 AND is_active = true
-      `, [leagueId]);
+    if (seasonError || !activeSeason) {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'No active season found for this league. Please wait for a new season to start.' 
+        },
+        { status: 400 }
+      );
+    }
 
-      if (leagueResult.rows.length === 0) {
-        await client.query('ROLLBACK');
-        return NextResponse.json(
-          { 
-            success: false,
-            error: 'League not found or inactive' 
-          },
-          { status: 404 }
-        );
-      }
+    // Check if team is already registered for this season
+    const { data: existingRegistration, error: checkError } = await (supabase as any)
+      .from('season_teams')
+      .select('id, status')
+      .eq('season_id', activeSeason.id)
+      .eq('team_id', teamId)
+      .single();
 
-      const league = leagueResult.rows[0];
+    // If no error or PGRST116 (not found), continue
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('Error checking registration:', checkError);
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Failed to check team registration status' 
+        },
+        { status: 500 }
+      );
+    }
 
-      // Check if league has available spots
-      if (league.max_teams) {
-        const teamCountResult = await client.query(`
-          SELECT COUNT(*) as current_teams
-          FROM teams
-          WHERE league_id = $1
-        `, [leagueId]);
+    if (existingRegistration) {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: `Team "${team.name}" is already registered for the ${activeSeason.display_name} season` 
+        },
+        { status: 400 }
+      );
+    }
 
-        const currentTeams = parseInt(teamCountResult.rows[0].current_teams);
-        
-        if (currentTeams >= league.max_teams) {
-          await client.query('ROLLBACK');
+    // Check if season has available spots
+    if (activeSeason.max_teams) {
+      const { data: registeredTeams, error: countError } = await (supabase as any)
+        .from('season_teams')
+        .select('id')
+        .eq('season_id', activeSeason.id)
+        .in('status', ['registered', 'confirmed']);
+
+      if (!countError) {
+        const currentTeams = registeredTeams?.length || 0;
+        if (currentTeams >= activeSeason.max_teams) {
           return NextResponse.json(
             { 
               success: false,
-              error: 'League is full' 
+              error: `The ${activeSeason.display_name} season is full (${currentTeams}/${activeSeason.max_teams} teams)` 
             },
             { status: 400 }
           );
         }
       }
-
-      // Update team to join league
-      const updateResult = await client.query(`
-        UPDATE teams 
-        SET league_id = $1, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $2
-        RETURNING *
-      `, [leagueId, teamId]);
-
-      // Commit transaction
-      await client.query('COMMIT');
-
-      const response = NextResponse.json({
-        success: true,
-        data: {
-          team: updateResult.rows[0],
-          league: league,
-          message: `Team "${team.name}" successfully joined "${league.name}"`
-        },
-        error: null
-      });
-      
-      // Add CORS headers
-      response.headers.set('Access-Control-Allow-Origin', '*');
-      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      
-      return response;
-      
-    } catch (dbError) {
-      await client.query('ROLLBACK');
-      throw dbError;
-    } finally {
-      client.release();
     }
+
+    // Register team for the season using SeasonService
+    const registrationResult = await seasonService.registerTeamForSeason(activeSeason.id, teamId);
+
+    if (!registrationResult.success) {
+      // Handle specific error cases
+      if (registrationResult.error?.code === 'ALREADY_REGISTERED') {
+        return NextResponse.json(
+          { 
+            success: false,
+            error: `Team "${team.name}" is already registered for this season` 
+          },
+          { status: 400 }
+        );
+      }
+      
+      return NextResponse.json(
+        { 
+          success: false,
+          error: registrationResult.error?.message || 'Failed to register team for season' 
+        },
+        { status: 500 }
+      );
+    }
+
+    const response = NextResponse.json({
+      success: true,
+      data: {
+        team: team,
+        league: league,
+        season: activeSeason,
+        registration: registrationResult.data,
+        message: `Team "${team.name}" successfully joined "${league.name}" for the ${activeSeason.display_name} season`
+      },
+      error: null
+    });
+    
+    // Add CORS headers
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    return response;
   } catch (error) {
     console.error('Database query error:', error);
     return NextResponse.json(

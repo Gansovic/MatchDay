@@ -115,7 +115,6 @@ export class SeasonService {
         .from('seasons')
         .select('*')
         .eq('league_id', leagueId)
-        .is('deleted_at', null)
         .order('season_year', { ascending: false });
 
       if (error) throw error;
@@ -159,7 +158,6 @@ export class SeasonService {
           )
         `)
         .eq('id', seasonId)
-        .is('deleted_at', null)
         .single();
 
       if (error) {
@@ -256,7 +254,6 @@ export class SeasonService {
           updated_at: new Date().toISOString()
         })
         .eq('id', seasonId)
-        .is('deleted_at', null)
         .select()
         .single();
 
@@ -354,7 +351,7 @@ export class SeasonService {
       }
 
       const season = seasonResponse.data;
-      const teams = season.teams?.filter(t => t.status === 'registered') || [];
+      const teams = season.teams?.filter(t => t.status === 'registered' || t.status === 'confirmed') || [];
 
       if (teams.length < 2) {
         return {
@@ -387,11 +384,9 @@ export class SeasonService {
         .from('matches')
         .insert(fixturesWithDates.map(fixture => ({
           season_id: seasonId,
-          league_id: season.league_id,
           home_team_id: fixture.home_team_id,
           away_team_id: fixture.away_team_id,
           match_date: fixture.match_date,
-          round_number: fixture.round_number,
           status: 'scheduled'
         })))
         .select(`
@@ -459,7 +454,6 @@ export class SeasonService {
           )
         `)
         .eq('season_id', seasonId)
-        .order('round_number', { ascending: true })
         .order('match_date', { ascending: true });
 
       if (error) throw error;
@@ -488,7 +482,7 @@ export class SeasonService {
       .from('season_teams')
       .select('*', { count: 'exact', head: true })
       .eq('season_id', seasonId)
-      .eq('status', 'registered');
+      .in('status', ['registered', 'confirmed']);
 
     await this.supabase
       .from('seasons')

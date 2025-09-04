@@ -25,24 +25,10 @@ export async function GET(request: NextRequest) {
     const supabase = createAdminSupabaseClient();
 
     // Build query with optional filters
+    // First get leagues
     let query = supabase
       .from('leagues')
-      .select(`
-        *,
-        teams (
-          id,
-          name,
-          team_color,
-          captain_id,
-          max_players,
-          min_players,
-          is_recruiting,
-          team_members (
-            id,
-            is_active
-          )
-        )
-      `)
+      .select('*')
       .order('created_at', { ascending: false });
 
     // Apply filters if provided
@@ -61,13 +47,6 @@ export async function GET(request: NextRequest) {
 
     const { data: leagues, error } = await query;
 
-    console.log('[Leagues API] Query result:', {
-      leagues: leagues?.length || 0,
-      leagueNames: leagues?.map(l => l.name) || [],
-      error: error?.message || null,
-      filters: { sportType, leagueType, isActive, isPublic }
-    });
-
     if (error) {
       console.error('Supabase error:', error);
       return NextResponse.json(
@@ -76,23 +55,61 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Process leagues to include statistics
-    const processedLeagues = leagues?.map(league => {
-      const teams = league.teams || [];
-      const teamCount = teams.length;
-      
-      // Calculate total players across all teams in this league
-      const playerCount = teams.reduce((total, team) => {
-        const activeMembers = team.team_members?.filter(member => member.is_active) || [];
-        return total + activeMembers.length;
-      }, 0);
+    // For each league, get teams from the current season via season_teams
+    const processedLeagues = await Promise.all(leagues?.map(async (league) => {
+      // Get current season for this league
+      const { data: currentSeason } = await supabase
+        .from('seasons')
+        .select('id')
+        .eq('league_id', league.id)
+        .eq('is_current', true)
+        .single();
 
-      // Calculate available spots across all teams
-      const availableSpots = teams.reduce((total, team) => {
-        const activeMembers = team.team_members?.filter(member => member.is_active) || [];
-        const maxPlayers = team.max_players || 22;
-        return total + Math.max(0, maxPlayers - activeMembers.length);
-      }, 0);
+      let teams = [];
+      let teamCount = 0;
+      let playerCount = 0;
+      let availableSpots = 0;
+
+      if (currentSeason) {
+        // Get teams registered for the current season
+        const { data: seasonTeams } = await supabase
+          .from('season_teams')
+          .select(`
+            team:teams (
+              id,
+              name,
+              team_color,
+              captain_id,
+              max_players,
+              min_players,
+              is_recruiting,
+              team_members (
+                id,
+                is_active
+              )
+            )
+          `)
+          .eq('season_id', currentSeason.id)
+          .in('status', ['registered', 'confirmed']);
+
+        if (seasonTeams) {
+          teams = seasonTeams.map(st => st.team).filter(Boolean);
+          teamCount = teams.length;
+          
+          // Calculate total players across all teams in this league
+          playerCount = teams.reduce((total, team) => {
+            const activeMembers = team.team_members?.filter(member => member.is_active) || [];
+            return total + activeMembers.length;
+          }, 0);
+
+          // Calculate available spots across all teams
+          availableSpots = teams.reduce((total, team) => {
+            const activeMembers = team.team_members?.filter(member => member.is_active) || [];
+            const maxPlayers = team.max_players || 22;
+            return total + Math.max(0, maxPlayers - activeMembers.length);
+          }, 0);
+        }
+      }
 
       // Remove team_members from the response to keep it clean
       const cleanTeams = teams.map(team => ({
@@ -112,7 +129,13 @@ export async function GET(request: NextRequest) {
         playerCount,
         availableSpots
       };
-    }) || [];
+    }) || []);
+
+    console.log('[Leagues API] Query result:', {
+      leagues: processedLeagues?.length || 0,
+      leagueNames: processedLeagues?.map(l => l.name) || [],
+      filters: { sportType, leagueType, isActive, isPublic }
+    });
 
     return NextResponse.json({
       success: true,
