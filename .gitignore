@@ -62,3 +62,6 @@ Thumbs.db
 
 # Development scripts (contains credentials and setup utilities)
 scripts/
+
+# Files with test credentials
+matchday-admin/src/components/auth/player-login-form.tsx
