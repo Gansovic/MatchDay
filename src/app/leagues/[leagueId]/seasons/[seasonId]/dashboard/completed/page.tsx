@@ -25,7 +25,7 @@ import {
   Download
 } from 'lucide-react';
 import SeasonDashboardLayout from '@/components/leagues/dashboards/SeasonDashboardLayout';
-import { LeagueStandings, Match } from '@/components/leagues/league-standings';
+import { LeagueStandings, Match, Team } from '@/components/leagues/league-standings';
 
 interface LeagueMatch {
   id: string;
@@ -39,22 +39,15 @@ interface LeagueMatch {
   round?: number;
 }
 
-interface PlayerStat {
-  id: string;
-  name: string;
-  team: string;
-  value: number;
-  position?: string;
-}
 
 interface LoadingStates {
   matches: boolean;
-  stats: boolean;
+  teams: boolean;
 }
 
 interface ErrorStates {
   matches: string | null;
-  stats: string | null;
+  teams: string | null;
 }
 
 export default function CompletedSeasonDashboard() {
@@ -65,21 +58,17 @@ export default function CompletedSeasonDashboard() {
   const [activeTab, setActiveTab] = useState<'standings' | 'matches' | 'stats' | 'summary'>('standings');
   const [matches, setMatches] = useState<LeagueMatch[]>([]);
   const [standingsMatches, setStandingsMatches] = useState<Match[]>([]);
-  const [playerStats, setPlayerStats] = useState<{
-    topScorers: PlayerStat[];
-    topAssists: PlayerStat[];
-    cleanSheets: PlayerStat[];
-  }>({ topScorers: [], topAssists: [], cleanSheets: [] });
+  const [teams, setTeams] = useState<Team[]>([]);
 
   // Loading and error states
   const [loading, setLoading] = useState<LoadingStates>({
     matches: true,
-    stats: true
+    teams: true
   });
   
   const [errors, setErrors] = useState<ErrorStates>({
     matches: null,
-    stats: null
+    teams: null
   });
 
   // Fetch season matches
@@ -92,7 +81,7 @@ export default function CompletedSeasonDashboard() {
         ? window.location.origin 
         : process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001';
       
-      const matchesUrl = `${baseUrl}/api/leagues/${leagueId}/matches?season_id=${seasonId}`;
+      const matchesUrl = `${baseUrl}/api/leagues/${leagueId}/matches?seasonId=${seasonId}`;
       
       const response = await fetch(matchesUrl, {
         method: 'GET',
@@ -114,12 +103,12 @@ export default function CompletedSeasonDashboard() {
       // Transform matches to expected format for display
       const transformedMatches: LeagueMatch[] = (apiResult.data || []).map((match: any) => ({
         id: match.id,
-        homeTeam: match.home_team?.name || 'Unknown Team',
-        awayTeam: match.away_team?.name || 'Unknown Team',
-        date: match.scheduled_date,
+        homeTeam: match.home_team_name || 'Unknown Team',
+        awayTeam: match.away_team_name || 'Unknown Team',
+        date: match.match_date,
         venue: match.venue || 'TBD',
-        homeScore: match.home_score || undefined,
-        awayScore: match.away_score || undefined,
+        homeScore: match.home_score ?? undefined,
+        awayScore: match.away_score ?? undefined,
         status: match.status === 'completed' ? 'completed' : 'upcoming',
         round: match.match_day || undefined
       }));
@@ -130,13 +119,13 @@ export default function CompletedSeasonDashboard() {
         league_id: leagueId,
         season_id: seasonId,
         home_team_id: match.home_team_id,
-        home_team_name: match.home_team?.name || 'Unknown Team',
+        home_team_name: match.home_team_name || 'Unknown Team',
         away_team_id: match.away_team_id,
-        away_team_name: match.away_team?.name || 'Unknown Team',
-        home_score: match.home_score || undefined,
-        away_score: match.away_score || undefined,
+        away_team_name: match.away_team_name || 'Unknown Team',
+        home_score: match.home_score ?? undefined,
+        away_score: match.away_score ?? undefined,
         status: match.status === 'completed' ? 'completed' : match.status,
-        match_date: match.scheduled_date,
+        match_date: match.match_date,
         venue: match.venue || 'TBD',
         created_at: match.created_at,
         updated_at: match.updated_at
@@ -152,37 +141,57 @@ export default function CompletedSeasonDashboard() {
     }
   }, [leagueId, seasonId]);
 
-  // Fetch player stats
-  const fetchPlayerStats = useCallback(async () => {
+  // Fetch season teams
+  const fetchSeasonTeams = useCallback(async () => {
     try {
-      setLoading(prev => ({ ...prev, stats: true }));
-      setErrors(prev => ({ ...prev, stats: null }));
+      setLoading(prev => ({ ...prev, teams: true }));
+      setErrors(prev => ({ ...prev, teams: null }));
       
-      // For now, return empty player stats since the view doesn't exist yet
-      setPlayerStats({ 
-        topScorers: [], 
-        topAssists: [], 
-        cleanSheets: [] 
+      const baseUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001';
+      
+      const teamsUrl = `${baseUrl}/api/leagues/${leagueId}/teams`;
+      
+      const response = await fetch(teamsUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
+
+      if (!response.ok) {
+        throw new Error(`Teams API request failed: ${response.status}`);
+      }
+
+      const apiResult = await response.json();
+      
+      if (!apiResult.success) {
+        throw new Error(apiResult.error || 'Failed to fetch teams');
+      }
+      
+      // Transform teams to format expected by LeagueStandings component
+      const standingsFormatTeams: Team[] = (apiResult.data || []).map((team: any) => ({
+        id: team.id,
+        name: team.name,
+        team_color: team.team_color,
+        league_id: leagueId
+      }));
+      
+      setTeams(standingsFormatTeams);
     } catch (error) {
-      console.error('Error fetching player stats:', error);
-      setErrors(prev => ({ ...prev, stats: 'Failed to load player statistics' }));
+      console.error('Error fetching teams:', error);
+      setErrors(prev => ({ ...prev, teams: 'Failed to load teams' }));
     } finally {
-      setLoading(prev => ({ ...prev, stats: false }));
+      setLoading(prev => ({ ...prev, teams: false }));
     }
-  }, []);
+  }, [leagueId]);
 
   // Initial data load
   useEffect(() => {
-    const loadData = async () => {
-      await Promise.all([
-        fetchSeasonMatches(),
-        fetchPlayerStats()
-      ]);
-    };
-    
-    loadData();
-  }, [fetchSeasonMatches, fetchPlayerStats]);
+    fetchSeasonMatches();
+    fetchSeasonTeams();
+  }, [fetchSeasonMatches, fetchSeasonTeams]);
 
   // Helper function to format date consistently
   const formatDate = (dateString: string) => {
@@ -225,6 +234,7 @@ export default function CompletedSeasonDashboard() {
               leagueId={leagueId}
               currentSeasonId={seasonId}
               matches={standingsMatches}
+              teams={teams}
               promotionSpots={3}
               relegationSpots={2}
               showFinalRankings={true}
@@ -313,177 +323,80 @@ export default function CompletedSeasonDashboard() {
       case 'stats':
         return (
           <div className="space-y-8">
-            {loading.stats ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-                <span className="ml-2 text-gray-600 dark:text-gray-400">Loading season statistics...</span>
+            {/* Season Statistics Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-center">
+                <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                  {completedMatches.length}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Total Matches</div>
               </div>
-            ) : (
-              <>
-                {/* Season Statistics Summary */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-center">
-                    <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                      {completedMatches.length}
-                    </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Total Matches</div>
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-center">
+                <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                  {totalGoals}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Goals Scored</div>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-center">
+                <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                  {completedMatches.length > 0 ? (totalGoals / completedMatches.length).toFixed(1) : '0.0'}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Avg Goals/Match</div>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-center">
+                <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                  100%
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Season Complete</div>
+              </div>
+            </div>
+
+            {/* Season Overview */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-yellow-600" />
+                Season Overview
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">Completed Matches</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{completedMatches.length}</span>
                   </div>
-                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-center">
-                    <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                      {totalGoals}
-                    </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Goals Scored</div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">Total Goals</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{totalGoals}</span>
                   </div>
-                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-center">
-                    <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                      {completedMatches.length > 0 ? (totalGoals / completedMatches.length).toFixed(1) : '0.0'}
-                    </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Avg Goals/Match</div>
-                  </div>
-                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-center">
-                    <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                      100%
-                    </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Season Complete</div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">Average Goals per Match</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">
+                      {completedMatches.length > 0 ? (totalGoals / completedMatches.length).toFixed(2) : '0.00'}
+                    </span>
                   </div>
                 </div>
-
-                {/* Player Statistics */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  {/* Top Scorers */}
-                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                    <div className="flex items-center justify-between mb-6">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        Season Top Scorers
-                      </h3>
-                      <Target className="w-5 h-5 text-gray-400" />
-                    </div>
-                    <div className="space-y-4">
-                      {playerStats.topScorers.length === 0 ? (
-                        <div className="text-center py-4">
-                          <Target className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                          <p className="text-sm text-gray-600 dark:text-gray-400">No scoring data available</p>
-                        </div>
-                      ) : (
-                        playerStats.topScorers.map((player, index) => (
-                          <div key={player.id} className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                                index === 0 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
-                                index === 1 ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' :
-                                index === 2 ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' :
-                                'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                              }`}>
-                                {index === 0 ? '🏆' : index + 1}
-                              </div>
-                              <div>
-                                <div className="font-medium text-gray-900 dark:text-white">
-                                  {player.name}
-                                </div>
-                                <div className="text-xs text-gray-600 dark:text-gray-400">
-                                  {player.team}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="font-bold text-gray-900 dark:text-white text-lg">
-                              {player.value}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">Season Status</span>
+                    <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-sm font-medium">
+                      Completed
+                    </span>
                   </div>
-
-                  {/* Most Assists */}
-                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                    <div className="flex items-center justify-between mb-6">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        Most Assists
-                      </h3>
-                      <Star className="w-5 h-5 text-gray-400" />
-                    </div>
-                    <div className="space-y-4">
-                      {playerStats.topAssists.length === 0 ? (
-                        <div className="text-center py-4">
-                          <Star className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                          <p className="text-sm text-gray-600 dark:text-gray-400">No assist data available</p>
-                        </div>
-                      ) : (
-                        playerStats.topAssists.map((player, index) => (
-                          <div key={player.id} className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                                index === 0 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
-                                index === 1 ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' :
-                                index === 2 ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' :
-                                'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                              }`}>
-                                {index === 0 ? '🥇' : index + 1}
-                              </div>
-                              <div>
-                                <div className="font-medium text-gray-900 dark:text-white">
-                                  {player.name}
-                                </div>
-                                <div className="text-xs text-gray-600 dark:text-gray-400">
-                                  {player.team}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="font-bold text-gray-900 dark:text-white text-lg">
-                              {player.value}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">Highest Scoring Match</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">
+                      {completedMatches.length > 0 
+                        ? Math.max(...completedMatches.map(m => (m.homeScore || 0) + (m.awayScore || 0))) + ' goals'
+                        : 'No data'
+                      }
+                    </span>
                   </div>
-
-                  {/* Clean Sheets */}
-                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                    <div className="flex items-center justify-between mb-6">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        Clean Sheets
-                      </h3>
-                      <Shield className="w-5 h-5 text-gray-400" />
-                    </div>
-                    <div className="space-y-4">
-                      {playerStats.cleanSheets.length === 0 ? (
-                        <div className="text-center py-4">
-                          <Shield className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                          <p className="text-sm text-gray-600 dark:text-gray-400">No goalkeeper data available</p>
-                        </div>
-                      ) : (
-                        playerStats.cleanSheets.map((player, index) => (
-                          <div key={player.id} className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                                index === 0 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
-                                index === 1 ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' :
-                                index === 2 ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' :
-                                'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                              }`}>
-                                {index === 0 ? '🥅' : index + 1}
-                              </div>
-                              <div>
-                                <div className="font-medium text-gray-900 dark:text-white">
-                                  {player.name}
-                                </div>
-                                <div className="text-xs text-gray-600 dark:text-gray-400">
-                                  {player.team}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="font-bold text-gray-900 dark:text-white text-lg">
-                              {player.value}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">Match Data</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">Available in Archive</span>
                   </div>
                 </div>
-              </>
-            )}
+              </div>
+            </div>
           </div>
         );
 

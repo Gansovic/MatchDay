@@ -131,33 +131,10 @@ function LoginPageContent() {
                 onSwitchToSignup={handleSwitchToSignup}
               />
               
-              {/* Forgot Password Link */}
-              <div className="mt-6 text-center">
-                <button
-                  type="button"
-                  onClick={() => setShowForgotPassword(true)}
-                  className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-                >
-                  Forgot your password?
-                </button>
-              </div>
             </>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="mt-8 text-center">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            New to MatchDay?{' '}
-            <button
-              type="button"
-              onClick={handleSwitchToSignup}
-              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium transition-colors"
-            >
-              Create your player account
-            </button>
-          </p>
-        </div>
       </div>
     </div>
   );

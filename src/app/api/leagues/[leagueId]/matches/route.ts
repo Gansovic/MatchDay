@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import DirectDatabaseService from '@/lib/database/direct-db.service';
+import { createAdminSupabaseClient } from '@/lib/supabase/server-client';
 
 export async function OPTIONS() {
   const response = new NextResponse(null, { status: 200 });
@@ -53,65 +53,76 @@ export async function GET(
       );
     }
 
-    const dbService = DirectDatabaseService.getInstance();
-    const client = await dbService['pool'].connect();
+    const supabase = createAdminSupabaseClient();
     
     try {
-      let query = `
-        SELECT 
-          m.id,
-          m.season_id,
-          m.home_team_id,
-          m.away_team_id,
-          m.match_date,
-          m.venue,
-          m.status,
-          m.home_score,
-          m.away_score,
-          m.created_at,
-          m.updated_at,
-          ht.name as home_team_name,
-          at.name as away_team_name,
-          s.league_id,
-          s.name as season_name,
-          s.display_name as season_display_name
-        FROM matches m
-        JOIN teams ht ON m.home_team_id = ht.id
-        JOIN teams at ON m.away_team_id = at.id
-        JOIN seasons s ON m.season_id = s.id
-        WHERE s.league_id = $1
-      `;
-      
-      const queryParams = [leagueId];
-      
+      // Build the Supabase query
+      let query = supabase
+        .from('matches')
+        .select(`
+          id,
+          season_id,
+          home_team_id,
+          away_team_id,
+          match_date,
+          venue,
+          status,
+          home_score,
+          away_score,
+          created_at,
+          updated_at,
+          home_team:home_team_id(id, name),
+          away_team:away_team_id(id, name),
+          seasons!inner(
+            league_id,
+            name,
+            display_name
+          )
+        `)
+        .eq('seasons.league_id', leagueId);
+
       // Filter by season if provided
       if (seasonId) {
-        query += ' AND m.season_id = $2';
-        queryParams.push(seasonId);
+        query = query.eq('season_id', seasonId);
       }
       
-      query += ' ORDER BY m.match_date DESC';
+      query = query.order('match_date', { ascending: false });
 
-      const matchesResult = await client.query(query, queryParams);
+      const { data: matchesResult, error: matchesError } = await query;
 
-      const matches = matchesResult.rows.map(match => ({
+      if (matchesError) {
+        throw new Error(`Failed to fetch matches: ${matchesError.message}`);
+      }
+
+      const matches = (matchesResult || []).map((match: any) => ({
         id: match.id,
         season_id: match.season_id,
         home_team_id: match.home_team_id,
-        home_team_name: match.home_team_name || 'Unknown Team',
+        home_team_name: match.home_team?.name || 'Unknown Team',
         away_team_id: match.away_team_id,
-        away_team_name: match.away_team_name || 'Unknown Team',
+        away_team_name: match.away_team?.name || 'Unknown Team',
         home_score: match.home_score,
         away_score: match.away_score,
         status: match.status,
         match_date: match.match_date,
+        // Add date field for dashboard compatibility
+        date: match.match_date,
         venue: match.venue,
         created_at: match.created_at,
         updated_at: match.updated_at,
+        // Add team objects for dashboard compatibility
+        home_team: {
+          id: match.home_team_id,
+          name: match.home_team?.name || 'Unknown Team'
+        },
+        away_team: {
+          id: match.away_team_id,
+          name: match.away_team?.name || 'Unknown Team'
+        },
         // Season and league info derived through season relationship
-        league_id: match.league_id,
-        season_name: match.season_name,
-        season_display_name: match.season_display_name
+        league_id: match.seasons?.league_id,
+        season_name: match.seasons?.name,
+        season_display_name: match.seasons?.display_name
       }));
 
       const response = NextResponse.json({
@@ -127,16 +138,24 @@ export async function GET(
       
       return response;
       
-    } finally {
-      client.release();
+    } catch (error) {
+      console.error('Database query error:', error);
+      return NextResponse.json(
+        { 
+          success: false,
+          data: null,
+          error: 'Failed to fetch league matches' 
+        },
+        { status: 500 }
+      );
     }
   } catch (error) {
-    console.error('Database query error:', error);
+    console.error('API request error:', error);
     return NextResponse.json(
       { 
         success: false,
         data: null,
-        error: 'Failed to fetch league matches' 
+        error: 'Internal server error' 
       },
       { status: 500 }
     );

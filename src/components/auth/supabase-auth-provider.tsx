@@ -241,15 +241,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (error) {
         console.error('Sign in error:', error)
+        setAuthState(prev => ({ ...prev, isLoading: false }))
+        
+        // Return user-friendly error messages
+        if (error.message.includes('Invalid login credentials')) {
+          return { success: false, error: 'Invalid email or password. Please try again.' }
+        }
+        if (error.message.includes('Email not confirmed')) {
+          return { success: false, error: 'Please confirm your email before signing in.' }
+        }
+        
         return { success: false, error: error.message }
       }
 
       // Validate the new auth state
       await validateAuth()
       return { success: true }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Sign in error:', error)
-      return { success: false, error: 'An unexpected error occurred' }
+      setAuthState(prev => ({ ...prev, isLoading: false }))
+      
+      // Handle network errors
+      if (error?.message?.includes('fetch')) {
+        return { success: false, error: 'Network error. Please check your connection.' }
+      }
+      
+      return { success: false, error: 'An unexpected error occurred. Please try again.' }
+    } finally {
+      // Ensure loading state is cleared
+      setAuthState(prev => ({ ...prev, isLoading: false }))
     }
   }
 
