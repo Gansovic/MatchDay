@@ -16,10 +16,8 @@ import {
   Trophy,
   Calendar,
   Target,
-  Shield,
-  Star,
-  Award,
   MapPin,
+  Users,
   Loader2,
   AlertCircle,
   Download
@@ -55,7 +53,7 @@ export default function CompletedSeasonDashboard() {
   const leagueId = params.leagueId as string;
   const seasonId = params.seasonId as string;
 
-  const [activeTab, setActiveTab] = useState<'standings' | 'matches' | 'stats' | 'summary'>('standings');
+  const [activeTab, setActiveTab] = useState<'standings' | 'matches' | 'stats' | 'info'>('standings');
   const [matches, setMatches] = useState<LeagueMatch[]>([]);
   const [standingsMatches, setStandingsMatches] = useState<Match[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -207,10 +205,8 @@ export default function CompletedSeasonDashboard() {
 
   // Derived data
   const completedMatches = matches.filter(m => m.status === 'completed');
-  const totalGoals = completedMatches.reduce((total, match) => 
-    total + (match.homeScore || 0) + (match.awayScore || 0), 0);
 
-  const availableTabs = ['standings', 'matches', 'stats', 'summary'];
+  const availableTabs = ['standings', 'matches', 'stats', 'info'];
 
   const renderContent = () => {
     switch (activeTab) {
@@ -321,86 +317,142 @@ export default function CompletedSeasonDashboard() {
         );
 
       case 'stats':
+        const totalMatches = completedMatches.length;
+        const totalGoals = completedMatches.reduce((sum, match) => 
+          sum + (match.homeScore ?? 0) + (match.awayScore ?? 0), 0
+        );
+        const averageGoalsPerGame = totalMatches > 0 ? (totalGoals / totalMatches).toFixed(1) : '0.0';
+        const totalTeams = teams.length;
+        const matchesWithGoals = completedMatches.filter(m => 
+          (m.homeScore ?? 0) > 0 || (m.awayScore ?? 0) > 0
+        ).length;
+        const cleanSheets = completedMatches.filter(m => 
+          (m.homeScore ?? 0) === 0 || (m.awayScore ?? 0) === 0
+        ).length;
+        
         return (
           <div className="space-y-8">
-            {/* Season Statistics Summary */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-center">
-                <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                  {completedMatches.length}
+            {/* Season Overview Statistics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                    <Calendar className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">{totalMatches}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Total Matches</div>
+                  </div>
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Total Matches</div>
+                <div className="text-xs text-gray-500 dark:text-gray-500">Completed</div>
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-center">
-                <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                  {totalGoals}
+
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+                    <Users className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">{totalTeams}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Teams</div>
+                  </div>
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Goals Scored</div>
+                <div className="text-xs text-gray-500 dark:text-gray-500">Participated</div>
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-center">
-                <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                  {completedMatches.length > 0 ? (totalGoals / completedMatches.length).toFixed(1) : '0.0'}
+
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
+                    <Target className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">{totalGoals}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Total Goals</div>
+                  </div>
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Avg Goals/Match</div>
+                <div className="text-xs text-gray-500 dark:text-gray-500">{averageGoalsPerGame} per match</div>
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-center">
-                <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                  100%
+
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
+                    <Trophy className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">{cleanSheets}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Clean Sheets</div>
+                  </div>
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Season Complete</div>
+                <div className="text-xs text-gray-500 dark:text-gray-500">Shutout victories</div>
               </div>
             </div>
 
-            {/* Season Overview */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-yellow-600" />
-                Season Overview
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
+            {/* Additional Statistics */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Match Results Summary */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Match Summary
+                </h3>
+                <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-600 dark:text-gray-400">Completed Matches</span>
-                    <span className="font-semibold text-gray-900 dark:text-white">{completedMatches.length}</span>
+                    <span className="text-gray-600 dark:text-gray-400">Matches Played</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{totalMatches}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">Matches with Goals</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{matchesWithGoals}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">Average Goals per Match</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{averageGoalsPerGame}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">Clean Sheets</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{cleanSheets}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Season Information */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Season Information
+                </h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">Teams</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">{totalTeams}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600 dark:text-gray-400">Total Goals</span>
                     <span className="font-semibold text-gray-900 dark:text-white">{totalGoals}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-600 dark:text-gray-400">Average Goals per Match</span>
-                    <span className="font-semibold text-gray-900 dark:text-white">
-                      {completedMatches.length > 0 ? (totalGoals / completedMatches.length).toFixed(2) : '0.00'}
-                    </span>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600 dark:text-gray-400">Season Status</span>
-                    <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-sm font-medium">
+                    <span className="text-gray-600 dark:text-gray-400">Status</span>
+                    <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-full text-xs font-medium">
                       Completed
                     </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600 dark:text-gray-400">Highest Scoring Match</span>
-                    <span className="font-semibold text-gray-900 dark:text-white">
-                      {completedMatches.length > 0 
-                        ? Math.max(...completedMatches.map(m => (m.homeScore || 0) + (m.awayScore || 0))) + ' goals'
-                        : 'No data'
-                      }
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600 dark:text-gray-400">Match Data</span>
-                    <span className="font-semibold text-gray-900 dark:text-white">Available in Archive</span>
                   </div>
                 </div>
               </div>
             </div>
+
+            {/* Season Complete Message */}
+            <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6 text-center">
+              <Trophy className="w-12 h-12 text-blue-600 dark:text-blue-400 mx-auto mb-3" />
+              <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                Season Statistics Complete
+              </h3>
+              <p className="text-blue-800 dark:text-blue-200 text-sm">
+                All matches have been played and final statistics have been calculated. 
+                View the standings tab for final team rankings and the matches tab for complete results.
+              </p>
+            </div>
           </div>
         );
 
-      case 'summary':
+      case 'info':
         return (
           <div className="space-y-8">
             {/* Season Champion Banner */}
@@ -417,65 +469,6 @@ export default function CompletedSeasonDashboard() {
               </div>
             </div>
 
-            {/* Season Highlights */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <Award className="w-5 h-5 text-blue-600" />
-                  Season Highlights
-                </h3>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600 dark:text-gray-400">Total Matches Played</span>
-                    <span className="font-semibold text-gray-900 dark:text-white">{completedMatches.length}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600 dark:text-gray-400">Total Goals Scored</span>
-                    <span className="font-semibold text-gray-900 dark:text-white">{totalGoals}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600 dark:text-gray-400">Average Goals per Match</span>
-                    <span className="font-semibold text-gray-900 dark:text-white">
-                      {completedMatches.length > 0 ? (totalGoals / completedMatches.length).toFixed(1) : '0.0'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600 dark:text-gray-400">Season Status</span>
-                    <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-300 rounded-full text-sm font-medium">
-                      Completed
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-yellow-600" />
-                  Season Records
-                </h3>
-                <div className="space-y-4">
-                  <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Highest Scoring Match</div>
-                    <div className="font-semibold text-gray-900 dark:text-white">
-                      {completedMatches.length > 0 ? 'Available in match archive' : 'No matches completed'}
-                    </div>
-                  </div>
-                  <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Most Goals in a Match</div>
-                    <div className="font-semibold text-gray-900 dark:text-white">
-                      {completedMatches.length > 0 
-                        ? Math.max(...completedMatches.map(m => (m.homeScore || 0) + (m.awayScore || 0))) + ' goals'
-                        : 'No data'
-                      }
-                    </div>
-                  </div>
-                  <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">Season Duration</div>
-                    <div className="font-semibold text-gray-900 dark:text-white">Full Season</div>
-                  </div>
-                </div>
-              </div>
-            </div>
 
             {/* Archive Actions */}
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">

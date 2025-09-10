@@ -23,7 +23,7 @@ import {
 import { supabase } from '@/lib/supabase/client';
 import { LeagueService } from '@/lib/services/league.service';
 import { LeagueDiscovery } from '@/lib/types/database.types';
-import { SeasonSelector, Season } from '@/components/leagues/season-selector';
+import { Season } from '@/components/leagues/season-selector';
 
 interface SeasonDashboardLayoutProps {
   children: React.ReactNode;
@@ -57,7 +57,6 @@ export default function SeasonDashboardLayout({
   // State for real data
   const [leagueData, setLeagueData] = useState<LeagueDiscovery | null>(null);
   const [currentSeason, setCurrentSeason] = useState<Season | null>(null);
-  const [allSeasons, setAllSeasons] = useState<Season[]>([]);
   
   // Loading and error states
   const [loading, setLoading] = useState<LoadingStates>({
@@ -114,7 +113,6 @@ export default function SeasonDashboardLayout({
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data && result.data.length > 0) {
-          setAllSeasons(result.data);
           // Find the current season by ID
           const season = result.data.find((s: Season) => s.id === seasonId);
           if (season) {
@@ -300,19 +298,6 @@ export default function SeasonDashboardLayout({
           </div>
         </div>
 
-        {/* Season Selector */}
-        {allSeasons.length > 1 && (
-          <div className="mb-6">
-            <SeasonSelector
-              seasons={allSeasons}
-              currentSeason={currentSeason}
-              onSeasonChange={(season) => {
-                // Navigate to the new season dashboard
-                window.location.href = `/leagues/${leagueId}/seasons/${season.id}/dashboard`;
-              }}
-            />
-          </div>
-        )}
 
         {/* Tab Navigation */}
         {availableTabs.length > 1 && (

@@ -19,6 +19,30 @@ export interface DashboardStats {
   goalsScored: number;
   assists: number;
   leaguesParticipated: number;
+  avgTeamWinRate?: number;
+}
+
+export interface TeamStats {
+  team_id: string;
+  team_name: string;
+  team_color: string;
+  league_name: string;
+  team_position: string;
+  jersey_number: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  games_played: number;
+  win_rate: number;
+  team_points: number;
+  goals_for: number;
+  goals_against: number;
+}
+
+export interface MultiTeamContext {
+  hasMultipleTeams: boolean;
+  totalTeams: number;
+  bestPerformingTeam: TeamStats | null;
 }
 
 export interface RecentActivity {
@@ -56,16 +80,20 @@ export interface UserTeamMembership {
 }
 
 /**
- * Hook for fetching user dashboard statistics
+ * Hook for fetching user dashboard statistics with multi-team support
  */
 export function useUserStats(userId: string | null) {
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [teamStats, setTeamStats] = useState<TeamStats[]>([]);
+  const [multiTeamContext, setMultiTeamContext] = useState<MultiTeamContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) {
       setStats(null);
+      setTeamStats([]);
+      setMultiTeamContext(null);
       setLoading(false);
       return;
     }
@@ -84,6 +112,8 @@ export function useUserStats(userId: string | null) {
 
         const data = await response.json();
         setStats(data.stats);
+        setTeamStats(data.teamStats || []);
+        setMultiTeamContext(data.multiTeamContext || null);
       } catch (err) {
         console.error('Error fetching user stats:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch statistics');
@@ -95,7 +125,14 @@ export function useUserStats(userId: string | null) {
     fetchUserStats();
   }, [userId]);
 
-  return { stats, loading, error, refetch: () => setLoading(true) };
+  return { 
+    stats, 
+    teamStats, 
+    multiTeamContext, 
+    loading, 
+    error, 
+    refetch: () => setLoading(true) 
+  };
 }
 
 /**

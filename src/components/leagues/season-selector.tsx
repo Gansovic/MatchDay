@@ -11,10 +11,7 @@ import React, { useState } from 'react';
 import { 
   ChevronDown,
   Calendar,
-  Trophy,
-  Target,
-  Users,
-  Clock
+  Trophy
 } from 'lucide-react';
 
 export interface Season {
@@ -67,12 +64,6 @@ export const SeasonSelector: React.FC<SeasonSelectorProps> = ({
     return `${months[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
   };
 
-  const getSeasonProgress = (season: Season) => {
-    const totalMatches = season.stats?.total_matches || season.total_matches_planned || 0;
-    const completedMatches = season.stats?.completed_matches || 0;
-    if (totalMatches === 0) return 0;
-    return Math.round((completedMatches / totalMatches) * 100);
-  };
 
   const isSeasonActive = (season: Season) => {
     const now = new Date();
@@ -104,48 +95,6 @@ export const SeasonSelector: React.FC<SeasonSelectorProps> = ({
         <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* Season Stats */}
-      <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
-          <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
-            <Target className="w-4 h-4" />
-            <span className="text-xs font-medium">Matches</span>
-          </div>
-          <div className="text-lg font-bold text-blue-900 dark:text-blue-300">
-            {currentSeason.stats?.completed_matches || 0}/{currentSeason.stats?.total_matches || currentSeason.total_matches_planned || 0}
-          </div>
-        </div>
-        
-        <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
-          <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-            <Users className="w-4 h-4" />
-            <span className="text-xs font-medium">Teams</span>
-          </div>
-          <div className="text-lg font-bold text-green-900 dark:text-green-300">
-            {currentSeason.stats?.registered_teams || currentSeason.registered_teams_count || 0}
-          </div>
-        </div>
-
-        <div className="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-lg">
-          <div className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
-            <Clock className="w-4 h-4" />
-            <span className="text-xs font-medium">Progress</span>
-          </div>
-          <div className="text-lg font-bold text-orange-900 dark:text-orange-300">
-            {getSeasonProgress(currentSeason)}%
-          </div>
-        </div>
-
-        <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg">
-          <div className="flex items-center gap-2 text-purple-600 dark:text-purple-400">
-            <Calendar className="w-4 h-4" />
-            <span className="text-xs font-medium">Duration</span>
-          </div>
-          <div className="text-xs font-bold text-purple-900 dark:text-purple-300">
-            {formatDate(currentSeason.start_date)} - {formatDate(currentSeason.end_date)}
-          </div>
-        </div>
-      </div>
 
       {/* Season Dropdown */}
       {isOpen && (

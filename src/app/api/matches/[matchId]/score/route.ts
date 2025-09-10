@@ -10,12 +10,27 @@ import { createServerSupabaseClient } from '@/lib/supabase/server-client';
 import { validateApiAuth } from '@/lib/auth/api-auth';
 // import { findMatchByIdOrNumber, findMatchForScoreUpdate } from '@/lib/utils/match-lookup';
 
+interface PlayerStat {
+  user_id: string;
+  goals: number;
+  assists: number;
+  minutes_played: number;
+  yellow_cards?: number;
+  red_cards?: number;
+  clean_sheets?: number;
+  saves?: number;
+}
+
 interface UpdateScoreRequest {
   homeScore: number;
   awayScore: number;
   status?: 'scheduled' | 'live' | 'completed' | 'cancelled';
   matchDuration?: number;
   notes?: string;
+  playerStats?: {
+    homeTeamStats: PlayerStat[];
+    awayTeamStats: PlayerStat[];
+  };
 }
 
 /**
@@ -260,6 +275,100 @@ export async function PUT(
         { error: 'Database error', message: 'Failed to update match' },
         { status: 500 }
       );
+    }
+
+    // If match is completed and player stats are provided, create player statistics
+    if (requestData.status === 'completed' && requestData.playerStats) {
+      console.log('📊 Creating player statistics for completed match...');
+      
+      try {
+        const allPlayerStats: any[] = [];
+
+        // Process home team stats
+        if (requestData.playerStats.homeTeamStats && requestData.playerStats.homeTeamStats.length > 0) {
+          for (const playerStat of requestData.playerStats.homeTeamStats) {
+            // Validate player is member of home team
+            const { data: teamMember, error: memberError } = await supabase
+              .from('team_members')
+              .select('id')
+              .eq('user_id', playerStat.user_id)
+              .eq('team_id', match.home_team_id)
+              .eq('is_active', true)
+              .single();
+
+            if (memberError || !teamMember) {
+              console.warn(`Player ${playerStat.user_id} is not a member of home team ${match.home_team_id}`);
+              continue;
+            }
+
+            allPlayerStats.push({
+              user_id: playerStat.user_id,
+              match_id: match.id,
+              team_id: match.home_team_id,
+              goals: playerStat.goals || 0,
+              assists: playerStat.assists || 0,
+              minutes_played: playerStat.minutes_played || 0,
+              yellow_cards: playerStat.yellow_cards || 0,
+              red_cards: playerStat.red_cards || 0,
+              clean_sheets: playerStat.clean_sheets || 0,
+              saves: playerStat.saves || 0,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
+          }
+        }
+
+        // Process away team stats
+        if (requestData.playerStats.awayTeamStats && requestData.playerStats.awayTeamStats.length > 0) {
+          for (const playerStat of requestData.playerStats.awayTeamStats) {
+            // Validate player is member of away team
+            const { data: teamMember, error: memberError } = await supabase
+              .from('team_members')
+              .select('id')
+              .eq('user_id', playerStat.user_id)
+              .eq('team_id', match.away_team_id)
+              .eq('is_active', true)
+              .single();
+
+            if (memberError || !teamMember) {
+              console.warn(`Player ${playerStat.user_id} is not a member of away team ${match.away_team_id}`);
+              continue;
+            }
+
+            allPlayerStats.push({
+              user_id: playerStat.user_id,
+              match_id: match.id,
+              team_id: match.away_team_id,
+              goals: playerStat.goals || 0,
+              assists: playerStat.assists || 0,
+              minutes_played: playerStat.minutes_played || 0,
+              yellow_cards: playerStat.yellow_cards || 0,
+              red_cards: playerStat.red_cards || 0,
+              clean_sheets: playerStat.clean_sheets || 0,
+              saves: playerStat.saves || 0,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
+          }
+        }
+
+        // Insert all player statistics
+        if (allPlayerStats.length > 0) {
+          const { error: statsError } = await supabase
+            .from('player_stats')
+            .insert(allPlayerStats);
+
+          if (statsError) {
+            console.error('Error creating player stats:', statsError);
+            // Don't fail the entire request, but log the error
+          } else {
+            console.log(`✅ Created ${allPlayerStats.length} player stat records`);
+          }
+        }
+      } catch (statsCreationError) {
+        console.error('Error in player stats creation:', statsCreationError);
+        // Don't fail the entire request, but log the error
+      }
     }
 
     console.log('✅ Match score updated successfully:', matchId);

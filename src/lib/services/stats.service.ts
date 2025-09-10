@@ -131,7 +131,7 @@ export interface CrossLeagueComparison {
 export class StatsService {
   private static instance: StatsService;
   private supabase: SupabaseClient<Database>;
-  private cache = new Map<string, { data: any; timestamp: number; ttl: number }>();
+  private cache = new Map<string, { data: unknown; timestamp: number; ttl: number }>();
 
   private constructor(supabaseClient: SupabaseClient<Database>) {
     this.supabase = supabaseClient;
@@ -150,7 +150,7 @@ export class StatsService {
   /**
    * Handle service errors consistently
    */
-  private handleError(error: any, operation: string): ServiceError {
+  private handleError(error: unknown, operation: string): ServiceError {
     console.error(`StatsService.${operation}:`, {
       error,
       errorType: typeof error,
@@ -191,7 +191,7 @@ export class StatsService {
   /**
    * Cache management utilities
    */
-  private getCacheKey(operation: string, params: any): string {
+  private getCacheKey(operation: string, params: unknown): string {
     return `stats_service:${operation}:${JSON.stringify(params)}`;
   }
 
@@ -740,7 +740,7 @@ export class StatsService {
       // Process the trends data
       const trends: { [key: string]: PerformanceTrend[] } = {};
       statTypes.forEach(statType => {
-        trends[statType] = trendsData?.filter((t: any) => t.stat_type === statType).map((t: any) => ({
+        trends[statType] = trendsData?.filter((t: { stat_type: string }) => t.stat_type === statType).map((t: { period: string; goals?: number; assists?: number; matches?: number; performance?: number }) => ({
           period: t.period,
           goals: t.goals || 0,
           assists: t.assists || 0,
