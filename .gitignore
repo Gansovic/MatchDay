@@ -65,3 +65,15 @@ scripts/
 
 # Files with test credentials
 matchday-admin/src/components/auth/player-login-form.tsx
+
+# Development/test scripts (may contain credentials)
+test-integration.js
+execute-minimal-fix.js
+create_player_stats.py
+create-player-stats-direct.sh
+simple-migrate.js
+create-match-supabase.js
+add-match-numbers.js
+add-match-numbers-simple.js
+verify_team_member.js
+test-integration.js
