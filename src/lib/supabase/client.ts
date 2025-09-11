@@ -3,22 +3,20 @@
  * 
  * Proper Next.js 15 App Router + Supabase Cloud integration using @supabase/ssr
  * Handles client-side, server-side, and SSR authentication consistently
+ * 
+ * Includes environment validation to prevent database confusion
  */
 
 import { createBrowserClient } from '@supabase/ssr'
 import { Database } from '@/lib/types/database.types'
+import { validateEnvironmentAtStartup, getEnvironmentConfig } from '@/lib/environment/validation'
 
-// Environment variables validation
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+// Validate environment at startup to prevent database confusion
+validateEnvironmentAtStartup()
 
-if (!supabaseUrl) {
-  throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable')
-}
-
-if (!supabaseAnonKey) {
-  throw new Error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable')
-}
+// Get validated environment configuration
+const envConfig = getEnvironmentConfig()
+const { supabaseUrl, supabaseAnonKey } = envConfig
 
 /**
  * Supabase client for Client Components

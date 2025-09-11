@@ -45,6 +45,15 @@ export async function GET(request: NextRequest) {
     const teamIds = memberships.map(m => m.team_id);
     console.log('🏟️ User teams:', teamIds);
     
+    // Validate team IDs exist
+    if (teamIds.some(id => !id)) {
+      console.error('❌ Invalid team ID found in memberships:', memberships);
+      return NextResponse.json(
+        { error: 'Invalid team membership data' },
+        { status: 500 }
+      );
+    }
+    
     // Debug: Log the exact query we're about to run
     const teamQuery = teamIds.map(teamId => `home_team_id.eq.${teamId},away_team_id.eq.${teamId}`).join(',');
     console.log('🔍 Team query string:', teamQuery);
@@ -58,6 +67,7 @@ export async function GET(request: NextRequest) {
         home_team:teams!matches_home_team_id_fkey(id, name, team_color),
         away_team:teams!matches_away_team_id_fkey(id, name, team_color)
       `)
+      .or(teamQuery)
       .order('match_date', { ascending: true });
 
     if (matchesError) {
@@ -69,10 +79,20 @@ export async function GET(request: NextRequest) {
     }
     
     // Debug: Log raw matches data
-    console.log('🔍 Raw matches from database:', matches?.length || 0, matches);
+    console.log('🔍 Raw matches from database:', matches?.length || 0);
+    
+    // Additional security validation: ensure all returned matches involve user's teams
+    const filteredMatches = (matches || []).filter(match => 
+      teamIds.includes(match.home_team_id) || teamIds.includes(match.away_team_id)
+    );
+    
+    if (matches && filteredMatches.length !== matches.length) {
+      console.warn('⚠️ Some matches were filtered out due to team membership validation');
+      console.warn('Original count:', matches.length, 'Filtered count:', filteredMatches.length);
+    }
 
-    console.log('✅ Successfully loaded matches:', matches?.length || 0);
-    return NextResponse.json({ success: true, data: matches || [] });
+    console.log('✅ Successfully loaded filtered matches:', filteredMatches.length);
+    return NextResponse.json({ success: true, data: filteredMatches });
 
   } catch (error) {
     console.error('❌ Matches API error:', error);
