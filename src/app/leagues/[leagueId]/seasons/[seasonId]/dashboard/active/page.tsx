@@ -26,10 +26,11 @@ import {
   Play,
   Loader2,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Download
 } from 'lucide-react';
 import SeasonDashboardLayout from '@/components/leagues/dashboards/SeasonDashboardLayout';
-import { LeagueStandings, Match } from '@/components/leagues/league-standings';
+import { LeagueStandings, Match, Team } from '@/components/leagues/league-standings';
 
 interface LeagueMatch {
   id: string;
@@ -39,7 +40,7 @@ interface LeagueMatch {
   venue: string;
   homeScore?: number;
   awayScore?: number;
-  status: 'completed' | 'upcoming';
+  status: 'completed' | 'scheduled';
   round?: number;
 }
 
@@ -54,11 +55,13 @@ interface PlayerStat {
 interface LoadingStates {
   matches: boolean;
   stats: boolean;
+  teams: boolean;
 }
 
 interface ErrorStates {
   matches: string | null;
   stats: string | null;
+  teams: string | null;
 }
 
 export default function ActiveSeasonDashboard() {
@@ -69,21 +72,32 @@ export default function ActiveSeasonDashboard() {
   const [activeTab, setActiveTab] = useState<'standings' | 'matches' | 'stats' | 'management'>('standings');
   const [matches, setMatches] = useState<LeagueMatch[]>([]);
   const [standingsMatches, setStandingsMatches] = useState<Match[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [playerStats, setPlayerStats] = useState<{
     topScorers: PlayerStat[];
     topAssists: PlayerStat[];
     cleanSheets: PlayerStat[];
   }>({ topScorers: [], topAssists: [], cleanSheets: [] });
+  
+  const [seasonStats, setSeasonStats] = useState<{
+    total_matches: number;
+    completed_matches: number;
+    total_goals: number;
+    total_players: number;
+    avg_goals_per_match: number;
+  }>({ total_matches: 0, completed_matches: 0, total_goals: 0, total_players: 0, avg_goals_per_match: 0 });
 
   // Loading and error states
   const [loading, setLoading] = useState<LoadingStates>({
     matches: true,
-    stats: true
+    stats: true,
+    teams: true
   });
   
   const [errors, setErrors] = useState<ErrorStates>({
     matches: null,
-    stats: null
+    stats: null,
+    teams: null
   });
 
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
@@ -98,7 +112,7 @@ export default function ActiveSeasonDashboard() {
         ? window.location.origin 
         : process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001';
       
-      const matchesUrl = `${baseUrl}/api/leagues/${leagueId}/matches?season_id=${seasonId}`;
+      const matchesUrl = `${baseUrl}/api/leagues/${leagueId}/matches?seasonId=${seasonId}`;
       
       const response = await fetch(matchesUrl, {
         method: 'GET',
@@ -122,11 +136,11 @@ export default function ActiveSeasonDashboard() {
         id: match.id,
         homeTeam: match.home_team?.name || 'Unknown Team',
         awayTeam: match.away_team?.name || 'Unknown Team',
-        date: match.scheduled_date,
+        date: match.match_date,
         venue: match.venue || 'TBD',
         homeScore: match.home_score || undefined,
         awayScore: match.away_score || undefined,
-        status: match.status === 'completed' ? 'completed' : 'upcoming',
+        status: match.status === 'completed' ? 'completed' : 'scheduled',
         round: match.match_day || undefined
       }));
 
@@ -142,7 +156,7 @@ export default function ActiveSeasonDashboard() {
         home_score: match.home_score || undefined,
         away_score: match.away_score || undefined,
         status: match.status === 'completed' ? 'completed' : match.status,
-        match_date: match.scheduled_date,
+        match_date: match.match_date,
         venue: match.venue || 'TBD',
         created_at: match.created_at,
         updated_at: match.updated_at
@@ -165,27 +179,117 @@ export default function ActiveSeasonDashboard() {
       setLoading(prev => ({ ...prev, stats: true }));
       setErrors(prev => ({ ...prev, stats: null }));
       
-      // For now, return empty player stats since the view doesn't exist yet
+      const baseUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001';
+      
+      const statsUrl = `${baseUrl}/api/leagues/${leagueId}/seasons/${seasonId}/player-stats`;
+      
+      const response = await fetch(statsUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Player stats API request failed: ${response.status}`);
+      }
+
+      const apiResult = await response.json();
+      
+      if (!apiResult.success) {
+        throw new Error(apiResult.error || 'Failed to fetch player statistics');
+      }
+      
+      // Transform API data to expected format
+      const transformPlayerStats = (players: any[]) => 
+        players.map((player: any) => ({
+          id: player.id,
+          name: player.name,
+          team: player.team,
+          value: player.value,
+          position: player.position || 'Player'
+        }));
+      
+      setPlayerStats({
+        topScorers: transformPlayerStats(apiResult.data?.topScorers || []),
+        topAssists: transformPlayerStats(apiResult.data?.topAssists || []),
+        cleanSheets: transformPlayerStats(apiResult.data?.cleanSheets || [])
+      });
+
+      // Set season statistics from API
+      if (apiResult.data?.seasonStats) {
+        setSeasonStats(apiResult.data.seasonStats);
+      }
+    } catch (error) {
+      console.error('Error fetching player stats:', error);
+      setErrors(prev => ({ ...prev, stats: 'Failed to load player statistics' }));
+      // Set empty stats on error
       setPlayerStats({ 
         topScorers: [], 
         topAssists: [], 
         cleanSheets: [] 
       });
-    } catch (error) {
-      console.error('Error fetching player stats:', error);
-      setErrors(prev => ({ ...prev, stats: 'Failed to load player statistics' }));
     } finally {
       setLoading(prev => ({ ...prev, stats: false }));
     }
-  }, []);
+  }, [leagueId, seasonId]);
+
+  // Fetch season teams
+  const fetchSeasonTeams = useCallback(async () => {
+    try {
+      setLoading(prev => ({ ...prev, teams: true }));
+      setErrors(prev => ({ ...prev, teams: null }));
+      
+      const baseUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001';
+      
+      const teamsUrl = `${baseUrl}/api/leagues/${leagueId}/teams`;
+      
+      const response = await fetch(teamsUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Teams API request failed: ${response.status}`);
+      }
+
+      const apiResult = await response.json();
+      
+      if (!apiResult.success) {
+        throw new Error(apiResult.error || 'Failed to fetch teams');
+      }
+      
+      // Transform teams to format expected by LeagueStandings component
+      const standingsFormatTeams: Team[] = (apiResult.data || []).map((team: any) => ({
+        id: team.id,
+        name: team.name,
+        team_color: team.team_color,
+        league_id: leagueId
+      }));
+      
+      setTeams(standingsFormatTeams);
+    } catch (error) {
+      console.error('Error fetching teams:', error);
+      setErrors(prev => ({ ...prev, teams: 'Failed to load teams' }));
+    } finally {
+      setLoading(prev => ({ ...prev, teams: false }));
+    }
+  }, [leagueId]);
 
   // Refresh data function
   const refreshData = useCallback(async () => {
     await Promise.all([
       fetchSeasonMatches(),
-      fetchPlayerStats()
+      fetchPlayerStats(),
+      fetchSeasonTeams()
     ]);
-  }, [fetchSeasonMatches, fetchPlayerStats]);
+  }, [fetchSeasonMatches, fetchPlayerStats, fetchSeasonTeams]);
 
   // Initial data load
   useEffect(() => {
@@ -227,7 +331,7 @@ export default function ActiveSeasonDashboard() {
 
   // Derived data
   const recentMatches = matches.filter(m => m.status === 'completed').slice(0, 5);
-  const upcomingMatches = matches.filter(m => m.status === 'upcoming').slice(0, 5);
+  const upcomingMatches = matches.filter(m => m.status === 'scheduled').slice(0, 5);
   const todaysMatches = upcomingMatches.filter(m => isToday(m.date));
   const nextMatches = upcomingMatches.filter(m => isUpcoming(m.date));
   
@@ -269,6 +373,7 @@ export default function ActiveSeasonDashboard() {
               leagueId={leagueId}
               currentSeasonId={seasonId}
               matches={standingsMatches}
+              teams={teams}
               promotionSpots={3}
               relegationSpots={2}
               showLiveUpdates={true}
@@ -347,8 +452,17 @@ export default function ActiveSeasonDashboard() {
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                       Recent Results
                     </h3>
-                    <div className="text-sm text-gray-500">
-                      Last updated: {lastUpdated.toLocaleTimeString()}
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm text-gray-500">
+                        {recentMatches.length} recent matches
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        Updated: {lastUpdated.toLocaleTimeString()}
+                      </span>
+                      <button className="flex items-center gap-2 text-sm bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                        <Download className="w-4 h-4" />
+                        Export Results
+                      </button>
                     </div>
                   </div>
                   <div className="space-y-4">
@@ -403,7 +517,15 @@ export default function ActiveSeasonDashboard() {
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                       Upcoming Fixtures
                     </h3>
-                    <Clock className="w-5 h-5 text-gray-400" />
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm text-gray-500">
+                        {upcomingMatches.length} fixtures scheduled
+                      </span>
+                      <button className="flex items-center gap-2 text-sm bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 transition-colors">
+                        <Calendar className="w-4 h-4" />
+                        Schedule Match
+                      </button>
+                    </div>
                   </div>
                   <div className="space-y-4">
                     {upcomingMatches.length === 0 ? (
@@ -465,31 +587,66 @@ export default function ActiveSeasonDashboard() {
               </div>
             ) : (
               <>
-                {/* Season Progress */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-center">
-                    <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                      {completedMatches.length}
+                {/* Season Progress Overview - Enhanced */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                        <Calendar className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-gray-900 dark:text-white">{seasonStats.completed_matches}</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Matches Played</div>
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Matches Played</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-500">
+                      {seasonStats.total_matches - seasonStats.completed_matches} remaining
+                    </div>
                   </div>
-                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-center">
-                    <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                      {totalMatches - completedMatches.length}
+
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+                        <Users className="w-5 h-5 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-gray-900 dark:text-white">{teams.length}</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Teams</div>
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Remaining</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-500">
+                      {seasonStats.total_players} players active
+                    </div>
                   </div>
-                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-center">
-                    <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                      {completionPercentage.toFixed(0)}%
+
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
+                        <Target className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-gray-900 dark:text-white">{seasonStats.total_goals}</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Total Goals</div>
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Complete</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-500">
+                      {seasonStats.avg_goals_per_match} per match avg
+                    </div>
                   </div>
-                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 text-center">
-                    <div className="text-3xl font-bold text-green-600 dark:text-green-400 mb-2">
-                      LIVE
+
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
+                        <Trophy className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                          {completionPercentage.toFixed(0)}%
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">Complete</div>
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Season Status</div>
+                    <div className="text-xs text-green-600 dark:text-green-400 font-medium">ACTIVE</div>
                   </div>
                 </div>
 
@@ -629,6 +786,73 @@ export default function ActiveSeasonDashboard() {
                       )}
                     </div>
                   </div>
+                </div>
+
+                {/* Additional Season Statistics - Adapted from completed dashboard */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Current Season Summary */}
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                      Season Progress
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600 dark:text-gray-400">Matches Played</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">{seasonStats.completed_matches}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600 dark:text-gray-400">Matches Remaining</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">{seasonStats.total_matches - seasonStats.completed_matches}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600 dark:text-gray-400">Average Goals per Match</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">{seasonStats.avg_goals_per_match}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600 dark:text-gray-400">Total Goals So Far</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">{seasonStats.total_goals}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Active Season Information */}
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                      Current Season Info
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600 dark:text-gray-400">Teams</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">{teams.length}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600 dark:text-gray-400">Active Players</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">{seasonStats.total_players}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600 dark:text-gray-400">Completion</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">{completionPercentage.toFixed(1)}%</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-600 dark:text-gray-400">Status</span>
+                        <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-full text-xs font-medium">
+                          Active
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live Season Status Message */}
+                <div className="bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border border-green-200 dark:border-green-800 rounded-xl p-6 text-center">
+                  <Play className="w-12 h-12 text-green-600 dark:text-green-400 mx-auto mb-3" />
+                  <h3 className="text-lg font-semibold text-green-900 dark:text-green-100 mb-2">
+                    Season Currently Active
+                  </h3>
+                  <p className="text-green-800 dark:text-green-200 text-sm">
+                    Statistics are updated automatically as matches are completed. 
+                    View the standings tab for current league positions and the matches tab for upcoming fixtures.
+                  </p>
                 </div>
               </>
             )}
