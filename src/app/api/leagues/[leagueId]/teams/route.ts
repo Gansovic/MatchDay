@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import DirectDatabaseService from '@/lib/database/direct-db.service';
+import { createAdminSupabaseClient } from '@/lib/supabase/server-client';
 
 export async function OPTIONS() {
   const response = new NextResponse(null, { status: 200 });
@@ -40,53 +40,87 @@ export async function GET(
       );
     }
 
-    const dbService = DirectDatabaseService.getInstance();
-    const client = await dbService['pool'].connect();
+    const supabase = createAdminSupabaseClient();
     
-    try {
-      // Get teams for this league
-      const teamsResult = await client.query(`
-        SELECT 
-          t.id,
-          t.name,
-          t.team_color,
-          t.league_id,
-          t.captain_id,
-          t.is_recruiting,
-          t.created_at,
-          t.updated_at
-        FROM teams t
-        WHERE t.league_id = $1
-        ORDER BY t.name
-      `, [leagueId]);
+    // Get current season for this league
+    const { data: currentSeason, error: seasonError } = await (supabase as any)
+      .from('seasons')
+      .select('id')
+      .eq('league_id', leagueId)
+      .eq('is_current', true)
+      .single();
 
-      const teams = teamsResult.rows.map(team => ({
-        id: team.id,
-        name: team.name,
-        team_color: team.team_color,
-        league_id: team.league_id,
-        captain_id: team.captain_id,
-        is_recruiting: team.is_recruiting,
-        created_at: team.created_at,
-        updated_at: team.updated_at
-      }));
-
-      const response = NextResponse.json({
-        success: true,
-        data: teams,
-        error: null
-      });
-      
-      // Add CORS headers
-      response.headers.set('Access-Control-Allow-Origin', '*');
-      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      
-      return response;
-      
-    } finally {
-      client.release();
+    if (seasonError && seasonError.code !== 'PGRST116') {
+      console.error('Season query error:', seasonError);
+      return NextResponse.json(
+        { 
+          success: false,
+          data: null,
+          error: 'Failed to fetch current season' 
+        },
+        { status: 500 }
+      );
     }
+
+    let teams = [];
+
+    if (currentSeason) {
+      // Get teams registered for the current season
+      const { data: seasonTeams, error: teamsError } = await (supabase as any)
+        .from('season_teams')
+        .select(`
+          registration_date,
+          status,
+          team:teams (
+            id,
+            name,
+            team_color,
+            captain_id,
+            is_recruiting,
+            created_at,
+            updated_at
+          )
+        `)
+        .eq('season_id', currentSeason.id)
+        .in('status', ['registered', 'confirmed'])
+        .order('registration_date', { ascending: true });
+
+      if (teamsError) {
+        console.error('Teams query error:', teamsError);
+        return NextResponse.json(
+          { 
+            success: false,
+            data: null,
+            error: 'Failed to fetch teams' 
+          },
+          { status: 500 }
+        );
+      }
+
+      // Extract and format teams
+      teams = (seasonTeams || [])
+        .map(st => st.team ? {
+          ...st.team,
+          league_id: leagueId, // For backward compatibility
+          registration_date: st.registration_date,
+          registration_status: st.status
+        } : null)
+        .filter(Boolean);
+    }
+
+    const response = NextResponse.json({
+      success: true,
+      data: teams,
+      error: null,
+      season_id: currentSeason?.id || null
+    });
+    
+    // Add CORS headers
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    return response;
   } catch (error) {
     console.error('Database query error:', error);
     return NextResponse.json(

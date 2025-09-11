@@ -11,6 +11,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Trophy, 
   Users, 
@@ -19,7 +20,6 @@ import {
   Star,
   Search,
   Filter,
-  Plus,
   X,
   Check,
   Clock,
@@ -28,8 +28,13 @@ import {
   Loader2,
   AlertCircle,
   UserPlus,
-  UserMinus
+  UserMinus,
+  Eye,
+  Wifi,
+  WifiOff,
+  RefreshCw
 } from 'lucide-react';
+import { useRealtimeLeagues, usePageVisibility } from '@/lib/hooks/use-realtime-leagues';
 
 export interface League {
   id: string;
@@ -82,9 +87,7 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
   onTeamJoinedLeague,
   onTeamLeftLeague
 }) => {
-  const [leagues, setLeagues] = useState<League[]>([]);
   const [userTeams, setUserTeams] = useState<UserTeam[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLeagueType, setSelectedLeagueType] = useState<string>('all');
   const [selectedSport, setSelectedSport] = useState<string>('all');
@@ -94,104 +97,77 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // Navigation
+  const router = useRouter();
 
-  // Load leagues and user teams
+  // Page visibility for optimized subscriptions
+  const isPageVisible = usePageVisibility();
+  
+  // Real-time leagues data with filters
+  const {
+    leagues: realtimeLeagues,
+    isLoading,
+    isConnected,
+    lastUpdate,
+    forceRefresh
+  } = useRealtimeLeagues({
+    sportType: selectedSport,
+    leagueType: selectedLeagueType,
+    isActive: true,
+    isPublic: true
+  });
+
+  // Load user teams only (leagues now come from real-time hook)
   useEffect(() => {
-    loadData();
+    if (userId) {
+      loadUserTeams();
+    }
   }, [userId]);
 
-  const loadData = async () => {
-    setIsLoading(true);
+  const loadUserTeams = async () => {
+    if (!userId) return;
+    
     try {
-      // Load real leagues data from database
-      const leaguesResponse = await fetch('/api/database/leagues');
-      const leaguesResult = await leaguesResponse.json();
-      
-      if (!leaguesResult.leagues) {
-        throw new Error('Failed to load leagues');
+      const response = await fetch(`/api/user/teams`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          setUserTeams([]);
+          return;
+        }
+        throw new Error(`Failed to fetch user teams: ${response.status}`);
       }
 
-      // Transform leagues data to match our interface
-      const transformedLeagues: League[] = leaguesResult.leagues.map((league: any) => ({
-        id: league.id,
-        name: league.name,
-        description: league.description,
-        sport_type: league.sport_type || 'football',
-        league_type: league.league_type || 'competitive',
-        location: league.location,
-        season_start: league.season_start,
-        season_end: league.season_end,
-        max_teams: league.max_teams,
-        entry_fee: league.entry_fee || 0,
-        is_active: league.is_active,
-        is_public: league.is_public,
-        created_at: league.created_at,
-        teamCount: 0, // Will be updated with real data
-        availableSpots: 0, // Will be updated with real data
-        teams: []
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to load user teams');
+      }
+
+      // Transform API data to match component interface
+      const teams = (result.data || []).map(membership => ({
+        id: membership.team.id,
+        name: membership.team.name,
+        team_color: membership.team.team_color,
+        is_captain: membership.role === 'captain',
+        league_id: membership.team.league?.id || null,
+        league_name: membership.team.league?.name || null
       }));
-
-      // Load teams data to get team counts for each league
-      const teamsResponse = await fetch('/api/database/teams');
-      const teamsResult = await teamsResponse.json();
       
-      if (teamsResult.teams) {
-        // Group teams by league and update league stats
-        const leagueTeamCounts = teamsResult.teams.reduce((acc: any, team: any) => {
-          if (team.league_id) {
-            if (!acc[team.league_id]) {
-              acc[team.league_id] = { count: 0, teams: [] };
-            }
-            acc[team.league_id].count++;
-            acc[team.league_id].teams.push({
-              id: team.id,
-              name: team.name,
-              team_color: team.team_color,
-              is_recruiting: team.is_recruiting || false
-            });
-          }
-          return acc;
-        }, {});
-
-        // Update leagues with real team data
-        transformedLeagues.forEach(league => {
-          const teamData = leagueTeamCounts[league.id];
-          if (teamData) {
-            league.teamCount = teamData.count;
-            league.teams = teamData.teams;
-            // Calculate available spots (simplified calculation)
-            league.availableSpots = Math.max(0, (league.max_teams || 16) - league.teamCount);
-          } else {
-            league.availableSpots = league.max_teams || 16;
-          }
-        });
-      }
-
-      // Load user teams (for now, we'll use mock data but get real teams from database in future)
-      const userTeamsData: UserTeam[] = teamsResult.teams 
-        ? teamsResult.teams
-            .filter((team: any) => team.captain_id === 'eec00b4f-7e94-4d76-8f2a-7364b49d1c86') // Default player
-            .map((team: any) => ({
-              id: team.id,
-              name: team.name,
-              team_color: team.team_color,
-              is_captain: true,
-              league_id: team.league_id,
-              league_name: team.league_id ? 
-                transformedLeagues.find(l => l.id === team.league_id)?.name : 
-                undefined
-            }))
-        : [];
-
-      setLeagues(transformedLeagues);
-      setUserTeams(userTeamsData);
-    } catch (err) {
-      console.error('Error loading data:', err);
-      setError('Failed to load data');
-    } finally {
-      setIsLoading(false);
+      setUserTeams(teams);
+    } catch (error) {
+      console.error('Failed to load user teams:', error);
+      // Don't throw here, just set empty teams so leagues can still load
+      setUserTeams([]);
     }
   };
+
 
   const leagueTypes = [
     { value: 'all', label: 'All Levels' },
@@ -205,16 +181,26 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
     { value: 'football', label: 'Football', icon: '⚽' }
   ];
 
-  // Filter leagues based on search and filters
-  const filteredLeagues = leagues.filter(league => {
-    const matchesSearch = league.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         league.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         league.location?.toLowerCase().includes(searchQuery.toLowerCase());
+  // Process leagues with user team information and apply search filtering
+  const processedLeagues = realtimeLeagues.map(league => ({
+    ...league,
+    userTeams: userTeams.map(team => ({
+      id: team.id,
+      name: team.name,
+      isInLeague: team.league_id === league.id,
+      canJoin: !team.league_id && league.availableSpots > 0,
+      canLeave: team.league_id === league.id
+    }))
+  }));
+
+  // Apply search filter (league type and sport filtering is done by the hook)
+  const filteredLeagues = processedLeagues.filter(league => {
+    if (!searchQuery) return true;
     
-    const matchesLeagueType = selectedLeagueType === 'all' || league.league_type === selectedLeagueType;
-    const matchesSport = selectedSport === 'all' || league.sport_type === selectedSport;
-    
-    return matchesSearch && matchesLeagueType && matchesSport;
+    const searchLower = searchQuery.toLowerCase();
+    return league.name.toLowerCase().includes(searchLower) ||
+           league.description?.toLowerCase().includes(searchLower) ||
+           league.location?.toLowerCase().includes(searchLower);
   });
 
   const formatDate = (dateString: string) => {
@@ -236,12 +222,68 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
     setShowJoinModal(true);
   };
 
+  const handleViewLeague = (league: League) => {
+    router.push(`/leagues/${league.id}`);
+  };
+
   const handleConfirmJoin = async () => {
     if (!selectedLeague || !selectedTeam) return;
 
     setIsSubmitting(true);
+    setError(null);
+    
     try {
-      // Real API call to join team to league
+      // First, get the league details to check if it requires manual approval
+      const leagueResponse = await fetch(`/api/leagues/${selectedLeague.id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const leagueResult = await leagueResponse.json();
+      
+      if (!leagueResult.success) {
+        throw new Error(leagueResult.error || 'Failed to get league details');
+      }
+
+      const leagueDetails = leagueResult.data;
+      
+      // Check if league requires manual approval
+      if (!leagueDetails.auto_approve_teams) {
+        // Create join request instead of directly joining
+        const requestResponse = await fetch(`/api/teams/${selectedTeam}/request-league-join`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            leagueId: selectedLeague.id,
+            requestedBy: userId,
+            message: `Request to join ${selectedLeague.name} league`
+          }),
+        });
+
+        const requestResult = await requestResponse.json();
+
+        if (!requestResult.success) {
+          // Handle specific request error types
+          if (requestResult.error?.includes('already has a')) {
+            setError(requestResult.error);
+            setShowJoinModal(false);
+          } else {
+            throw new Error(requestResult.error || 'Failed to create join request');
+          }
+          return;
+        }
+
+        setShowJoinModal(false);
+        setSuccess(requestResult.data?.message || `Join request submitted for ${selectedLeague.name}! Please wait for admin approval.`);
+        setTimeout(() => setSuccess(null), 5000);
+        return;
+      }
+
+      // League has auto-approval, proceed with direct join
       const response = await fetch(`/api/teams/${selectedTeam}/join-league`, {
         method: 'POST',
         headers: {
@@ -255,45 +297,66 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
       const result = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || 'Failed to join league');
+        // Check for specific error types
+        if (result.error?.includes('already registered')) {
+          // Team is already in this season
+          setError(result.error);
+          setShowJoinModal(false);
+        } else if (result.error?.includes('No active season')) {
+          // No active season available
+          setError(result.error);
+        } else if (result.error?.includes('is full')) {
+          // Season is full
+          setError(result.error);
+        } else if (result.redirect_to_auto_join) {
+          // Redirect error from request endpoint
+          setError('This league requires manual approval. Please wait for admin approval.');
+        } else {
+          // Generic error
+          throw new Error(result.error || 'Failed to join league');
+        }
+        return;
       }
       
-      // Update local state
+      // Update local user teams state - real-time hook will handle league updates
+      const seasonInfo = result.data?.season;
       setUserTeams(prev => prev.map(team => 
         team.id === selectedTeam 
           ? { ...team, league_id: selectedLeague.id, league_name: selectedLeague.name }
           : team
       ));
 
-      setLeagues(prev => prev.map(league => 
-        league.id === selectedLeague.id 
-          ? { 
-              ...league, 
-              teamCount: league.teamCount + 1, 
-              availableSpots: Math.max(0, league.availableSpots - 1) 
-            }
-          : league
-      ));
-
       setShowJoinModal(false);
-      setSuccess(result.data?.message || `Successfully joined ${selectedLeague.name}!`);
+      
+      // Show success message with season information
+      const successMessage = result.data?.message || 
+        (seasonInfo 
+          ? `Successfully joined ${selectedLeague.name} for the ${seasonInfo.display_name} season!`
+          : `Successfully joined ${selectedLeague.name}!`);
+      
+      setSuccess(successMessage);
       onTeamJoinedLeague?.(selectedTeam, selectedLeague.id);
       
-      setTimeout(() => setSuccess(null), 3000);
+      // Real-time hook will automatically update league data, so no manual refresh needed
+      console.log('✅ Team joined league - real-time updates will handle data sync');
+      
+      setTimeout(() => setSuccess(null), 5000);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to join league. Please try again.';
       setError(errorMessage);
-      setTimeout(() => setError(null), 5000);
+      setTimeout(() => setError(null), 7000);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleLeaveLeague = async (teamId: string, leagueId: string) => {
-    if (!confirm('Are you sure you want to leave this league?')) return;
+    if (!confirm('Are you sure you want to leave this league? This will remove your team from the current season.')) return;
 
+    setError(null);
+    
     try {
-      // Real API call to leave league
+      // Real API call to leave league (now leaves the season)
       const response = await fetch(`/api/teams/${teamId}/leave-league`, {
         method: 'POST',
         headers: {
@@ -307,29 +370,29 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
         throw new Error(result.error || 'Failed to leave league');
       }
       
-      const league = leagues.find(l => l.id === leagueId);
+      const league = filteredLeagues.find(l => l.id === leagueId);
+      const seasonInfo = result.data?.season;
       
-      // Update local state
+      // Update local user teams state - real-time hook will handle league updates
       setUserTeams(prev => prev.map(team => 
         team.id === teamId 
           ? { ...team, league_id: undefined, league_name: undefined }
           : team
       ));
 
-      setLeagues(prev => prev.map(league => 
-        league.id === leagueId 
-          ? { 
-              ...league, 
-              teamCount: Math.max(0, league.teamCount - 1), 
-              availableSpots: league.availableSpots + 1 
-            }
-          : league
-      ));
-
-      setSuccess(result.data?.message || `Left ${league?.name} successfully!`);
+      // Show success message with season information
+      const successMessage = result.data?.message || 
+        (seasonInfo 
+          ? `Left the ${seasonInfo.display_name} season of ${league?.name} successfully!`
+          : `Left ${league?.name} successfully!`);
+      
+      setSuccess(successMessage);
       onTeamLeftLeague?.(teamId, leagueId);
       
-      setTimeout(() => setSuccess(null), 3000);
+      // Real-time hook will automatically update league data
+      console.log('✅ Team left league - real-time updates will handle data sync');
+      
+      setTimeout(() => setSuccess(null), 5000);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to leave league. Please try again.';
       setError(errorMessage);
@@ -350,13 +413,41 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          League Management
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          Join leagues with your teams and manage your competition participation
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            League Management
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Join leagues with your teams and manage your competition participation
+          </p>
+        </div>
+        
+        {/* Real-time Status Indicator */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800">
+            {isConnected ? (
+              <>
+                <Wifi className="w-4 h-4 text-green-500" />
+                <span className="text-sm text-green-600 dark:text-green-400">Live</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-4 h-4 text-orange-500" />
+                <span className="text-sm text-orange-600 dark:text-orange-400">Offline</span>
+              </>
+            )}
+          </div>
+          
+          {/* Manual Refresh Button */}
+          <button
+            onClick={forceRefresh}
+            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+            title="Refresh leagues"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* Success/Error Messages */}
@@ -549,24 +640,28 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
               </div>
             )}
 
-            {/* Action Button */}
-            <button
-              onClick={() => handleJoinLeague(league)}
-              disabled={league.availableSpots === 0}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium rounded-lg transition-colors"
-            >
-              {league.availableSpots === 0 ? (
-                <>
-                  <X className="w-4 h-4" />
-                  League Full
-                </>
-              ) : (
-                <>
+            {/* Action Buttons */}
+            <div className="space-y-2">
+              {/* View League Button - Always Available */}
+              <button
+                onClick={() => handleViewLeague(league)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-medium rounded-lg transition-colors"
+              >
+                <Eye className="w-4 h-4" />
+                View League
+              </button>
+              
+              {/* Join Button - Only when spots available */}
+              {league.availableSpots > 0 && (
+                <button
+                  onClick={() => handleJoinLeague(league)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                >
                   <UserPlus className="w-4 h-4" />
                   Join with Team
-                </>
+                </button>
               )}
-            </button>
+            </div>
           </div>
         ))}
       </div>
@@ -667,6 +762,7 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
           </div>
         </div>
       )}
+
     </div>
   );
 };

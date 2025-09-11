@@ -94,7 +94,7 @@ export class AuthService {
   private async enrichUserWithProfile(user: User): Promise<AuthUser> {
     try {
       const { data: profile } = await this.supabase
-        .from('user_profiles')
+        .from('users')
         .select('*')
         .eq('id', user.id)
         .single();

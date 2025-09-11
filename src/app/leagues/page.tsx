@@ -10,7 +10,7 @@
 import React, { useState, useEffect } from 'react';
 import { LeagueManagement, type League, type UserTeam } from '@/components/leagues/league-management';
 import { LeagueStandings } from '@/components/leagues/league-standings';
-import { useAuth } from '@/components/auth/dev-auth-provider';
+import { useAuth } from '@/components/auth/supabase-auth-provider';
 import { Trophy, Users, BarChart3, Loader2 } from 'lucide-react';
 
 export default function LeaguesPage() {
@@ -30,30 +30,48 @@ export default function LeaguesPage() {
   const loadUserLeagues = async () => {
     setIsLoading(true);
     try {
-      // Mock user leagues - in production, this would fetch leagues user's teams are in
-      const mockUserLeagues: League[] = [
-        {
-          id: '550e8400-e29b-41d4-a716-446655440001',
-          name: 'League1',
-          description: 'Professional football league - Division 1',
-          sport_type: 'football',
-          league_type: 'competitive',
-          location: 'Metropolitan Area',
-          season_start: '2024-08-01T00:00:00Z',
-          season_end: '2025-06-30T00:00:00Z',
-          max_teams: 16,
-          entry_fee: 0,
-          is_active: true,
-          is_public: true,
-          created_at: '2024-01-01T00:00:00Z',
-          teamCount: 8,
-          availableSpots: 8
-        }
-      ];
+      if (!user?.id) {
+        setUserLeagues([]);
+        return;
+      }
 
-      setUserLeagues(mockUserLeagues);
+      // Use LeagueService to get user's league memberships
+      const { supabase } = await import('@/lib/supabase/client');
+      const { LeagueService } = await import('@/lib/services/league.service');
+      
+      const leagueService = LeagueService.getInstance(supabase);
+      
+      const response = await leagueService.getPlayerLeagueMemberships(user.id);
+      
+      if (response.success && response.data) {
+        // Transform the data to match our League interface
+        const userLeagues: League[] = response.data.map(membership => ({
+          id: membership.id,
+          name: membership.name,
+          description: membership.description,
+          sport_type: membership.sport_type,
+          league_type: membership.league_type as 'recreational' | 'competitive' | 'semi-pro',
+          location: membership.location,
+          season_start: membership.season_start,
+          season_end: membership.season_end,
+          max_teams: membership.max_teams,
+          entry_fee: membership.entry_fee,
+          is_active: membership.is_active,
+          is_public: membership.is_public,
+          created_at: membership.created_at,
+          teamCount: membership.teamCount,
+          availableSpots: membership.availableSpots
+        }));
+        
+        setUserLeagues(userLeagues);
+      } else {
+        // If there's an error but the user is authenticated, show empty state
+        console.warn('Failed to load user leagues:', response.error);
+        setUserLeagues([]);
+      }
     } catch (error) {
       console.error('Failed to load user leagues:', error);
+      setUserLeagues([]);
     } finally {
       setIsLoading(false);
     }

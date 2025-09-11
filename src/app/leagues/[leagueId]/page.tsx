@@ -28,7 +28,8 @@ import {
   ChevronRight,
   Activity,
   BarChart3,
-  Play
+  Play,
+  Settings
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { LeagueService } from '@/lib/services/league.service';
@@ -84,12 +85,23 @@ export default function LeagueDashboardPage() {
       setLoading(prev => ({ ...prev, league: true }));
       setErrors(prev => ({ ...prev, league: null }));
       
-      const response = await leagueService.getLeagueDetails(leagueId);
-      
-      if (response.success && response.data) {
-        return response.data;
+      const response = await fetch(`/api/leagues/${leagueId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data) {
+          return result.data;
+        } else {
+          setErrors(prev => ({ ...prev, league: result.error || 'Failed to load league details' }));
+          return null;
+        }
       } else {
-        setErrors(prev => ({ ...prev, league: response.error?.message || 'Failed to load league details' }));
+        setErrors(prev => ({ ...prev, league: `HTTP ${response.status}: Failed to load league` }));
         return null;
       }
     } catch (error) {
@@ -99,7 +111,7 @@ export default function LeagueDashboardPage() {
     } finally {
       setLoading(prev => ({ ...prev, league: false }));
     }
-  }, [leagueId, leagueService]);
+  }, [leagueId]);
 
   // Fetch seasons
   const fetchSeasons = useCallback(async () => {
@@ -195,13 +207,15 @@ export default function LeagueDashboardPage() {
         fetchSeasons()
       ]);
 
-      if (leagueData && seasonsData) {
-        const activityData = await fetchRecentActivity(seasonsData);
-        const currentSeason = seasonsData.find((s: Season) => s.is_current) || seasonsData[0] || null;
+      if (leagueData) {
+        // Handle case where league exists but has no seasons
+        const safeSeasons = seasonsData || [];
+        const activityData = await fetchRecentActivity(safeSeasons);
+        const currentSeason = safeSeasons.find((s: Season) => s.is_current) || safeSeasons[0] || null;
 
         setDashboardData({
           league: leagueData,
-          seasons: seasonsData,
+          seasons: safeSeasons,
           currentSeason,
           recentActivity: activityData
         });
@@ -224,7 +238,7 @@ export default function LeagueDashboardPage() {
 
   // Loading states check
   const isLoading = loading.league || loading.seasons;
-  const hasAnyError = errors.league || errors.seasons;
+  const hasLeagueError = errors.league !== null;
   
   // Show loading spinner while fetching initial data
   if (isLoading) {
@@ -242,8 +256,8 @@ export default function LeagueDashboardPage() {
     );
   }
   
-  // Show error if league not found
-  if (hasAnyError) {
+  // Show error only if league not found (not if seasons are missing)
+  if (hasLeagueError) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
         <div className="container mx-auto px-4 py-8">
@@ -259,7 +273,7 @@ export default function LeagueDashboardPage() {
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">League Not Found</h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">{errors.league || errors.seasons}</p>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">{errors.league}</p>
             <Link 
               href="/leagues"
               className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
@@ -413,7 +427,16 @@ export default function LeagueDashboardPage() {
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">All Seasons</h2>
-            <Trophy className="w-5 h-5 text-gray-400" />
+            <div className="flex items-center gap-3">
+              <Link
+                href={`/leagues/${leagueId}/seasons`}
+                className="flex items-center gap-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                <Settings className="w-4 h-4" />
+                Manage Seasons
+              </Link>
+              <Trophy className="w-5 h-5 text-gray-400" />
+            </div>
           </div>
           
           {seasons.length === 0 ? (

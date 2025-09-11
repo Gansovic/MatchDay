@@ -10,17 +10,40 @@
 
 'use client';
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useAuth } from '@/components/auth/supabase-auth-provider';
 import { SignupForm } from '@/components/auth/signup-form';
 import { CheckCircle, ArrowRight } from 'lucide-react';
 
 function SignupPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { user, isLoading } = useAuth();
   const [isSuccess, setIsSuccess] = React.useState(false);
 
   const returnUrl = searchParams.get('returnUrl');
+
+  // Redirect authenticated users
+  useEffect(() => {
+    if (!isLoading && user) {
+      // User is already logged in, redirect them
+      if (returnUrl) {
+        try {
+          // Validate the return URL is safe
+          const url = new URL(returnUrl, window.location.origin);
+          if (url.origin === window.location.origin) {
+            router.push(returnUrl);
+            return;
+          }
+        } catch {
+          // Invalid return URL, fallback to dashboard
+        }
+      }
+      
+      router.push('/dashboard');
+    }
+  }, [user, isLoading, returnUrl, router]);
 
   const handleSignupSuccess = () => {
     setIsSuccess(true);
@@ -48,6 +71,27 @@ function SignupPageContent() {
     
     router.push('/dashboard');
   };
+
+  // Show loading while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Show loading while redirecting authenticated users
+  if (user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">You're already signed in. Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isSuccess) {
     return (

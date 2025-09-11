@@ -11,11 +11,11 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/components/auth/dev-auth-provider';
+import { useAuth } from '@/components/auth/supabase-auth-provider';
 import DevAuthHelper from './dev-auth-helper';
-import { supabase } from '@/lib/supabase/client';
+import { supabase, clearAuthCookies } from '@/lib/supabase/client';
 import { 
   Users, 
   Calendar, 
@@ -80,19 +80,28 @@ interface AvailableTeam {
   id: string;
   name: string;
   league: string;
-  logo?: string;
+  team_bio?: string;
+  team_color: string;
   memberCount: number;
   maxMembers: number;
   isRecruiting: boolean;
-  requiredPosition?: string;
   location: string;
-  nextMatch?: string;
-  color: string;
+  captain: string;
+  availableSpots: number;
+  created_at: string;
+  stats: {
+    wins: number;
+    draws: number;
+    losses: number;
+    goals_for: number;
+    goals_against: number;
+    points: number;
+  };
 }
 
 export default function TeamsPage() {
   const router = useRouter();
-  const { user, isLoading, getSession } = useAuth();
+  const { user, session, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<'my-teams' | 'discover'>('my-teams');
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -100,6 +109,8 @@ export default function TeamsPage() {
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [newlyCreatedTeamId, setNewlyCreatedTeamId] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [formData, setFormData] = useState<CreateTeamForm>({
     name: '',
     league: '',
@@ -112,16 +123,27 @@ export default function TeamsPage() {
   const [myTeams, setMyTeams] = useState<Team[]>([]);
   const [availableLeagues, setAvailableLeagues] = useState<{id: string, name: string}[]>([]);
   const [isLoadingLeagues, setIsLoadingLeagues] = useState(false);
+  const [availableTeams, setAvailableTeams] = useState<AvailableTeam[]>([]);
+  const [isLoadingDiscoverTeams, setIsLoadingDiscoverTeams] = useState(false);
 
   // Load teams data
   useEffect(() => {
     const loadTeams = async () => {
       try {
-        // Get current user session for authentication
-        const session = await getSession();
+        console.log('🚀 Starting loadTeams function...');
+        console.log('🧪 Current user:', user);
+        console.log('🧪 Is loading:', isLoading);
+        
+        // Check if user is authenticated
+        console.log('🔍 Session result:', { 
+          hasSession: !!session, 
+          hasAccessToken: !!session?.access_token,
+          hasUser: !!session?.user,
+          userEmail: session?.user?.email 
+        });
         
         if (!session?.access_token) {
-          console.log('❌ No authentication session found, skipping team load');
+          console.log('❌ No authentication session found');
           setMyTeams([]);
           return;
         }
@@ -130,6 +152,7 @@ export default function TeamsPage() {
         console.log('🔑 Access token preview:', session.access_token?.substring(0, 50) + '...');
 
         const response = await fetch('/api/teams', {
+          credentials: 'include', // Include cookies
           headers: {
             'Authorization': `Bearer ${session.access_token}`
           }
@@ -138,23 +161,37 @@ export default function TeamsPage() {
         if (!response.ok) {
           const errorText = await response.text();
           console.error('Failed to load teams:', response.status, errorText);
+          
+          // Handle authentication errors specifically
+          if (response.status === 401) {
+            console.log('🚨 Authentication failed - setting auth error state');
+            setAuthError('Authentication failed. Please sign in again.');
+            setMyTeams([]);
+            return;
+          }
+          
           throw new Error(`Failed to load teams: ${response.status}`);
         }
 
         const result = await response.json();
+        console.log('✅ API call succeeded with auth:', result);
+        console.log('🔍 Authenticated API result.data type:', typeof result.data);
+        console.log('🔍 Authenticated API result.data length:', result.data?.length);
+        console.log('🔍 Authenticated API result.data contents:', JSON.stringify(result.data, null, 2));
         
         // Convert API response to local Team format (if any teams exist)
         const teams: Team[] = (result.data || []).map((teamData: any) => {
+          console.log('🔍 Processing authenticated team data:', JSON.stringify(teamData, null, 2));
           return {
             id: teamData.id,
             name: teamData.name,
-            league: teamData.league?.name || teamData.league || 'Unknown League',
-            position: 'Captain', // Mock as captain for testing
-            isCaptain: true,
-            memberCount: teamData.memberCount || 1,
+            league: teamData.league?.name || 'Independent',
+            position: 'Captain', // Default to Captain for now
+            isCaptain: true,     // Default to true for now  
+            memberCount: teamData.current_members || teamData.memberCount || 0,
             maxMembers: teamData.max_players || 22,
-            location: teamData.league?.location || 'Test Location',
-            description: teamData.team_bio || teamData.description,
+            location: teamData.location || 'TBD',
+            description: teamData.description || '',
             stats: teamData.stats || {
               wins: 0,
               draws: 0,
@@ -163,22 +200,50 @@ export default function TeamsPage() {
               position: 1,
               totalTeams: 1
             },
-            color: teamData.team_color || '#2563eb'
+            color: teamData.color || '#2563eb'
           };
         });
 
+        console.log('🎯 Final authenticated mapped teams array:', JSON.stringify(teams, null, 2));
+        console.log('🎯 Final authenticated teams array length:', teams.length);
+
         setMyTeams(teams);
+        console.log('🎯 Authenticated setMyTeams called with:', teams.length, 'teams');
+        
+        // Clear auth error and retry count on successful load
+        setAuthError(null);
+        setRetryCount(0);
       } catch (error) {
         console.error('Error loading teams:', error);
-        // For now, fall back to empty array - could show error state
         setMyTeams([]);
+        
+        // Prevent infinite retries by limiting retry count
+        if (retryCount < 3) {
+          setRetryCount(prev => prev + 1);
+        } else {
+          console.log('🚨 Too many retries, giving up on loading teams');
+          setAuthError('Failed to load teams after multiple attempts. Please refresh the page.');
+        }
       }
     };
 
-    if (user) {
+    // Load teams if session exists and no auth error, with retry limit
+    if (session?.access_token && !authError && retryCount < 3) {
       loadTeams();
+    } else if (!session?.access_token) {
+      // Clear auth error if no session (user logged out)
+      setAuthError(null);
+      setRetryCount(0);
     }
-  }, [user, getSession]);
+  }, [user, session, authError, retryCount]);
+
+  // Debug: Log whenever myTeams state changes
+  useEffect(() => {
+    console.log('🔄 myTeams state changed:', {
+      length: myTeams.length,
+      teams: myTeams.map(t => ({ id: t.id, name: t.name }))
+    });
+  }, [myTeams]);
 
   // Authentication redirect effect
   useEffect(() => {
@@ -187,70 +252,49 @@ export default function TeamsPage() {
     }
   }, [user, isLoading, router]);
 
-  // Show loading while checking authentication
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  // Load discover teams data from API - MOVED BEFORE EARLY RETURNS TO FIX HOOKS RULE
+  const loadDiscoverTeams = useCallback(async () => {
+    setIsLoadingDiscoverTeams(true);
+    try {
+      console.log('🔍 Loading discover teams...');
+      
+      if (!session?.access_token) {
+        console.log('❌ No session for discover teams');
+        setAvailableTeams([]);
+        return;
+      }
 
-  // Show nothing while redirecting
-  if (!user) {
-    return null;
-  }
+      const params = new URLSearchParams();
+      if (searchQuery.trim()) {
+        params.append('query', searchQuery.trim());
+      }
+      params.append('recruiting', 'true'); // Only show teams that are recruiting
+      params.append('limit', '20');
 
-  const availableTeams: AvailableTeam[] = [
-    {
-      id: '3',
-      name: 'Velocity United',
-      league: 'Elite Soccer League',
-      memberCount: 16,
-      maxMembers: 22,
-      isRecruiting: true,
-      requiredPosition: 'Defender',
-      location: 'North District',
-      nextMatch: '2024-08-25',
-      color: 'bg-green-600'
-    },
-    {
-      id: '4',
-      name: 'Coastal Rovers',
-      league: 'Metropolitan Football League',
-      memberCount: 18,
-      maxMembers: 22,
-      isRecruiting: true,
-      requiredPosition: 'Midfielder',
-      location: 'Coastal Area',
-      nextMatch: '2024-08-23',
-      color: 'bg-teal-600'
-    },
-    {
-      id: '5',
-      name: 'Rapid Strikers',
-      league: 'Weekend Football Division',
-      memberCount: 20,
-      maxMembers: 22,
-      isRecruiting: true,
-      requiredPosition: 'Goalkeeper',
-      location: 'South Stadium',
-      nextMatch: '2024-08-24',
-      color: 'bg-red-600'
-    },
-    {
-      id: '6',
-      name: 'Thunder FC',
-      league: 'City Football Championship',
-      memberCount: 19,
-      maxMembers: 22,
-      isRecruiting: true,
-      requiredPosition: 'Forward',
-      location: 'Thunder Arena',
-      nextMatch: '2024-08-26',
-      color: 'bg-purple-600'
+      const response = await fetch(`/api/teams/discover?${params.toString()}`, {
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Failed to load discover teams:', response.status, errorText);
+        throw new Error(`Failed to load discover teams: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ Discover teams loaded:', result);
+      
+      setAvailableTeams(result.data || []);
+    } catch (error) {
+      console.error('Error loading discover teams:', error);
+      setAvailableTeams([]);
+    } finally {
+      setIsLoadingDiscoverTeams(false);
     }
-  ];
+  }, [session, searchQuery]);
 
   const teamColors = [
     { name: 'Blue', value: 'bg-blue-600', hex: '#2563eb' },
@@ -307,10 +351,45 @@ export default function TeamsPage() {
     loadLeagues();
   };
 
+  // Load discover teams when discover tab is active
+  useEffect(() => {
+    console.log('🔄🔍 DISCOVER TEAMS USEEFFECT TRIGGERED:', { 
+      activeTab, 
+      hasSession: !!session?.access_token,
+      hasLoadFunction: !!loadDiscoverTeams 
+    });
+    
+    if (activeTab === 'discover' && session?.access_token) {
+      console.log('✅🔍 CONDITIONS MET - CALLING loadDiscoverTeams');
+      loadDiscoverTeams();
+    } else {
+      console.log('❌🔍 CONDITIONS NOT MET for loadDiscoverTeams:', {
+        isDiscoverTab: activeTab === 'discover',
+        hasAccessToken: !!session?.access_token
+      });
+    }
+  }, [activeTab, session?.access_token, loadDiscoverTeams]);
 
+  // Reload discover teams when search query changes (with debounce)
+  useEffect(() => {
+    if (activeTab === 'discover' && session?.access_token) {
+      const timeoutId = setTimeout(() => {
+        loadDiscoverTeams();
+      }, 500); // 500ms debounce
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [searchQuery, activeTab, session?.access_token, loadDiscoverTeams]);
+
+
+  // Since API already handles filtering, we use teams directly
+  // But we still filter client-side for immediate responsiveness
   const filteredAvailableTeams = availableTeams.filter(team => {
+    if (!searchQuery.trim()) return true;
+    
     const matchesSearch = team.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         team.league.toLowerCase().includes(searchQuery.toLowerCase());
+                         team.league.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         (team.team_bio && team.team_bio.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesSearch && team.isRecruiting;
   });
 
@@ -365,9 +444,7 @@ export default function TeamsPage() {
     setIsSubmitting(true);
     
     try {
-      // Get current user session for authentication using dev auth
-      const session = await getSession();
-      
+      // Check if user is authenticated
       if (!session?.access_token) {
         throw new Error('Authentication required. Please sign in and try again.');
       }
@@ -567,7 +644,11 @@ export default function TeamsPage() {
                 </div>
               </button>
               <button
-                onClick={() => setActiveTab('discover')}
+                onClick={() => {
+                  console.log('🖱️🔍 DISCOVER TAB CLICKED - SWITCHING FROM', activeTab, 'TO discover');
+                  console.log('🔍 Current session state:', { hasSession: !!session, hasAccessToken: !!session?.access_token });
+                  setActiveTab('discover');
+                }}
                 className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
                   activeTab === 'discover'
                     ? 'border-blue-500 text-blue-600 dark:text-blue-400'
@@ -586,6 +667,61 @@ export default function TeamsPage() {
         {/* My Teams Tab */}
         {activeTab === 'my-teams' && (
           <div className="space-y-6">
+            {/* DEBUG: Show current myTeams state */}
+            <div className="bg-yellow-100 border border-yellow-300 rounded p-4 text-sm">
+              <strong>DEBUG:</strong> myTeams.length = {myTeams.length} | 
+              Teams: {JSON.stringify(myTeams.map(t => ({id: t.id, name: t.name})), null, 2)}
+            </div>
+
+            {/* Authentication Error Display */}
+            {authError && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+                <div className="flex items-start gap-3">
+                  <X className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5" />
+                  <div className="flex-1">
+                    <h3 className="font-medium text-red-800 dark:text-red-300 mb-1">
+                      Authentication Error
+                    </h3>
+                    <p className="text-sm text-red-700 dark:text-red-400 mb-4">
+                      {authError}
+                    </p>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        onClick={() => {
+                          clearAuthCookies();
+                          setAuthError(null);
+                          setRetryCount(0);
+                          setTimeout(() => window.location.reload(), 500);
+                        }}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
+                      >
+                        Clear Cookies & Refresh
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAuthError(null);
+                          setRetryCount(0);
+                          window.location.reload();
+                        }}
+                        className="px-4 py-2 border border-red-300 dark:border-red-600 text-red-700 dark:text-red-300 text-sm font-medium rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                      >
+                        Just Refresh
+                      </button>
+                      <button
+                        onClick={() => {
+                          setAuthError(null);
+                          setRetryCount(0);
+                        }}
+                        className="px-4 py-2 border border-red-300 dark:border-red-600 text-red-700 dark:text-red-300 text-sm font-medium rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {myTeams.length === 0 ? (
               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
                 <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -644,16 +780,16 @@ export default function TeamsPage() {
                     <div className="grid grid-cols-3 gap-4 mb-4">
                       <div className="text-center">
                         <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                          {team.stats.position}
+                          {team.stats?.position || '-'}
                         </div>
                         <div className="text-xs text-gray-600 dark:text-gray-400">
-                          of {team.stats.totalTeams}
+                          of {team.stats?.totalTeams || '-'}
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-500">Position</div>
                       </div>
                       <div className="text-center">
                         <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                          {calculateWinRate(team.stats.wins, team.stats.draws, team.stats.losses)}%
+                          {team.stats ? calculateWinRate(team.stats.wins, team.stats.draws, team.stats.losses) : 0}%
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-500">Win Rate</div>
                       </div>
@@ -738,78 +874,117 @@ export default function TeamsPage() {
               </div>
             </div>
 
-            {/* Available Teams */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredAvailableTeams.map((team) => (
-                <div key={team.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-shadow">
-                  {/* Team Header */}
-                  <div className="flex items-center gap-3 mb-4">
-                    <div 
-                      className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold ${getColorDisplay(team.color).className}`}
-                      style={getColorDisplay(team.color).style}
-                    >
-                      {team.name.charAt(0)}
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-gray-900 dark:text-white">
-                        {team.name}
-                      </h3>
-                      <p className="text-gray-600 dark:text-gray-400 text-sm">
-                        Football Team
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Team Info */}
-                  <div className="space-y-3 mb-4">
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      <strong className="text-gray-900 dark:text-white">{team.league}</strong>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <MapPin className="w-4 h-4" />
-                      {team.location}
-                    </div>
-
-                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <Users className="w-4 h-4" />
-                      {team.memberCount}/{team.maxMembers} members
-                    </div>
-
-                    {team.requiredPosition && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <Target className="w-4 h-4 text-blue-500" />
-                        <span className="text-blue-700 dark:text-blue-300 font-medium">
-                          Looking for: {team.requiredPosition}
-                        </span>
-                      </div>
-                    )}
-
-                    {team.nextMatch && (
-                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                        <Calendar className="w-4 h-4" />
-                        Next match: {formatDate(team.nextMatch)}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Join Button */}
-                  <button className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">
-                    <UserPlus className="w-4 h-4" />
-                    Request to Join
-                  </button>
+            {/* Loading State */}
+            {isLoadingDiscoverTeams && (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+                  <p className="text-gray-600 dark:text-gray-400">Loading available teams...</p>
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
 
-            {filteredAvailableTeams.length === 0 && (
+            {/* Available Teams */}
+            {!isLoadingDiscoverTeams && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredAvailableTeams.map((team) => (
+                  <div key={team.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-shadow">
+                    {/* Team Header */}
+                    <div className="flex items-center gap-3 mb-4">
+                      <div 
+                        className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold ${getColorDisplay(team.team_color).className}`}
+                        style={getColorDisplay(team.team_color).style}
+                      >
+                        {team.name.charAt(0)}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-gray-900 dark:text-white">
+                          {team.name}
+                        </h3>
+                        <p className="text-gray-600 dark:text-gray-400 text-sm">
+                          {team.league}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Team Info */}
+                    <div className="space-y-3 mb-4">
+                      {team.team_bio && (
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          {team.team_bio.length > 100 ? `${team.team_bio.substring(0, 100)}...` : team.team_bio}
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                        <MapPin className="w-4 h-4" />
+                        {team.location}
+                      </div>
+
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                        <Users className="w-4 h-4" />
+                        {team.memberCount}/{team.maxMembers} members
+                      </div>
+
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                        <Crown className="w-4 h-4" />
+                        Captain: {team.captain}
+                      </div>
+
+                      {team.availableSpots > 0 && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <Target className="w-4 h-4 text-green-500" />
+                          <span className="text-green-700 dark:text-green-300 font-medium">
+                            {team.availableSpots} spots available
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Team Stats */}
+                      <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-gray-900 dark:text-white">
+                            {team.stats?.wins || 0}
+                          </div>
+                          <div className="text-xs text-gray-500">Wins</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-gray-900 dark:text-white">
+                            {team.stats?.draws || 0}
+                          </div>
+                          <div className="text-xs text-gray-500">Draws</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-gray-900 dark:text-white">
+                            {team.stats?.losses || 0}
+                          </div>
+                          <div className="text-xs text-gray-500">Losses</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Join Button */}
+                    <button 
+                      onClick={() => router.push(`/teams/${team.id}`)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      View Team
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!isLoadingDiscoverTeams && filteredAvailableTeams.length === 0 && (
               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
                 <Search className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                  No teams found
+                  {searchQuery.trim() ? 'No teams match your search' : 'No teams available'}
                 </h3>
                 <p className="text-gray-600 dark:text-gray-400">
-                  Try adjusting your search criteria or check back later for new teams.
+                  {searchQuery.trim() 
+                    ? 'Try adjusting your search criteria or check back later for new teams.' 
+                    : 'Check back later for new teams looking for members.'}
                 </p>
               </div>
             )}

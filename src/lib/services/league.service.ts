@@ -78,10 +78,17 @@ export class LeagueService {
    * Handle service errors consistently
    */
   private handleError(error: any, operation: string): ServiceError {
-    console.error(`LeagueService.${operation}:`, error);
+    console.error(`LeagueService.${operation}:`, {
+      error,
+      code: error?.code,
+      message: error?.message,
+      stack: error?.stack,
+      type: typeof error,
+      keys: Object.keys(error || {})
+    });
     return {
-      code: error.code || 'UNKNOWN_ERROR',
-      message: error.message || 'An unexpected error occurred',
+      code: error?.code || 'UNKNOWN_ERROR',
+      message: error?.message || 'An unexpected error occurred',
       details: error.details || error,
       timestamp: new Date().toISOString()
     };
@@ -286,6 +293,7 @@ export class LeagueService {
     options: { userId?: string } = {}
   ): Promise<ServiceResponse<LeagueDiscovery>> {
     try {
+      console.log('LeagueService.getLeagueDetails - Starting:', { leagueId, options });
       const cacheKey = this.getCacheKey('getLeagueDetails', { leagueId });
       const cached = this.getFromCache<LeagueDiscovery>(cacheKey);
       
@@ -293,83 +301,99 @@ export class LeagueService {
         return { data: cached, error: null, success: true };
       }
 
-      // Use our API endpoint instead of direct Supabase
-      const baseUrl = typeof window !== 'undefined' 
-        ? window.location.origin 
-        : process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001';
-      
-      const response = await fetch(`${baseUrl}/api/leagues/${leagueId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          return {
-            data: null,
-            error: { code: 'LEAGUE_NOT_FOUND', message: 'League not found', timestamp: new Date().toISOString() },
-            success: false
-          };
-        }
+      // Use API endpoint instead of direct Supabase query to avoid RLS issues
+      let league;
+      try {
+        const response = await fetch(`/api/leagues/${leagueId}`);
+        const result = await response.json();
         
-        if (response.status === 400) {
-          // Try to get the error message from the response
-          try {
-            const errorResult = await response.json();
+        if (!response.ok || !result.success) {
+          if (response.status === 404) {
             return {
               data: null,
-              error: { 
-                code: 'INVALID_LEAGUE_ID', 
-                message: errorResult.error || 'Invalid league ID', 
-                timestamp: new Date().toISOString() 
-              },
-              success: false
-            };
-          } catch {
-            return {
-              data: null,
-              error: { 
-                code: 'INVALID_LEAGUE_ID', 
-                message: 'Invalid league ID format', 
-                timestamp: new Date().toISOString() 
-              },
+              error: { code: 'LEAGUE_NOT_FOUND', message: 'League not found', timestamp: new Date().toISOString() },
               success: false
             };
           }
+          throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
         }
         
-        throw new Error(`API request failed: ${response.status}`);
+        league = result.data;
+      } catch (error) {
+        console.error('LeagueService.getLeagueDetails - API request error:', error);
+        return {
+          data: null,
+          error: { 
+            code: 'API_ERROR', 
+            message: error instanceof Error ? error.message : 'Failed to fetch league details via API', 
+            timestamp: new Date().toISOString() 
+          },
+          success: false
+        };
       }
 
-      const apiResult = await response.json();
+      // Process the league data to include statistics
+      console.log('LeagueService.getLeagueDetails - Processing league:', { leagueId, hasTeams: !!league.teams, teamsCount: league.teams?.length });
+      const teams = league.teams || [];
+      const teamCount = teams.length;
       
-      if (!apiResult.success || !apiResult.data) {
-        throw new Error(apiResult.error || 'Failed to fetch league details');
-      }
+      // Calculate total active players across all teams
+      const playerCount = teams.reduce((total, team) => {
+        const activeMembers = team.team_members?.filter(member => member.is_active) || [];
+        return total + activeMembers.length;
+      }, 0);
 
-      const league = apiResult.data;
+      // Calculate available spots across all teams
+      const availableSpots = teams.reduce((total, team) => {
+        const activeMembers = team.team_members?.filter(member => member.is_active) || [];
+        const maxPlayers = team.max_players || 22;
+        return total + Math.max(0, maxPlayers - activeMembers.length);
+      }, 0);
+
+      // Clean up team member data for response
+      const processedTeams = teams.map(team => ({
+        ...team,
+        currentPlayers: team.team_members?.filter(member => member.is_active).length || 0,
+        members: team.team_members?.filter(member => member.is_active).map(member => ({
+          id: member.id,
+          user_id: member.user_id,
+          position: member.position,
+          jersey_number: member.jersey_number,
+          joined_at: member.joined_at,
+          user_name: null, // User details not available in this query
+          user_email: null // User details not available in this query
+        })) || []
+      }));
+
+      // Remove the raw team_members data
+      processedTeams.forEach(team => delete team.team_members);
       
       // Check if user is member (if userId provided)
       let isUserMember = false;
       let joinRequests: TeamJoinRequest[] = [];
       
-      if (options.userId && league.teams) {
-        // For now, we'll implement a simple check
-        // In a full implementation, you'd make another API call to check membership
-        isUserMember = false;
-        joinRequests = [];
+      if (options.userId && teams.length > 0) {
+        // Check if user is a member of any team in this league
+        const userTeams = teams.filter(team => 
+          team.team_members?.some(member => 
+            member.user_id === options.userId && member.is_active
+          )
+        );
+        isUserMember = userTeams.length > 0;
       }
 
       const leagueDiscovery: LeagueDiscovery = {
         ...league,
-        teams: league.teams || [],
-        teamCount: league.teamCount || 0,
-        playerCount: league.playerCount || 0,
-        availableSpots: league.availableSpots || 0,
+        teams: processedTeams,
+        teamCount,
+        playerCount,
+        availableSpots,
         isUserMember,
-        joinRequests: options.userId ? joinRequests : undefined
+        joinRequests: options.userId ? joinRequests : undefined,
+        // Add derived stats
+        isOpenForTeams: teamCount < (league.max_teams || 16),
+        hasActiveTeams: teamCount > 0,
+        averagePlayersPerTeam: teamCount > 0 ? Math.round(playerCount / teamCount * 10) / 10 : 0
       };
 
       // Cache if not user-specific
@@ -413,7 +437,7 @@ export class LeagueService {
 
       // Get user profile and stats
       const { data: userProfile, error: profileError } = await this.supabase
-        .from('user_profiles')
+        .from('users')
         .select('*')
         .eq('id', userId)
         .single();
@@ -505,7 +529,7 @@ export class LeagueService {
       // Get captain details
       const captainIds = teams?.map(t => t.captain_id).filter(Boolean) || [];
       const { data: captains } = captainIds.length > 0 ? await this.supabase
-        .from('user_profiles')
+        .from('users')
         .select('id, display_name')
         .in('id', captainIds) : { data: [] };
 

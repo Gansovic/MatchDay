@@ -9,7 +9,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useAuth } from '@/components/auth/dev-auth-provider';
+import { useAuth } from '@/components/auth/supabase-auth-provider';
 import { LiveMatchScorer, LiveMatch, MatchPlayer } from '@/components/matches/live-match-scorer';
 import { ArrowLeft, Users, Settings, Share2, Loader2, AlertCircle } from 'lucide-react';
 

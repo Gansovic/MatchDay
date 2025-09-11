@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Browser Authentication</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h2>Browser Authentication Test</h2>
+    <div id="result"></div>
+    <button onclick="testAuth()">Test Authentication</button>
+
+    <script>
+        const supabaseUrl = 'http://localhost:8000';
+        const supabaseKey = 'wmIL9fNxipY7cwMtkAA6TGKvIB17LNZweLAlnttuyvc=';
+        
+        // Fix: Rename client variable to avoid naming conflict
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey, {
+            auth: {
+                flowType: 'implicit'
+            }
+        });
+
+        async function testAuth() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing authentication...';
+            
+            try {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
+                    email: 'player@matchday.com',
+                    password: 'player123!'
+                });
+                
+                if (error) {
+                    resultDiv.innerHTML = `<div style="color: red;">Error: ${error.message}</div>`;
+                } else {
+                    resultDiv.innerHTML = `<div style="color: green;">Success! User: ${data.user.email}</div>`;
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `<div style="color: red;">Exception: ${err.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

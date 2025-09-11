@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/components/auth/dev-auth-provider';
+import { useAuth } from '@/components/auth/supabase-auth-provider';
 
 export default function DevLoginPage() {
   const router = useRouter();
@@ -13,8 +13,8 @@ export default function DevLoginPage() {
   const devUsers = [
     { email: 'player@matchday.com', password: 'player123!', name: 'Player User', role: 'player' },
     { email: 'admin@matchday.com', password: 'admin123!', name: 'Admin User', role: 'admin' },
-    { email: 'john.doe@example.com', password: 'admin123!', name: 'John Doe', role: 'captain' },
-    { email: 'jane.smith@example.com', password: 'admin123!', name: 'Jane Smith', role: 'player' },
+    { email: 'captain@matchday.com', password: 'admin123!', name: 'Team Captain', role: 'captain' },
+    { email: 'member@matchday.com', password: 'admin123!', name: 'Team Member', role: 'player' },
   ];
 
   const handleLogin = async (email: string, password: string) => {

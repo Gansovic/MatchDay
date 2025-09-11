@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import DirectDatabaseService from '@/lib/database/direct-db.service';
+import { createAdminSupabaseClient } from '@/lib/supabase/server-client';
+import { SeasonService } from '@/lib/services/season.service';
 
 export async function OPTIONS() {
   const response = new NextResponse(null, { status: 200 });
@@ -14,7 +15,143 @@ export async function GET(
   { params }: { params: Promise<{ leagueId: string }> }
 ) {
   try {
+    console.log('[Seasons API] Starting GET request');
+    
     const { leagueId } = await params;
+    console.log('[Seasons API] Parameters resolved:', { leagueId });
+    
+    if (!leagueId) {
+      console.log('[Seasons API] Missing league ID');
+      return NextResponse.json(
+        { 
+          success: false,
+          data: null,
+          error: 'League ID is required' 
+        },
+        { status: 400 }
+      );
+    }
+
+    // Validate UUID format (more lenient to accept all valid UUID formats)
+    console.log('[Seasons API] Validating UUID format...');
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(leagueId)) {
+      console.log('[Seasons API] Invalid UUID format:', leagueId);
+      return NextResponse.json(
+        { 
+          success: false,
+          data: null,
+          error: 'Invalid league ID format. Expected UUID.' 
+        },
+        { status: 400 }
+      );
+    }
+    
+    console.log('[Seasons API] UUID validation passed');
+
+    // Query seasons from Supabase production database
+    console.log('[Seasons API] Querying seasons from Supabase for league:', leagueId);
+    const supabase = createAdminSupabaseClient();
+    
+    // Get seasons with team registration counts
+    const { data: seasons, error: seasonsError } = await (supabase as any)
+      .from('seasons')
+      .select(`
+        id, name, display_name, league_id, season_year, 
+        start_date, end_date, is_current, is_active, status, 
+        description, tournament_format, registration_deadline, 
+        match_frequency, preferred_match_time, min_teams, max_teams,
+        rounds, total_matches_planned, points_for_win, points_for_draw, 
+        points_for_loss, allow_draws, home_away_balance, fixtures_status,
+        fixtures_generated_at, rules, settings, metadata,
+        created_at, updated_at, created_by, updated_by
+      `)
+      .eq('league_id', leagueId)
+      .order('season_year', { ascending: false });
+      
+    if (seasonsError) {
+      console.error('[Seasons API] Supabase query error:', seasonsError);
+      throw new Error(`Failed to fetch seasons: ${seasonsError.message}`);
+    }
+    
+    console.log('[Seasons API] Supabase query successful. Seasons count:', seasons?.length || 0);
+    
+    // Enhance seasons with team registration counts
+    const seasonsWithCounts = await Promise.all(
+      (seasons || []).map(async (season: any) => {
+        try {
+          const { data: teamRegs, error: teamError } = await (supabase as any)
+            .from('season_teams')
+            .select('id')
+            .eq('season_id', season.id)
+            .in('status', ['registered', 'active']);
+            
+          if (teamError) {
+            console.warn('[Seasons API] Team count query failed for season:', season.id, teamError);
+          }
+          
+          return {
+            ...season,
+            registered_teams_count: teamRegs?.length || 0
+          };
+        } catch (error) {
+          console.warn('[Seasons API] Failed to get team count for season:', season.id, error);
+          return {
+            ...season,
+            registered_teams_count: 0
+          };
+        }
+      })
+    );
+
+    const response = NextResponse.json({
+      success: true,
+      data: seasonsWithCounts,
+      error: null,
+      message: 'Seasons retrieved successfully'
+    });
+    
+    // Add CORS headers
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    console.log('[Seasons API] Request completed successfully');
+    return response;
+    
+  } catch (error) {
+    console.error('[Seasons API] Error occurred:', error);
+    console.error('[Seasons API] Error details:', {
+      leagueId: leagueId || 'unknown',
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      errorType: typeof error,
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    
+    // Return proper error response
+    const response = NextResponse.json({
+      success: false,
+      data: null,
+      error: error instanceof Error ? error.message : 'Internal server error',
+      message: 'Failed to fetch seasons'
+    }, { status: 500 });
+    
+    // Add CORS headers
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    return response;
+  }
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ leagueId: string }> }
+) {
+  try {
+    const { leagueId } = await params;
+    const body = await request.json();
     
     if (!leagueId) {
       return NextResponse.json(
@@ -27,8 +164,8 @@ export async function GET(
       );
     }
 
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    // Validate UUID format (more lenient to accept all valid UUID formats)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(leagueId)) {
       return NextResponse.json(
         { 
@@ -40,182 +177,88 @@ export async function GET(
       );
     }
 
-    const dbService = DirectDatabaseService.getInstance();
-    const client = await dbService['pool'].connect();
-    
-    try {
-      // Get seasons for this league
-      const seasonsResult = await client.query(`
-        SELECT 
-          s.*,
-          COUNT(DISTINCT m.id) as total_matches,
-          COUNT(DISTINCT CASE WHEN m.status = 'completed' THEN m.id END) as completed_matches,
-          COUNT(DISTINCT CASE WHEN m.status = 'scheduled' THEN m.id END) as scheduled_matches,
-          COUNT(DISTINCT t.id) as registered_teams
-        FROM seasons s
-        LEFT JOIN matches m ON s.id = m.season_id
-        LEFT JOIN teams t ON s.league_id = t.league_id
-        WHERE s.league_id = $1 AND s.is_active = true
-        GROUP BY s.id
-        ORDER BY s.is_current DESC, s.start_date DESC
-      `, [leagueId]);
-
-      const seasons = seasonsResult.rows.map(season => ({
-        id: season.id,
-        name: season.name,
-        display_name: season.display_name,
-        start_date: season.start_date,
-        end_date: season.end_date,
-        is_current: season.is_current,
-        is_active: season.is_active,
-        league_id: season.league_id,
-        description: season.description,
-        max_teams: season.max_teams,
-        registration_start: season.registration_start,
-        registration_end: season.registration_end,
-        created_at: season.created_at,
-        updated_at: season.updated_at,
-        stats: {
-          total_matches: parseInt(season.total_matches) || 0,
-          completed_matches: parseInt(season.completed_matches) || 0,
-          scheduled_matches: parseInt(season.scheduled_matches) || 0,
-          registered_teams: parseInt(season.registered_teams) || 0
-        }
-      }));
-
-      const response = NextResponse.json({
-        success: true,
-        data: seasons,
-        error: null
-      });
-      
-      // Add CORS headers
-      response.headers.set('Access-Control-Allow-Origin', '*');
-      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      
-      return response;
-      
-    } finally {
-      client.release();
-    }
-  } catch (error) {
-    console.error('Database query error:', error);
-    return NextResponse.json(
-      { 
-        success: false,
-        data: null,
-        error: 'Failed to fetch league seasons' 
-      },
-      { status: 500 }
-    );
-  }
-}
-
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ leagueId: string }> }
-) {
-  try {
-    const { leagueId } = await params;
-    const body = await request.json();
-    
-    const { 
-      name, 
-      display_name, 
-      start_date, 
-      end_date, 
-      is_current = false,
-      description, 
-      max_teams,
-      registration_start,
-      registration_end 
-    } = body;
-
-    if (!leagueId || !name || !start_date || !end_date) {
+    const { name, start_date, end_date } = body;
+    if (!name || !start_date || !end_date) {
       return NextResponse.json(
         { 
           success: false,
           data: null,
-          error: 'League ID, name, start_date, and end_date are required' 
+          error: 'Name, start_date, and end_date are required' 
         },
         { status: 400 }
       );
     }
 
-    // Validate UUID format
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(leagueId)) {
+    // Validate dates
+    const startDate = new Date(start_date);
+    const endDate = new Date(end_date);
+    if (startDate >= endDate) {
       return NextResponse.json(
-        { 
-          success: false,
-          data: null,
-          error: 'Invalid league ID format. Expected UUID.' 
-        },
+        { success: false, error: 'End date must be after start date' },
         { status: 400 }
       );
     }
 
-    const dbService = DirectDatabaseService.getInstance();
-    const client = await dbService['pool'].connect();
-    
-    try {
-      // Start transaction
-      await client.query('BEGIN');
+    const supabase = createAdminSupabaseClient();
+    const seasonService = SeasonService.getInstance(supabase);
 
-      // If this is set as current season, unset other current seasons for this league
-      if (is_current) {
-        await client.query(`
-          UPDATE seasons 
-          SET is_current = false, updated_at = CURRENT_TIMESTAMP
-          WHERE league_id = $1 AND is_current = true
-        `, [leagueId]);
+    // Check if league exists
+    const { data: league, error: leagueError } = await supabase
+      .from('leagues')
+      .select('id, name')
+      .eq('id', leagueId)
+      .single();
+
+    if (leagueError) {
+      if (leagueError.code === 'PGRST116') {
+        return NextResponse.json(
+          { success: false, error: 'League not found' },
+          { status: 404 }
+        );
       }
-
-      // Create new season
-      const seasonResult = await client.query(`
-        INSERT INTO seasons (
-          league_id, name, display_name, start_date, end_date, 
-          is_current, description, max_teams, registration_start, registration_end
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING *
-      `, [
-        leagueId, name, display_name, start_date, end_date,
-        is_current, description, max_teams, registration_start, registration_end
-      ]);
-
-      // Commit transaction
-      await client.query('COMMIT');
-
-      const newSeason = {
-        ...seasonResult.rows[0],
-        stats: {
-          total_matches: 0,
-          completed_matches: 0,
-          scheduled_matches: 0,
-          registered_teams: 0
-        }
-      };
-
-      const response = NextResponse.json({
-        success: true,
-        data: newSeason,
-        error: null
-      });
-      
-      // Add CORS headers
-      response.headers.set('Access-Control-Allow-Origin', '*');
-      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      
-      return response;
-      
-    } catch (dbError) {
-      await client.query('ROLLBACK');
-      throw dbError;
-    } finally {
-      client.release();
+      throw leagueError;
     }
+
+    // Create the season
+    const seasonData = {
+      ...body,
+      league_id: leagueId,
+      season_year: body.season_year || new Date(start_date).getFullYear()
+    };
+
+    const result = await seasonService.createSeason(seasonData);
+
+    if (!result.success) {
+      if (result.error?.code === '23505') { // Unique constraint violation
+        return NextResponse.json(
+          { success: false, error: 'A season with this year already exists for this league' },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json(
+        { 
+          success: false,
+          data: null,
+          error: result.error || 'Failed to create season' 
+        },
+        { status: 500 }
+      );
+    }
+
+    const response = NextResponse.json({
+      success: true,
+      data: result.data,
+      error: null,
+      message: result.message
+    });
+    
+    // Add CORS headers
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    
+    return response;
+    
   } catch (error) {
     console.error('Database query error:', error);
     return NextResponse.json(

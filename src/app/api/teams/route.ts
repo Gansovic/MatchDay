@@ -7,12 +7,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { TeamService } from '@/lib/services/team.service';
-import { Database } from '@/lib/types/database.types';
-import jwt from 'jsonwebtoken';
-import DirectDatabaseService from '@/lib/database/direct-db.service';
-
+import { createServerSupabaseClient } from '@/lib/supabase/server-client';
+import { validateApiAuth } from '@/lib/auth/api-auth';
 
 interface CreateTeamRequest {
   name: string;
@@ -39,33 +36,6 @@ interface CleanTeamData {
   team_color?: string;
 }
 
-/**
- * Create a Supabase client for API routes with proper auth token handling
- */
-function createServerSupabaseClient(request: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase environment variables');
-  }
-  
-  // Use service role key for backend operations to bypass RLS
-  const supabase = createClient<Database>(supabaseUrl, supabaseServiceKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false
-    },
-    global: {
-      headers: {
-        'X-Client-Info': 'matchday-api@1.0.0'
-      }
-    }
-  });
-  
-  return supabase;
-}
 
 /**
  * Validate team creation request data
@@ -134,61 +104,44 @@ function validateTeamCreationRequest(data: any): {
  */
 export async function GET(request: NextRequest) {
   try {
-    // Development mode: Use a default user if no proper auth
-    let userId: string = 'eec00b4f-7e94-4d76-8f2a-7364b49d1c86'; // Default to player@matchday.com
+    // Validate authentication with consistent error handling
+    const authResult = await validateApiAuth(request);
+    if (!authResult.success) {
+      return authResult.response!;
+    }
     
-    if (process.env.NODE_ENV === 'production') {
-      // Only enforce JWT in production
-      const authHeader = request.headers.get('authorization');
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return NextResponse.json(
-          { error: 'Unauthorized', message: 'Authentication required' },
-          { status: 401 }
-        );
-      }
+    const { user } = authResult;
+    console.log('✅ Authenticated user for teams API:', user.id);
 
-      const token = authHeader.replace('Bearer ', '');
-      
-      // Verify JWT token manually and extract user info
-      try {
-        const jwtSecret = process.env.SUPABASE_JWT_SECRET || 'jUZj2O0d4B9nxxsU6p7xN3x81z9UGdY/lqbfIlUKb/Q=';
-        const decoded = jwt.verify(token, jwtSecret) as any;
-        userId = decoded.sub;
-        
-        if (!userId) {
-          throw new Error('No user ID in token');
-        }
-        
-        console.log('✅ JWT token verified for user:', userId);
-      } catch (jwtError) {
-        console.error('JWT verification failed:', jwtError);
-        return NextResponse.json(
-          { error: 'Unauthorized', message: 'Invalid or expired authentication token' },
-          { status: 401 }
-        );
-      }
-    } else {
-      console.log('🧪 Development mode: Using default user for teams API');
+    // Use TeamService to get user teams
+    const teamService = TeamService.getInstance(await createServerSupabaseClient());
+    const result = await teamService.getUserTeams(user.id, { includeInactive: false });
+    
+    if (!result.success || !result.data) {
+      console.error('Error fetching user teams:', result.error);
+      return NextResponse.json(
+        { error: 'Failed to fetch teams', message: result.error || 'Could not retrieve your teams' },
+        { status: 500 }
+      );
     }
 
-    // Use direct database service to get user teams
-    const dbService = DirectDatabaseService.getInstance();
-    const userTeams = await dbService.getUserTeams(userId);
-
-    // Convert database result to the format expected by the frontend
-    const teams = userTeams.map(team => ({
+    // Convert to API response format
+    const teams = result.data.map(team => ({
       id: team.id,
       name: team.name,
-      league: { name: team.league_name || 'Unknown League', id: team.league_id || '' },
+      league: { 
+        name: team.league?.name || 'Independent', 
+        id: team.league?.id || null 
+      },
       sport: 'football',
-      max_players: team.max_players || 22,
-      current_members: team.member_count || 1,
-      team_color: team.team_color,
-      team_bio: team.team_bio,
-      created_at: team.created_at,
-      captain_id: team.captain_id,
-      memberCount: team.member_count || 1,
-      stats: null // TODO: Add stats calculation
+      max_players: team.maxPlayers || 22,
+      current_members: team.memberCount || 0,
+      team_color: team.teamColor,
+      team_bio: team.teamBio,
+      created_at: team.createdAt,
+      captain_id: team.captainId,
+      memberCount: team.memberCount || 0,
+      stats: team.stats || null
     }));
 
     return NextResponse.json({
@@ -237,53 +190,60 @@ export async function POST(request: NextRequest) {
 
     const teamData = validation.cleanData!;
 
-    // Development mode: Use a default user if no proper auth
-    let captainId: string = 'eec00b4f-7e94-4d76-8f2a-7364b49d1c86'; // Default to player@matchday.com
-    
-    if (process.env.NODE_ENV === 'production') {
-      // Only enforce JWT in production
-      const authHeader = request.headers.get('authorization');
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return NextResponse.json(
-          { error: 'Unauthorized', message: 'Authentication required' },
-          { status: 401 }
-        );
-      }
-
-      const token = authHeader.replace('Bearer ', '');
-
-      // Verify JWT token manually and extract user info
-      try {
-        const jwtSecret = process.env.SUPABASE_JWT_SECRET || 'jUZj2O0d4B9nxxsU6p7xN3x81z9UGdY/lqbfIlUKb/Q=';
-        const decoded = jwt.verify(token, jwtSecret) as any;
-        captainId = decoded.sub;
-        
-        if (!captainId) {
-          throw new Error('No user ID in token');
-        }
-        
-        console.log('✅ JWT token verified for user:', captainId);
-      } catch (jwtError) {
-        console.error('JWT verification failed:', jwtError);
-        return NextResponse.json(
-          { error: 'Unauthorized', message: 'Invalid or expired authentication token' },
-          { status: 401 }
-        );
-      }
-    } else {
-      console.log('🧪 Development mode: Using default user for team creation');
+    // Validate authentication with consistent error handling
+    const authResult = await validateApiAuth(request);
+    if (!authResult.success) {
+      return authResult.response!;
     }
+    
+    const { user } = authResult;
+    const captainId = user.id;
+    const captainEmail = user.email || 'unknown@matchday.com';
+    console.log('✅ Authenticated captain for team creation:', captainId, captainEmail);
 
-    // Use direct database service to bypass Supabase PostgREST issues
-    const dbService = DirectDatabaseService.getInstance();
+    // Use Supabase to create team
+    const supabase = await createServerSupabaseClient();
+    
+    // Ensure the user exists in the users table (required for foreign key constraint)
+    const { data: existingUser, error: userCheckError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', captainId)
+      .single();
+    
+    if (userCheckError || !existingUser) {
+      // User doesn't exist in users table, create a basic profile
+      console.log('Creating user profile for captain:', captainId);
+      const { error: userCreateError } = await supabase
+        .from('users')
+        .insert({
+          id: captainId,
+          email: captainEmail,
+          full_name: 'Team Captain',
+          role: 'player'
+        });
+      
+      if (userCreateError) {
+        console.error('Failed to create user profile:', userCreateError);
+        return NextResponse.json(
+          { error: 'User setup failed', message: 'Could not prepare user account for team creation' },
+          { status: 500 }
+        );
+      }
+    }
     
     // Find the league by name (if provided)
     let league = null;
     if (teamData.league && teamData.league.trim().length > 0) {
-      league = await dbService.findLeagueByName(teamData.league);
+      const { data: leagueData, error: leagueError } = await supabase
+        .from('leagues')
+        .select('id, name')
+        .eq('name', teamData.league)
+        .eq('is_active', true)
+        .single();
       
-      if (!league) {
-        console.error('League not found:', teamData.league);
+      if (leagueError || !leagueData) {
+        console.error('League not found:', teamData.league, leagueError);
         return NextResponse.json(
           { 
             error: 'League not found', 
@@ -294,35 +254,80 @@ export async function POST(request: NextRequest) {
         );
       }
       
+      league = leagueData;
       console.log('✅ Found league:', league.name);
     } else {
       console.log('✅ Creating independent team (no league)');
     }
 
-    // Create the team using direct database service
-    const result = await dbService.createTeam({
-      name: teamData.name,
-      league_id: league?.id || null, // Allow null league_id for independent teams
-      captain_id: captainId,
-      team_color: teamData.team_color,
-      max_players: teamData.max_players,
-      min_players: teamData.min_players,
-      team_bio: teamData.description
-    });
+    // Create the team using Supabase
+    const { data: teamResult, error: teamError } = await supabase
+      .from('teams')
+      .insert({
+        name: teamData.name,
+        league_id: league?.id || null,
+        captain_id: captainId,
+        team_color: teamData.team_color || '#1E40AF',
+        max_players: teamData.max_players || 22,
+        min_players: teamData.min_players || 7,
+        team_bio: teamData.description
+      })
+      .select('*')
+      .single();
 
-    if (!result.success || !result.data) {
+    if (teamError || !teamResult) {
+      console.error('Team creation failed:', teamError);
       return NextResponse.json(
         { 
-          error: result.error?.code || 'Team creation failed', 
-          message: result.error?.message || 'Failed to create team'
+          error: 'Team creation failed', 
+          message: teamError?.message || 'Failed to create team'
         },
         { status: 400 }
       );
     }
 
+    // Add the captain as a team member
+    console.log('🔍 Adding captain as team member:', { teamId: teamResult.id, captainId, position: 'midfielder' });
+    const { data: memberData, error: memberError } = await supabase
+      .from('team_members')
+      .insert({
+        team_id: teamResult.id,
+        user_id: captainId,
+        position: 'midfielder' // Captain will be indicated by captain_id field in teams table
+      })
+      .select('*');
+
+    if (memberError) {
+      console.error('❌ Failed to add captain as team member:', {
+        error: memberError,
+        errorCode: memberError.code,
+        errorMessage: memberError.message,
+        errorDetails: memberError.details,
+        teamId: teamResult.id,
+        captainId
+      });
+      // This is critical for team functionality - return error instead of ignoring
+      return NextResponse.json(
+        { 
+          error: 'Team membership creation failed', 
+          message: 'Team was created but captain membership failed',
+          details: memberError.message
+        },
+        { status: 500 }
+      );
+    } else {
+      console.log('✅ Captain successfully added as team member:', memberData);
+    }
+
     // Format response to match expected frontend format
     const responseData = {
-      ...result.data,
+      id: teamResult.id,
+      name: teamResult.name,
+      team_color: teamResult.team_color,
+      team_bio: teamResult.team_bio,
+      captain_id: teamResult.captain_id,
+      max_players: teamResult.max_players,
+      created_at: teamResult.created_at,
       league: league ? {
         id: league.id,
         name: league.name

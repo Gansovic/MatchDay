@@ -172,14 +172,101 @@ export const LiveMatchScorer: React.FC<LiveMatchScorerProps> = ({
     };
   }, []);
 
+  const generatePlayerStats = () => {
+    // Aggregate player statistics from match events
+    const playerStatsMap = new Map();
+    
+    match.events.forEach(event => {
+      const key = `${event.player_id}-${event.team_id}`;
+      if (!playerStatsMap.has(key)) {
+        playerStatsMap.set(key, {
+          user_id: event.player_id,
+          goals: 0,
+          assists: 0,
+          minutes_played: 90, // Default to 90 minutes, could be enhanced with substitution tracking
+          yellow_cards: 0,
+          red_cards: 0,
+          clean_sheets: 0,
+          saves: 0
+        });
+      }
+      
+      const stats = playerStatsMap.get(key);
+      
+      switch (event.type) {
+        case 'goal':
+        case 'own_goal':
+          stats.goals += 1;
+          break;
+        case 'assist':
+          stats.assists += 1;
+          break;
+        case 'yellow_card':
+          stats.yellow_cards += 1;
+          break;
+        case 'red_card':
+          stats.red_cards += 1;
+          break;
+      }
+    });
+    
+    // Separate stats by team
+    const homeTeamStats = [];
+    const awayTeamStats = [];
+    
+    playerStatsMap.forEach((stats, key) => {
+      const [playerId, teamId] = key.split('-');
+      if (teamId === match.home_team.id) {
+        homeTeamStats.push(stats);
+      } else if (teamId === match.away_team.id) {
+        awayTeamStats.push(stats);
+      }
+    });
+    
+    return {
+      homeTeamStats,
+      awayTeamStats
+    };
+  };
+
   const saveMatchState = async () => {
     try {
-      // Mock save to localStorage for offline capability
+      // Save to localStorage for offline capability
       localStorage.setItem(`match_${match.id}`, JSON.stringify(match));
+      
+      // If match is completed, send comprehensive update with player stats
+      if (match.status === 'completed') {
+        const playerStats = generatePlayerStats();
+        
+        const response = await fetch(`/api/matches/${match.id}/score`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            homeScore: match.home_team.score,
+            awayScore: match.away_team.score,
+            status: match.status,
+            matchDuration: Math.floor(match.session_time * match.current_session),
+            notes: `Match completed at ${new Date().toLocaleTimeString()}`,
+            playerStats: playerStats.homeTeamStats.length > 0 || playerStats.awayTeamStats.length > 0 ? playerStats : undefined
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to save match');
+        }
+        
+        console.log('✅ Match completed and player statistics created automatically');
+      }
+      
       setLastSaved(new Date());
       onMatchUpdate?.(match);
     } catch (error) {
       console.error('Failed to save match state:', error);
+      // Still save locally for offline resilience
+      localStorage.setItem(`match_${match.id}`, JSON.stringify(match));
     }
   };
 
@@ -251,14 +338,21 @@ export const LiveMatchScorer: React.FC<LiveMatchScorerProps> = ({
     }));
   };
 
-  const endMatch = () => {
+  const endMatch = async () => {
     if (!isOfficial) return;
     
-    setMatch(prev => ({
-      ...prev,
-      status: 'completed',
+    const updatedMatch = {
+      ...match,
+      status: 'completed' as const,
       completed_at: new Date().toISOString()
-    }));
+    };
+    
+    setMatch(updatedMatch);
+    
+    // Immediately save the completed match with player statistics
+    setTimeout(() => {
+      saveMatchState();
+    }, 100); // Small delay to ensure state is updated
   };
 
   const formatTime = (minutes: number) => {

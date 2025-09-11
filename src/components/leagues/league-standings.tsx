@@ -105,6 +105,7 @@ interface LeagueStandingsProps {
   playoffSpots?: number;
   showForm?: boolean;
   showGoalDifference?: boolean;
+  showFinalRankings?: boolean;
   className?: string;
   onTeamClick?: (teamId: string) => void;
 }
@@ -121,6 +122,7 @@ export const LeagueStandings: React.FC<LeagueStandingsProps> = ({
   playoffSpots = 0,
   showForm = true,
   showGoalDifference = true,
+  showFinalRankings = false,
   className = '',
   onTeamClick
 }) => {
@@ -409,6 +411,24 @@ export const LeagueStandings: React.FC<LeagueStandingsProps> = ({
           )}
         </div>
       </div>
+
+      {/* Championship Banner for Final Rankings */}
+      {showFinalRankings && standings.teams.length > 0 && (
+        <div className="mx-6 mb-4 bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
+          <div className="flex items-center justify-center gap-4">
+            <Trophy className="w-8 h-8 text-yellow-600 dark:text-yellow-400" />
+            <div className="text-center">
+              <h3 className="text-xl font-bold text-yellow-900 dark:text-yellow-100 mb-1">
+                🏆 Season Champions: {standings.teams[0].name}
+              </h3>
+              <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                Final standings - {standings.teams[0].points} points • {standings.teams[0].won}W {standings.teams[0].drawn}D {standings.teams[0].lost}L
+              </p>
+            </div>
+            <Crown className="w-8 h-8 text-yellow-600 dark:text-yellow-400" />
+          </div>
+        </div>
+      )}
 
       {/* Standings Table */}
       <div className="overflow-x-auto">

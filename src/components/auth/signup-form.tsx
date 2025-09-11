@@ -17,7 +17,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Eye, EyeOff, Loader2, Mail, Lock, User, MapPin, Trophy, ArrowRight, Check, X } from 'lucide-react';
-import { useAuth } from './auth-provider';
+import { useAuth } from './supabase-auth-provider';
 
 const signupSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -46,7 +46,6 @@ const playerPositions = [
   { value: 'forward', label: 'Forward' },
   { value: 'winger', label: 'Winger' },
   { value: 'striker', label: 'Striker' },
-  { value: 'captain', label: 'Captain' },
   { value: 'versatile', label: 'Versatile Player' }
 ];
 
