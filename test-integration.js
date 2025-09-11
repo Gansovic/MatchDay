@@ -10,8 +10,13 @@
  * 4. Checking that the dashboard shows updated statistics
  */
 
-const SUPABASE_URL = 'https://twkipeacdamypppxmmhe.supabase.co';
-const SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR3a2lwZWFjZGFteXBwcHhtbWhlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTMwMzU5MiwiZXhwIjoyMDcwODc5NTkyfQ.ofH3TT43tYwpz5tIYfvrt_XvjW84OBC8cBFu5oCyKFg';
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://twkipeacdamypppxmmhe.supabase.co';
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SERVICE_KEY) {
+  console.error('❌ SUPABASE_SERVICE_ROLE_KEY environment variable is required');
+  process.exit(1);
+}
 
 async function makeRequest(url, options = {}) {
   const response = await fetch(url, {
