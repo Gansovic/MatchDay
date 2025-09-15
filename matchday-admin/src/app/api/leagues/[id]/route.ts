@@ -8,19 +8,14 @@ const supabase = createClient(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { data: league, error } = await supabase
       .from('leagues')
-      .select(`
-        *,
-        league_admins(user_id, role),
-        league_teams(
-          team:teams(id, name, logo_url)
-        )
-      `)
-      .eq('id', params.id)
+      .select('*')
+      .eq('id', id)
       .single();
 
     if (error) {
@@ -41,9 +36,10 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
 
     const updateData: any = {};
@@ -69,7 +65,7 @@ export async function PUT(
     const { data: league, error } = await supabase
       .from('leagues')
       .update(updateData)
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
@@ -91,13 +87,14 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { data: league, error } = await supabase
       .from('leagues')
       .update({ is_active: false, status: 'archived' })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 

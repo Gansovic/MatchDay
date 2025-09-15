@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/use-auth';
 import Link from 'next/link';
 
 export default function LeaguesPage() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [leagues, setLeagues] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,8 +40,40 @@ export default function LeaguesPage() {
   };
 
   useEffect(() => {
-    fetchLeagues();
-  }, [statusFilter]);
+    if (user) {
+      fetchLeagues();
+    }
+  }, [user?.id, statusFilter]);
+
+  // Show loading while checking authentication
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Redirect to login if not authenticated
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center py-32">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold mb-2 text-foreground">Authentication Required</h2>
+          <p className="text-muted-foreground mb-6">Please sign in to access the league management.</p>
+          <Link
+            href="/auth/login"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium"
+          >
+            Sign In
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const handleDelete = async (leagueId: string) => {
     if (!confirm('Are you sure you want to archive this league?')) return;
@@ -66,7 +98,7 @@ export default function LeaguesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-6">
+    <div className="p-6">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
