@@ -50,15 +50,15 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ className = '' }) => {
   };
 
   return (
-    <header className={`bg-gray-900 border-b border-gray-700 ${className}`}>
+    <header className={`bg-card/80 backdrop-blur-sm border-b border-border/50 shadow-sm ${className}`}>
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-red-600 rounded-lg flex items-center justify-center">
+          <Link href="/" className="flex items-center space-x-2 group">
+            <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-amber-500 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110">
               <Shield className="w-4 h-4 text-white" />
             </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-orange-400 to-red-500 bg-clip-text text-transparent">
+            <span className="text-xl font-bold bg-gradient-to-r from-orange-600 via-amber-500 to-orange-500 bg-clip-text text-transparent">
               MatchDay Admin
             </span>
           </Link>
@@ -69,10 +69,10 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ className = '' }) => {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all hover:scale-105 ${
                   isActive(item.href)
-                    ? 'bg-orange-900 text-orange-300'
-                    : 'text-gray-300 hover:bg-gray-800'
+                    ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-300 shadow-sm'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 }`}
               >
                 <span className="text-lg">{item.icon}</span>
@@ -90,11 +90,11 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ className = '' }) => {
               <div className="flex items-center space-x-3">
                 {/* User Info */}
                 <div className="hidden sm:flex items-center space-x-2">
-                  <User className="w-5 h-5 text-gray-300" />
-                  <span className="text-sm font-medium text-gray-300">
+                  <User className="w-5 h-5 text-muted-foreground" />
+                  <span className="text-sm font-medium text-foreground">
                     {user.profile?.display_name || user.email}
                   </span>
-                  <span className="text-xs px-2 py-1 bg-orange-900 text-orange-300 rounded-full">
+                  <span className="text-xs px-2 py-1 bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300 rounded-full font-medium">
                     Admin
                   </span>
                 </div>
@@ -102,7 +102,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ className = '' }) => {
                 {/* Logout Button */}
                 <button
                   onClick={handleLogout}
-                  className="flex items-center space-x-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
+                  className="flex items-center space-x-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-all transform hover:scale-105 hover:shadow-md"
                 >
                   <LogOut className="w-4 h-4" />
                   <span className="hidden sm:inline">Logout</span>
@@ -111,7 +111,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ className = '' }) => {
             ) : (
               <button
                 onClick={handleLogin}
-                className="flex items-center space-x-2 bg-gradient-to-r from-orange-500 to-red-600 text-white px-4 py-2 rounded-lg font-medium hover:from-orange-600 hover:to-red-700 transition-colors"
+                className="flex items-center space-x-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white px-4 py-2 rounded-lg font-medium transition-all transform hover:scale-105 hover:shadow-lg"
               >
                 <LogIn className="w-4 h-4" />
                 <span>Admin Login</span>
@@ -125,10 +125,10 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({ className = '' }) => {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`p-2 rounded-lg transition-colors ${
+                    className={`p-2 rounded-lg transition-all hover:scale-110 ${
                       isActive(item.href)
-                        ? 'bg-orange-900 text-orange-300'
-                        : 'text-gray-300 hover:bg-gray-800'
+                        ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/50 dark:text-orange-300'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                     }`}
                   >
                     <span className="text-xl">{item.icon}</span>

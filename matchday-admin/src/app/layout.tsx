@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-// import { AdminHeader } from "@/components/layout/admin-header";
-// import { QueryProvider } from "@/components/providers/query-provider";
-// import { AuthProvider } from "@/components/auth/auth-provider";
-// import { AdminGuard } from "@/components/auth/admin-guard";
+import { QueryProvider } from "@/components/providers/query-provider";
+import { AuthProvider } from "@/components/auth/auth-provider";
+import { AdminHeader } from "@/components/layout/admin-header";
+import { ToastProvider } from "@/components/ui/toast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,20 +38,18 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased admin-theme`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {/* Temporarily disabled for debugging
         <QueryProvider>
           <AuthProvider>
-            <AdminGuard>
+            <ToastProvider>
               <AdminHeader />
-              <main>
+              <main className="min-h-screen">
                 {children}
               </main>
-            </AdminGuard>
+            </ToastProvider>
           </AuthProvider>
-        </QueryProvider> */}
-        {children}
+        </QueryProvider>
       </body>
     </html>
   );

@@ -27,6 +27,7 @@ import {
   useUserPerformance 
 } from '@/hooks/useDashboardData';
 import { supabase } from '@/lib/supabase/client';
+import { MyJoinRequests } from '@/components/seasons/MyJoinRequests';
 
 interface UserProfile {
   display_name?: string;
@@ -425,6 +426,11 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        {/* Season Join Requests */}
+        <div className="mb-8">
+          <MyJoinRequests />
+        </div>
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">

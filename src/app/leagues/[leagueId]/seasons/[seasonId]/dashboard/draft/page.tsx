@@ -31,6 +31,7 @@ import {
   Clipboard
 } from 'lucide-react';
 import SeasonDashboardLayout from '@/components/leagues/dashboards/SeasonDashboardLayout';
+import { TeamJoinRequestModal } from '@/components/seasons/TeamJoinRequestModal';
 
 interface TeamRegistration {
   id: string;
@@ -64,6 +65,8 @@ export default function DraftSeasonDashboard() {
   const [activeTab, setActiveTab] = useState<'registration' | 'setup' | 'teams' | 'planning'>('registration');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [seasonData, setSeasonData] = useState<any>(null);
 
   // Mock data - in real app this would come from API
   const [seasonSetup] = useState<SeasonSetup>({
@@ -112,12 +115,40 @@ export default function DraftSeasonDashboard() {
     }
   ]);
 
-  // Simulate loading
+  // Load season data
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 1000);
-    return () => clearTimeout(timer);
+    const loadSeasonData = async () => {
+      try {
+        const baseUrl = typeof window !== 'undefined'
+          ? window.location.origin
+          : process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+
+        const response = await fetch(`${baseUrl}/api/leagues/${leagueId}/seasons`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          const season = result.data?.find((s: any) => s.id === seasonId);
+          setSeasonData(season);
+        }
+      } catch (err) {
+        console.error('Failed to load season data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSeasonData();
+  }, [leagueId, seasonId]);
+
+  // Handle join request submitted
+  const handleJoinRequestSubmitted = useCallback(() => {
+    setShowJoinModal(false);
+    // Optionally refresh registration data here
   }, []);
 
   // Helper functions
@@ -212,6 +243,49 @@ export default function DraftSeasonDashboard() {
                 }
               </div>
             </div>
+
+            {/* Join Season Section - Only show for draft/upcoming seasons */}
+            {seasonData && (seasonData.status === 'draft' || seasonData.status === 'registration') && seasonSetup.registrationOpen && (
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Join This Season
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Request to register your team for this {seasonData.status} season
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowJoinModal(true)}
+                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Request to Join
+                  </button>
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  <p>
+                    Submit a registration request for your team. League administrators will review your application and notify you of the decision.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Show message when registration is not available */}
+            {seasonData && seasonData.status !== 'draft' && seasonData.status !== 'registration' && (
+              <div className="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl p-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Registration Closed
+                  </h3>
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  This season is currently <span className="font-medium capitalize">{seasonData.status}</span> and not accepting new team registrations.
+                </p>
+              </div>
+            )}
 
             {/* Team Registration List */}
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
@@ -737,13 +811,25 @@ export default function DraftSeasonDashboard() {
   };
 
   return (
-    <SeasonDashboardLayout
-      activeTab={activeTab}
-      onTabChange={(tab) => setActiveTab(tab as any)}
-      availableTabs={availableTabs}
-      title="Upcoming Season - Planning Phase"
-    >
-      {renderContent()}
-    </SeasonDashboardLayout>
+    <>
+      <SeasonDashboardLayout
+        activeTab={activeTab}
+        onTabChange={(tab) => setActiveTab(tab as any)}
+        availableTabs={availableTabs}
+        title="Upcoming Season - Planning Phase"
+      >
+        {renderContent()}
+      </SeasonDashboardLayout>
+
+      {/* Join Request Modal */}
+      <TeamJoinRequestModal
+        isOpen={showJoinModal}
+        onClose={() => setShowJoinModal(false)}
+        seasonId={seasonId}
+        seasonName={seasonData?.name || 'Current Season'}
+        leagueId={leagueId}
+        onRequestSubmitted={handleJoinRequestSubmitted}
+      />
+    </>
   );
 }
