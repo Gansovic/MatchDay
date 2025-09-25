@@ -1,0 +1,4 @@
+
+> @matchday/mobile-user@1.0.0 type-check /Users/lukini/MatchDay/apps/mobile-user
+> tsc --noEmit
+

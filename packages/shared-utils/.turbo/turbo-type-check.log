@@ -1,0 +1,4 @@
+
+> @matchday/shared-utils@0.1.0 type-check /Users/lukini/MatchDay/packages/shared-utils
+> tsc --noEmit
+

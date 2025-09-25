@@ -1,0 +1,7 @@
+{
+  "/leagues/page": "app/leagues/page.js",
+  "/leagues/[leagueId]/page": "app/leagues/[leagueId]/page.js",
+  "/page": "app/page.js",
+  "/leagues/[leagueId]/seasons/[seasonId]/dashboard/completed/page": "app/leagues/[leagueId]/seasons/[seasonId]/dashboard/completed/page.js",
+  "/leagues/[leagueId]/seasons/[seasonId]/dashboard/draft/page": "app/leagues/[leagueId]/seasons/[seasonId]/dashboard/draft/page.js"
+}

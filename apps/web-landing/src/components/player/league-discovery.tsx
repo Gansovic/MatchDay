@@ -1,0 +1,285 @@
+/**
+ * League Discovery Component
+ * 
+ * Simple interface for browsing all available leagues.
+ * Displays all active leagues without filtering functionality.
+ * 
+ * @example
+ * ```typescript
+ * <LeagueDiscovery userId={userId} />
+ * ```
+ */
+
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase/client';
+import { LeagueDiscovery as LeagueDiscoveryType } from '@/lib/types/database.types';
+import { NumberFormatters } from '@/lib/utils/formatters';
+
+interface LeagueDiscoveryProps {
+  userId?: string;
+  className?: string;
+}
+
+
+const LeagueCard: React.FC<{
+  league: LeagueDiscoveryType;
+  onJoinRequest: (leagueId: string) => void;
+  isRequesting: boolean;
+}> = ({ league, onJoinRequest, isRequesting }) => {
+  const getCompatibilityColor = (score: number) => {
+    if (score >= 80) return 'text-green-600 bg-green-100';
+    if (score >= 60) return 'text-yellow-600 bg-yellow-100';
+    return 'text-red-600 bg-red-100';
+  };
+
+  const getSkillLevelIcon = (level: string) => {
+    switch (level) {
+      case 'recreational': return '🌟';
+      case 'competitive': return '🔥';
+      case 'semi-pro': return '⚡';
+      default: return '🏆';
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-shadow">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-2">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+              {league.name}
+            </h3>
+            <span className="text-2xl">
+              {getSkillLevelIcon(league.league_type)}
+            </span>
+          </div>
+          <p className="text-gray-600 dark:text-gray-300 text-sm">
+            {league.description}
+          </p>
+        </div>
+        
+        {league.compatibilityScore && (
+          <div className={`px-3 py-1 rounded-full text-sm font-medium ${getCompatibilityColor(league.compatibilityScore)}`}>
+            {league.compatibilityScore}% Match
+          </div>
+        )}
+      </div>
+
+      {/* League Info Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <div className="text-center">
+          <div className="text-lg font-bold text-gray-900 dark:text-white">
+            {league.sport_type.charAt(0).toUpperCase() + league.sport_type.slice(1)}
+          </div>
+          <div className="text-xs text-gray-500">Sport</div>
+        </div>
+        
+        <div className="text-center">
+          <div className="text-lg font-bold text-gray-900 dark:text-white capitalize">
+            {league.league_type}
+          </div>
+          <div className="text-xs text-gray-500">Level</div>
+        </div>
+        
+        <div className="text-center">
+          <div className="text-lg font-bold text-gray-900 dark:text-white">
+            {league.teamCount}/{league.max_teams || 'No limit'}
+          </div>
+          <div className="text-xs text-gray-500">Teams</div>
+        </div>
+        
+        <div className="text-center">
+          <div className="text-lg font-bold text-gray-900 dark:text-white">
+            {league.entry_fee ? NumberFormatters.formatCurrency(league.entry_fee) : 'Free'}
+          </div>
+          <div className="text-xs text-gray-500">Entry Fee</div>
+        </div>
+      </div>
+
+      {/* Location & Schedule */}
+      <div className="space-y-2 mb-4">
+        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+          <span>📍</span>
+          <span>{league.location || 'Location TBD'}</span>
+        </div>
+        
+        {league.season_start && league.season_end && (
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+            <span>📅</span>
+            <span>
+              {new Date(league.season_start).toLocaleDateString()} - {new Date(league.season_end).toLocaleDateString()}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* League Indicators */}
+      <div className="flex gap-2 mb-4">
+        {league.compatibilityScore && league.compatibilityScore > 70 && (
+          <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+            ✓ Great Match
+          </span>
+        )}
+        {league.availableSpots > 0 && (
+          <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">
+            {league.availableSpots} Spots Available
+          </span>
+        )}
+        {league.playerCount > 0 && (
+          <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+            {league.playerCount} Players
+          </span>
+        )}
+      </div>
+
+      {/* Action Button */}
+      <button
+        onClick={() => onJoinRequest(league.id)}
+        disabled={isRequesting || league.availableSpots === 0 || league.isUserMember}
+        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white py-2 px-4 rounded-lg font-medium transition-colors"
+      >
+        {isRequesting ? 'Loading...' : 
+         league.isUserMember ? 'Already Member' :
+         league.availableSpots === 0 ? 'League Full' : 'View League'}
+      </button>
+    </div>
+  );
+};
+
+export const LeagueDiscovery: React.FC<LeagueDiscoveryProps> = ({
+  userId,
+  className = ''
+}) => {
+  
+  const [requestingLeague, setRequestingLeague] = useState<string | null>(null);
+  const [leagues, setLeagues] = useState<LeagueDiscoveryType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch leagues using direct Supabase query for simplicity
+  useEffect(() => {
+    const fetchLeagues = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        // Direct Supabase query to get leagues with teams
+        const { data: rawLeagues, error: supabaseError } = await supabase
+          .from('leagues')
+          .select(`
+            *,
+            teams (
+              id,
+              name,
+              team_color,
+              captain_id,
+              max_players,
+              min_players,
+              is_recruiting
+            )
+          `)
+          .eq('is_active', true)
+          .eq('is_public', true)
+          .order('created_at', { ascending: false });
+
+        if (supabaseError) {
+          throw supabaseError;
+        }
+
+        if (rawLeagues) {
+          // Transform data to match LeagueDiscovery interface
+          const transformedLeagues: LeagueDiscoveryType[] = rawLeagues.map(league => ({
+            ...league,
+            teams: league.teams || [],
+            teamCount: league.teams?.length || 0,
+            playerCount: league.teams?.reduce((total, team) => total + (team.max_players || 11), 0) || 0,
+            availableSpots: league.teams?.reduce((total, team) => total + Math.max(0, (team.max_players || 11) - 5), 0) || 0, // Approximate available spots
+            isUserMember: false,
+            compatibilityScore: userId ? Math.floor(Math.random() * 30) + 70 : undefined // Mock compatibility score for demo
+          }));
+          
+          setLeagues(transformedLeagues);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLeagues();
+  }, [userId]);
+
+  const compatibleLeagues = leagues;
+
+  const handleJoinRequest = async (leagueId: string) => {
+    if (requestingLeague) return;
+    
+    setRequestingLeague(leagueId);
+    try {
+      // Navigate to league details page instead of direct join
+      window.location.href = `/leagues/${leagueId}`;
+    } catch (error) {
+      console.error('Failed to navigate to league:', error);
+    } finally {
+      setRequestingLeague(null);
+    }
+  };
+
+  return (
+    <div className={`space-y-6 ${className}`}>
+      {/* Header */}
+      <div className="text-center">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+          Discover Leagues
+        </h1>
+        <p className="text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+          Browse all available leagues and find the perfect match for your team.
+        </p>
+      </div>
+
+
+      {/* Results */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="bg-gray-200 dark:bg-gray-700 rounded-xl h-64 animate-pulse"></div>
+          ))}
+        </div>
+      ) : compatibleLeagues && compatibleLeagues.length > 0 ? (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              {compatibleLeagues.length} Leagues Available
+            </h2>
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              All active leagues
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {compatibleLeagues.map((league) => (
+              <LeagueCard
+                key={league.id}
+                league={league}
+                onJoinRequest={handleJoinRequest}
+                isRequesting={requestingLeague === league.id}
+              />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-12">
+          <div className="text-6xl mb-4">🔍</div>
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            No leagues found
+          </h3>
+          <p className="text-gray-600 dark:text-gray-300 mb-4">
+            No leagues are currently available. Check back later for new opportunities!
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};

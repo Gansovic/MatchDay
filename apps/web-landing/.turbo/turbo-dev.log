@@ -1,0 +1,12 @@
+
+> @matchday/web-landing@0.1.0 dev /Users/lukini/MatchDay/apps/web-landing
+> next dev --turbopack
+
+   [1m[38;2;173;127;168m▲ Next.js 15.4.6[39m[22m (Turbopack)
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.2.154:3000
+
+ [32m[1m✓[22m[39m Starting...
+ [32m[1m✓[22m[39m Compiled middleware in 124ms
+ [32m[1m✓[22m[39m Ready in 1053ms
+[?25h

@@ -1,64 +1,24 @@
 {
-  "name": "matchday",
+  "name": "matchday-monorepo",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "type-check": "tsc --noEmit",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "lint:fix": "next lint --fix",
-    "format": "prettier --write ."
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "type-check": "turbo type-check",
+    "test": "turbo test",
+    "format": "prettier --write .",
+    "clean": "turbo clean"
   },
-  "dependencies": {
-    "@hookform/resolvers": "^3.9.1",
-    "@supabase/ssr": "^0.7.0",
-    "@supabase/supabase-js": "^2.56.1",
-    "@tanstack/react-query": "^5.61.3",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/uuid": "^10.0.0",
-    "clsx": "^2.1.1",
-    "date-fns": "^4.1.0",
-    "jose": "^6.1.0",
-    "jsonwebtoken": "^9.0.2",
-    "lucide-react": "^0.469.0",
-    "next": "15.4.6",
-    "pg": "^8.16.3",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "react-hook-form": "^7.54.0",
-    "tailwind-merge": "^3.3.1",
-    "uuid": "^11.1.0",
-    "zod": "^3.23.8"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.1.0",
-    "@types/jest": "^30.0.0",
-    "@types/node": "^20",
-    "@types/pg": "^8.15.5",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@types/supertest": "^6.0.3",
-    "babel-jest": "^29.7.0",
-    "dotenv": "^17.2.1",
-    "eslint": "^9",
-    "eslint-config-next": "15.4.6",
-    "husky": "^9.1.7",
-    "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0",
-    "jest-environment-node": "^29.7.0",
-    "lint-staged": "^15.2.11",
-    "msw": "^2.10.5",
     "prettier": "^3.4.2",
-    "supertest": "^7.1.4",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "turbo": "^2.3.0"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
@@ -68,5 +28,6 @@
     "*.{json,md,css}": [
       "prettier --write"
     ]
-  }
+  },
+  "packageManager": "pnpm@10.14.0+sha512.ad27a79641b49c3e481a16a805baa71817a04bbe06a38d17e60e2eaee83f6a146c6a688125f5792e48dd5ba30e7da52a5cda4c3992b9ccf333f9ce223af84748"
 }

@@ -1,0 +1,45 @@
+
+> @matchday/mobile-user@1.0.0 dev /Users/lukini/MatchDay/apps/mobile-user
+> expo start --dev-client
+
+[33m[39m
+[33mDevelopment build: Unable to determine the default URI scheme for deep linking into the app. Ensure that the expo-dev-client package is installed.[39m
+[90mStarting project at /Users/lukini/MatchDay/apps/mobile-user[39m
+[2mStarting Metro Bundler[22m
+▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▄▀▀▄▄▀▀█▄█ ▄▄▄▄▄ █
+█ █   █ ███▄█  ▀▀▄█ █   █ █
+█ █▄▄▄█ ██▄▀▄▀███▀█ █▄▄▄█ █
+█▄▄▄▄▄▄▄█ █ ▀▄▀ █ █▄▄▄▄▄▄▄█
+█ ▄▀▄▄▀▄█▀ ▄▄▀▀█ ██▄▀▀▀▀▀▄█
+█▀▀▀▀▀█▄▄▀▀  ▀█▄  ▄▄ ▀ ▀▀ █
+█▀ ▄█▀ ▄▀▄▄█▄▄▀▄ ▀█▄▄▀██▀▄█
+█ ▄▄   ▄▀▀██ ▄▄█ █▀  █▄ ▄ █
+█▄████▄▄█ █ ▀▀▀▄█ ▄▄▄ █▄ ██
+█ ▄▄▄▄▄ ██ █▄▀█▀▀ █▄█ ▄█▀ █
+█ █   █ █ █▄█▄▄ ▄   ▄▄ █  █
+█ █▄▄▄█ █▀▀▀█▄█ ▄▄▄█  █   █
+█▄▄▄▄▄▄▄█▄▄███▄▄█▄▄▄██▄██▄█
+
+› Metro waiting on [4mhttp://localhost:8081[24m
+› Scan the QR code above to open the project in a development build. [2mLearn more:[22m
+[2m[4mhttps://expo.fyi/start[24m[22m
+
+› Web is waiting on [4mhttp://localhost:8081[24m
+
+› Using [36mdevelopment build[39m
+› Press [1ms[22m [2m│[22m switch to Expo Go
+
+› Press [1ma[22m [2m│[22m open Android
+› Press [1mi[22m [2m│[22m open iOS simulator
+› Press [1mw[22m [2m│[22m open web
+
+› Press [1mj[22m [2m│[22m open debugger
+› Press [1mr[22m [2m│[22m reload app
+› Press [1mm[22m [2m│[22m toggle menu
+› [1mshift+m[22m [2m│[22m more tools
+› Press [1mo[22m [2m│[22m open project code in your editor
+
+› Press [1m?[22m [2m│[22m show all commands
+
+Logs for your project will appear below.[2m Press Ctrl+C to exit.[22m

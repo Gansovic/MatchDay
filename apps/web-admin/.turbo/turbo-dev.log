@@ -1,0 +1,34 @@
+
+> @matchday/web-admin@0.1.0 dev /Users/lukini/MatchDay/apps/web-admin
+> next dev --turbopack
+
+ [33m[1m⚠[22m[39m Warning: Found multiple lockfiles. Selecting /Users/lukini/MatchDay/pnpm-lock.yaml.
+   Consider removing the lockfiles at:
+   * /Users/lukini/MatchDay/apps/web-admin/package-lock.json
+
+ [33m[1m⚠[22m[39m Port 3000 is in use by process 6996, using available port 3001 instead.
+   [1m[38;2;173;127;168m▲ Next.js 15.4.6[39m[22m (Turbopack)
+   - Local:        http://localhost:3001
+   - Network:      http://192.168.2.154:3001
+   - Environments: .env.local, .env.development
+
+ [32m[1m✓[22m[39m Starting...
+
+-----
+[1m[31mFATAL[39m[0m: An unexpected Turbopack error occurred. A panic log has been written to /var/folders/75/lrrp6ghd2csd748_l4sy8y0c0000gn/T/next-panic-bb72eff1bd8ac7cc24f64ccbb95f9ae5.log.
+
+To help make Turbopack better, report this error by clicking here: https://github.com/vercel/next.js/discussions/new?category=turbopack-error-report&title=Turbopack%20Error%3A%20Next.js%20package%20not%20found&body=Turbopack%20version%3A%20%60v15.4.5-2-g91e5b6b84%60%0ANext.js%20version%3A%20%600.0.0%60%0A%0AError%20message%3A%0A%60%60%60%0ATurbopack%20Error%3A%20Next.js%20package%20not%20found%0A%60%60%60&labels=Turbopack,Turbopack%20Panic%20Backtrace
+-----
+
+[Error [TurbopackInternalError]: Next.js package not found
+
+Debug info:
+- Execution of get_entrypoints_with_issues_operation failed
+- Execution of EntrypointsOperation::new failed
+- Execution of Project::entrypoints failed
+- Execution of AppProject::routes failed
+- Execution of directory_tree_to_entrypoints_internal failed
+- Execution of directory_tree_to_loader_tree failed
+- Execution of get_next_package failed
+- Next.js package not found]
+[?25h

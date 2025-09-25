@@ -1,0 +1,566 @@
+
+> @matchday/web-landing@0.1.0 type-check /Users/lukini/MatchDay/apps/web-landing
+> tsc --noEmit
+
+src/app/api/admin/seed-sample-season/route.ts(66,41): error TS2304: Cannot find name 'client'.
+src/app/api/admin/seed-sample-season/route.ts(72,15): error TS2304: Cannot find name 'client'.
+src/app/api/admin/seed-sample-season/route.ts(91,15): error TS2304: Cannot find name 'client'.
+src/app/api/admin/seed-sample-season/route.ts(92,15): error TS2304: Cannot find name 'client'.
+src/app/api/admin/seed-sample-season/route.ts(93,15): error TS2304: Cannot find name 'client'.
+src/app/api/admin/seed-sample-season/route.ts(94,15): error TS2304: Cannot find name 'client'.
+src/app/api/admin/seed-sample-season/route.ts(95,15): error TS2304: Cannot find name 'client'.
+src/app/api/admin/seed-sample-season/route.ts(96,15): error TS2304: Cannot find name 'client'.
+src/app/api/admin/seed-sample-season/route.ts(100,34): error TS2304: Cannot find name 'client'.
+src/app/api/admin/seed-sample-season/route.ts(125,34): error TS2304: Cannot find name 'client'.
+src/app/api/admin/seed-sample-season/route.ts(143,15): error TS2304: Cannot find name 'client'.
+src/app/api/admin/seed-sample-season/route.ts(155,34): error TS2304: Cannot find name 'client'.
+src/app/api/admin/seed-sample-season/route.ts(170,15): error TS2304: Cannot find name 'client'.
+src/app/api/admin/seed-sample-season/route.ts(187,35): error TS2304: Cannot find name 'client'.
+src/app/api/admin/seed-sample-season/route.ts(209,15): error TS2304: Cannot find name 'client'.
+src/app/api/admin/seed-sample-season/route.ts(227,13): error TS2304: Cannot find name 'client'.
+src/app/api/admin/seed-sample-season/route.ts(252,7): error TS2304: Cannot find name 'client'.
+src/app/api/debug/check-auth-users/route.ts(34,30): error TS7006: Parameter 'user' implicitly has an 'any' type.
+src/app/api/debug/check-orphaned-teams/route.ts(55,51): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/debug/confirm-email/route.ts(37,42): error TS7006: Parameter 'user' implicitly has an 'any' type.
+src/app/api/debug/delete-user/route.ts(37,42): error TS7006: Parameter 'user' implicitly has an 'any' type.
+src/app/api/debug/list-users/route.ts(36,25): error TS7006: Parameter 'user' implicitly has an 'any' type.
+src/app/api/debug/test-frontend-login/route.ts(8,37): error TS2307: Cannot find module '@supabase/ssr' or its corresponding type declarations.
+src/app/api/divisions/[divisionId]/fixtures/route.ts(121,31): error TS7006: Parameter 'match' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/fixtures/route.ts(130,30): error TS7006: Parameter 'fixture' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/fixtures/route.ts(157,26): error TS2339: Property 'match' does not exist on type '{ id: any; home_team: { id: any; name: any; captain_id: any; }; away_team: { id: any; name: any; captain_id: any; }; match_date: any; venue: any; is_scheduled: any; created_at: any; }'.
+src/app/api/divisions/[divisionId]/fixtures/route.ts(172,48): error TS7006: Parameter 'f' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/fixtures/route.ts(204,27): error TS2339: Property 'completedMatches' does not exist on type '{ totalFixtures: any; scheduledFixtures: any; unscheduledFixtures: number; totalRounds: number; schedulingProgress: number; }'.
+src/app/api/divisions/[divisionId]/fixtures/route.ts(205,27): error TS2339: Property 'scheduledMatches' does not exist on type '{ totalFixtures: any; scheduledFixtures: any; unscheduledFixtures: number; totalRounds: number; schedulingProgress: number; }'.
+src/app/api/divisions/[divisionId]/fixtures/route.ts(206,27): error TS2339: Property 'matchProgress' does not exist on type '{ totalFixtures: any; scheduledFixtures: any; unscheduledFixtures: number; totalRounds: number; schedulingProgress: number; }'.
+src/app/api/divisions/[divisionId]/fixtures/route.ts(455,9): error TS7034: Variable 'fixtures' implicitly has type 'any[]' in some locations where its type cannot be determined.
+src/app/api/divisions/[divisionId]/fixtures/route.ts(459,12): error TS7005: Variable 'fixtures' implicitly has an 'any[]' type.
+src/app/api/divisions/[divisionId]/route.ts(138,55): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/route.ts(139,55): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/route.ts(140,59): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/route.ts(146,36): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/route.ts(173,49): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/route.ts(173,54): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/route.ts(174,56): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/route.ts(174,61): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/route.ts(177,34): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/route.ts(178,34): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/route.ts(179,29): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/route.ts(180,34): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/route.ts(184,64): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/route.ts(184,67): error TS7006: Parameter 'b' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/route.ts(196,45): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/route.ts(201,43): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/route.ts(469,45): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/standings/route.ts(118,37): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/standings/route.ts(132,25): error TS7006: Parameter 'teamId' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/standings/route.ts(134,21): error TS7006: Parameter 'match' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/standings/route.ts(138,40): error TS7006: Parameter 'match' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/standings/route.ts(154,55): error TS7006: Parameter 'standing' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/standings/route.ts(154,65): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/standings/route.ts(184,11): error TS2353: Object literal may only specify known properties, and 'team_bio' does not exist in type '{ id: any; name: any; captain_id: any; }'.
+src/app/api/divisions/[divisionId]/standings/route.ts(187,63): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/standings/route.ts(193,27): error TS2339: Property 'recent_form' does not exist on type '{ position: any; team: { id: any; name: any; captain_id: any; }; points: any; matches_played: any; wins: any; draws: any; losses: any; goals_for: any; goals_against: any; goal_difference: any; last_updated: any; points_per_game: number; win_percentage: number; goals_per_game: number; }'.
+src/app/api/divisions/[divisionId]/standings/route.ts(200,53): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/standings/route.ts(200,58): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/standings/route.ts(201,51): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/standings/route.ts(201,56): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/standings/route.ts(206,50): error TS7006: Parameter 'top' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/standings/route.ts(206,55): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/standings/route.ts(209,49): error TS7006: Parameter 'top' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/standings/route.ts(209,54): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/standings/route.ts(339,19): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/standings/route.ts(353,29): error TS7006: Parameter 'match' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/teams/route.ts(136,33): error TS7006: Parameter 'standing' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/teams/route.ts(144,34): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/teams/route.ts(163,25): error TS7006: Parameter 'teamId' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/teams/route.ts(164,57): error TS7006: Parameter 'match' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/teams/route.ts(178,31): error TS7006: Parameter 'match' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/teams/route.ts(188,37): error TS2345: Argument of type '"W"' is not assignable to parameter of type 'never'.
+src/app/api/divisions/[divisionId]/teams/route.ts(191,37): error TS2345: Argument of type '"D"' is not assignable to parameter of type 'never'.
+src/app/api/divisions/[divisionId]/teams/route.ts(194,37): error TS2345: Argument of type '"L"' is not assignable to parameter of type 'never'.
+src/app/api/divisions/[divisionId]/teams/route.ts(207,46): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/teams/route.ts(224,57): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/teams/route.ts(227,51): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/teams/route.ts(238,57): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/teams/route.ts(257,49): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/teams/route.ts(257,54): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/teams/route.ts(258,56): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/teams/route.ts(258,61): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/divisions/[divisionId]/teams/route.ts(259,51): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/divisions/route.ts(130,36): error TS7006: Parameter 'division' implicitly has an 'any' type.
+src/app/api/divisions/route.ts(158,46): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/divisions/route.ts(159,61): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/app/api/divisions/route.ts(175,48): error TS7006: Parameter 'total' implicitly has an 'any' type.
+src/app/api/divisions/route.ts(175,55): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/divisions/route.ts(176,51): error TS7006: Parameter 'total' implicitly has an 'any' type.
+src/app/api/divisions/route.ts(176,58): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/divisions/route.ts(186,47): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/divisions/route.ts(187,50): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/join/[code]/route.ts(10,17): error TS2307: Cannot find module 'jsonwebtoken' or its corresponding type declarations.
+src/app/api/join/[code]/route.ts(38,8): error TS2339: Property 'from' does not exist on type 'Promise<any>'.
+src/app/api/join/[code]/route.ts(82,8): error TS2339: Property 'from' does not exist on type 'Promise<any>'.
+src/app/api/join/[code]/route.ts(177,8): error TS2339: Property 'from' does not exist on type 'Promise<any>'.
+src/app/api/join/[code]/route.ts(213,8): error TS2339: Property 'from' does not exist on type 'Promise<any>'.
+src/app/api/join/[code]/route.ts(229,8): error TS2339: Property 'from' does not exist on type 'Promise<any>'.
+src/app/api/join/[code]/route.ts(243,8): error TS2339: Property 'from' does not exist on type 'Promise<any>'.
+src/app/api/join/[code]/route.ts(262,8): error TS2339: Property 'from' does not exist on type 'Promise<any>'.
+src/app/api/leagues/[leagueId]/divisions/route.ts(137,36): error TS7006: Parameter 'division' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/divisions/route.ts(186,51): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/divisions/route.ts(187,54): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/divisions/route.ts(211,51): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/divisions/route.ts(211,56): error TS7006: Parameter 'div' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/divisions/route.ts(212,53): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/divisions/route.ts(212,58): error TS7006: Parameter 'div' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/divisions/route.ts(213,55): error TS7006: Parameter 'div' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/divisions/route.ts(214,59): error TS7006: Parameter 'div' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/divisions/route.ts(234,58): error TS7006: Parameter 'div' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/route.ts(107,33): error TS7006: Parameter 'st' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/route.ts(115,39): error TS7006: Parameter 'total' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/route.ts(115,46): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/route.ts(116,55): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/route.ts(121,42): error TS7006: Parameter 'total' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/route.ts(121,49): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/route.ts(122,55): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/route.ts(128,38): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/route.ts(130,49): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/route.ts(131,42): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/route.ts(131,74): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/route.ts(143,28): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/route.ts(302,37): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/seasons/[seasonId]/player-stats/route.ts(176,51): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/seasons/[seasonId]/player-stats/route.ts(178,18): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/seasons/[seasonId]/player-stats/route.ts(179,18): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/seasons/[seasonId]/player-stats/route.ts(179,23): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/seasons/[seasonId]/player-stats/route.ts(180,56): error TS7006: Parameter 'ps' implicitly has an 'any' type.
+src/app/api/leagues/[leagueId]/seasons/route.ts(125,17): error TS2304: Cannot find name 'leagueId'.
+src/app/api/leagues/[leagueId]/teams/route.ts(102,14): error TS7006: Parameter 'st' implicitly has an 'any' type.
+src/app/api/leagues/route.ts(59,68): error TS7006: Parameter 'league' implicitly has an 'any' type.
+src/app/api/leagues/route.ts(96,35): error TS7006: Parameter 'st' implicitly has an 'any' type.
+src/app/api/leagues/route.ts(100,39): error TS7006: Parameter 'total' implicitly has an 'any' type.
+src/app/api/leagues/route.ts(100,46): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/leagues/route.ts(101,61): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/app/api/leagues/route.ts(106,42): error TS7006: Parameter 'total' implicitly has an 'any' type.
+src/app/api/leagues/route.ts(106,49): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/leagues/route.ts(107,61): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/app/api/leagues/route.ts(115,36): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/app/api/leagues/route.ts(136,42): error TS7006: Parameter 'l' implicitly has an 'any' type.
+src/app/api/matches/[matchId]/participants/route.ts(74,22): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/matches/[matchId]/participants/route.ts(134,51): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/app/api/matches/[matchId]/participants/route.ts(135,51): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/app/api/matches/[matchId]/participants/route.ts(245,51): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/matches/[matchId]/participants/route.ts(407,41): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/matches/[matchId]/route.ts(82,22): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/matches/[matchId]/route.ts(87,50): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/matches/[matchId]/score/route.ts(91,22): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/matches/[matchId]/score/route.ts(209,58): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/matches/[matchId]/score/route.ts(210,58): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/matches/create/route.ts(128,61): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/matches/create/route.ts(128,70): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/matches/create/route.ts(154,33): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/app/api/matches/create/route.ts(155,33): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/app/api/matches/create/route.ts(159,52): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/matches/create/route.ts(160,52): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/matches/route.ts(45,37): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/matches/route.ts(49,22): error TS7006: Parameter 'id' implicitly has an 'any' type.
+src/app/api/matches/route.ts(58,35): error TS7006: Parameter 'teamId' implicitly has an 'any' type.
+src/app/api/matches/route.ts(85,52): error TS7006: Parameter 'match' implicitly has an 'any' type.
+src/app/api/profile/fields/route.ts(216,9): error TS2353: Object literal may only specify known properties, and 'full_name' does not exist in type '{ display_name: string; preferred_position?: string | undefined; location?: string | undefined; bio?: string | undefined; date_of_birth?: string | undefined; }'.
+src/app/api/profile/route.ts(307,9): error TS2322: Type 'string | null | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/app/api/teams/[teamId]/invitations/route.ts(8,30): error TS2307: Cannot find module '@supabase/supabase-js' or its corresponding type declarations.
+src/app/api/teams/[teamId]/invitations/route.ts(53,27): error TS2367: This comparison appears to be unintentional because the types '"code" | "invited_email" | undefined' and '"email"' have no overlap.
+src/app/api/teams/[teamId]/matches/route.ts(187,48): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/teams/[teamId]/matches/route.ts(188,49): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/teams/[teamId]/matches/route.ts(189,50): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/teams/[teamId]/matches/route.ts(193,55): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/teams/[teamId]/matches/route.ts(194,55): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/teams/[teamId]/matches/route.ts(195,41): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/teams/[teamId]/matches/route.ts(196,41): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/app/api/teams/[teamId]/matches/route.ts(201,12): error TS7006: Parameter 'match' implicitly has an 'any' type.
+src/app/api/teams/[teamId]/stats/route.ts(146,27): error TS7006: Parameter 'match' implicitly has an 'any' type.
+src/app/api/teams/[teamId]/stats/route.ts(222,53): error TS7006: Parameter 'standing' implicitly has an 'any' type.
+src/app/api/teams/[teamId]/stats/route.ts(269,44): error TS7006: Parameter 'match' implicitly has an 'any' type.
+src/app/api/teams/[teamId]/stats/route.ts(313,41): error TS7006: Parameter 'match' implicitly has an 'any' type.
+src/app/api/teams/[teamId]/stats/route.ts(333,45): error TS7006: Parameter 'match' implicitly has an 'any' type.
+src/app/api/teams/discover/route.ts(28,65): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/teams/discover/route.ts(45,9): error TS2322: Type 'string | null' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+src/app/api/teams/discover/route.ts(47,9): error TS2322: Type 'string | null' is not assignable to type 'string | undefined'.
+  Type 'null' is not assignable to type 'string | undefined'.
+src/app/api/teams/discover/route.ts(79,69): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/teams/route.ts(114,56): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/teams/route.ts(118,51): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/teams/route.ts(137,25): error TS2551: Property 'maxPlayers' does not exist on type 'TeamWithDetails'. Did you mean 'max_players'?
+src/app/api/teams/route.ts(139,24): error TS2551: Property 'teamColor' does not exist on type 'TeamWithDetails'. Did you mean 'team_color'?
+src/app/api/teams/route.ts(140,22): error TS2551: Property 'teamBio' does not exist on type 'TeamWithDetails'. Did you mean 'team_bio'?
+src/app/api/teams/route.ts(141,24): error TS2551: Property 'createdAt' does not exist on type 'TeamWithDetails'. Did you mean 'created_at'?
+src/app/api/teams/route.ts(142,24): error TS2551: Property 'captainId' does not exist on type 'TeamWithDetails'. Did you mean 'captain_id'?
+src/app/api/teams/route.ts(200,23): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/teams/route.ts(201,26): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/user/stats/route.ts(28,55): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/user/stats/route.ts(38,22): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/user/stats/route.ts(67,50): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/user/stats/route.ts(77,26): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/user/stats/route.ts(108,33): error TS7006: Parameter 'best' implicitly has an 'any' type.
+src/app/api/user/stats/route.ts(108,39): error TS7006: Parameter 'current' implicitly has an 'any' type.
+src/app/api/user/stats/route.ts(143,66): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/user/stats/route.ts(159,22): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/user/stats/route.ts(169,62): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/user/stats/route.ts(173,22): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/user/stats/route.ts(184,44): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/app/api/user/stats/route.ts(184,49): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/app/api/user/stats/route.ts(185,46): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/app/api/user/stats/route.ts(185,51): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/app/api/user/stats/route.ts(191,14): error TS7006: Parameter 'tm' implicitly has an 'any' type.
+src/app/api/user/stats/route.ts(261,48): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/user/stats/route.ts(276,39): error TS7006: Parameter 'best' implicitly has an 'any' type.
+src/app/api/user/stats/route.ts(276,45): error TS7006: Parameter 'current' implicitly has an 'any' type.
+src/app/api/user/teams/route.ts(28,55): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/user/teams/route.ts(59,22): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/user/teams/route.ts(71,22): error TS18048: 'user' is possibly 'undefined'.
+src/app/api/user/teams/route.ts(74,49): error TS7006: Parameter 'membership' implicitly has an 'any' type.
+src/app/api/user/teams/route.ts(79,54): error TS7006: Parameter 'stat' implicitly has an 'any' type.
+src/app/api/user/teams/route.ts(81,36): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/app/api/user/teams/route.ts(81,41): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/app/api/user/teams/route.ts(82,38): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/app/api/user/teams/route.ts(82,43): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/app/api/user/teams/route.ts(100,37): error TS18048: 'user' is possibly 'undefined'.
+src/app/auth/reset-password/page.tsx(12,25): error TS2307: Cannot find module 'react-hook-form' or its corresponding type declarations.
+src/app/auth/reset-password/page.tsx(13,29): error TS2307: Cannot find module '@hookform/resolvers/zod' or its corresponding type declarations.
+src/app/auth/reset-password/page.tsx(14,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+src/app/auth/reset-password/page.tsx(26,12): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/app/dashboard/page.tsx(326,69): error TS2322: Type '{ className: string; title: string; }' is not assignable to type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+  Property 'title' does not exist on type 'IntrinsicAttributes & Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+src/app/invitations/[token]/page.tsx(84,73): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/app/invitations/[token]/page.tsx(84,80): error TS7006: Parameter 'session' implicitly has an 'any' type.
+src/app/join/[code]/page.tsx(87,73): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/app/join/[code]/page.tsx(87,80): error TS7006: Parameter 'session' implicitly has an 'any' type.
+src/app/leagues/[leagueId]/seasons/[seasonId]/dashboard/active/page.tsx(274,15): error TS2322: Type '{ leagueId: string; currentSeasonId: string; matches: Match[]; promotionSpots: number; relegationSpots: number; showLiveUpdates: boolean; }' is not assignable to type 'IntrinsicAttributes & LeagueStandingsProps'.
+  Property 'showLiveUpdates' does not exist on type 'IntrinsicAttributes & LeagueStandingsProps'.
+src/app/leagues/[leagueId]/seasons/[seasonId]/dashboard/draft/page.tsx(152,9): error TS2322: Type '"teams" | "registration" | "setup" | "planning"' is not assignable to type '"matches" | "registration" | "stats" | "standings" | "info" | "management" | undefined'.
+  Type '"teams"' is not assignable to type '"matches" | "registration" | "stats" | "standings" | "info" | "management" | undefined'.
+src/app/leagues/[leagueId]/seasons/[seasonId]/dashboard/draft/page.tsx(741,7): error TS2322: Type '"teams" | "registration" | "setup" | "planning"' is not assignable to type '"matches" | "registration" | "stats" | "standings" | "info" | "management" | undefined'.
+  Type '"teams"' is not assignable to type '"matches" | "registration" | "stats" | "standings" | "info" | "management" | undefined'.
+src/app/leagues/page.tsx(48,15): error TS2322: Type '{ id: string; name: string; description: string | null; sport_type: string; league_type: "competitive" | "recreational" | "semi-pro"; location: string | null; season_start: string | null; ... 7 more ...; availableSpots: number; }[]' is not assignable to type 'League[]'.
+  Type '{ id: string; name: string; description: string | null; sport_type: string; league_type: "recreational" | "competitive" | "semi-pro"; location: string | null; season_start: string | null; ... 7 more ...; availableSpots: number; }' is not assignable to type 'League'.
+    Types of property 'description' are incompatible.
+      Type 'string | null' is not assignable to type 'string | undefined'.
+        Type 'null' is not assignable to type 'string | undefined'.
+src/components/auth/forgot-password-form.tsx(15,25): error TS2307: Cannot find module 'react-hook-form' or its corresponding type declarations.
+src/components/auth/forgot-password-form.tsx(16,29): error TS2307: Cannot find module '@hookform/resolvers/zod' or its corresponding type declarations.
+src/components/auth/forgot-password-form.tsx(17,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+src/components/auth/login-form.tsx(15,25): error TS2307: Cannot find module 'react-hook-form' or its corresponding type declarations.
+src/components/auth/login-form.tsx(16,29): error TS2307: Cannot find module '@hookform/resolvers/zod' or its corresponding type declarations.
+src/components/auth/login-form.tsx(17,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+src/components/auth/signup-form.tsx(16,25): error TS2307: Cannot find module 'react-hook-form' or its corresponding type declarations.
+src/components/auth/signup-form.tsx(17,29): error TS2307: Cannot find module '@hookform/resolvers/zod' or its corresponding type declarations.
+src/components/auth/signup-form.tsx(18,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+src/components/auth/signup-form.tsx(36,36): error TS7006: Parameter 'val' implicitly has an 'any' type.
+src/components/auth/supabase-auth-provider-old.tsx(14,42): error TS2307: Cannot find module '@supabase/supabase-js' or its corresponding type declarations.
+src/components/auth/supabase-auth-provider-old.tsx(82,31): error TS2554: Expected 1 arguments, but got 0.
+src/components/auth/supabase-auth-provider-old.tsx(83,32): error TS2554: Expected 1 arguments, but got 0.
+src/components/auth/supabase-auth-provider-old.tsx(101,44): error TS2304: Cannot find name 'authRecoveryAttempted'.
+src/components/auth/supabase-auth-provider-old.tsx(103,13): error TS2304: Cannot find name 'setAuthRecoveryAttempted'.
+src/components/auth/supabase-auth-provider-old.tsx(107,13): error TS2304: Cannot find name 'setSession'.
+src/components/auth/supabase-auth-provider-old.tsx(108,13): error TS2304: Cannot find name 'setUser'.
+src/components/auth/supabase-auth-provider-old.tsx(114,69): error TS7031: Binding element 'retrySession' implicitly has an 'any' type.
+src/components/auth/supabase-auth-provider-old.tsx(114,92): error TS7031: Binding element 'retryError' implicitly has an 'any' type.
+src/components/auth/supabase-auth-provider-old.tsx(117,21): error TS2304: Cannot find name 'setSession'.
+src/components/auth/supabase-auth-provider-old.tsx(118,21): error TS2304: Cannot find name 'setUser'.
+src/components/auth/supabase-auth-provider-old.tsx(126,11): error TS2304: Cannot find name 'setSession'.
+src/components/auth/supabase-auth-provider-old.tsx(127,11): error TS2304: Cannot find name 'setUser'.
+src/components/auth/supabase-auth-provider-old.tsx(133,42): error TS2304: Cannot find name 'authRecoveryAttempted'.
+src/components/auth/supabase-auth-provider-old.tsx(135,11): error TS2304: Cannot find name 'setAuthRecoveryAttempted'.
+src/components/auth/supabase-auth-provider-old.tsx(140,11): error TS2304: Cannot find name 'setSession'.
+src/components/auth/supabase-auth-provider-old.tsx(141,11): error TS2304: Cannot find name 'setUser'.
+src/components/auth/supabase-auth-provider-old.tsx(145,11): error TS2304: Cannot find name 'setIsLoading'.
+src/components/auth/supabase-auth-provider-old.tsx(154,14): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/components/auth/supabase-auth-provider-old.tsx(154,21): error TS7006: Parameter 'session' implicitly has an 'any' type.
+src/components/auth/supabase-auth-provider-old.tsx(159,9): error TS2304: Cannot find name 'setSession'.
+src/components/auth/supabase-auth-provider-old.tsx(160,9): error TS2304: Cannot find name 'setUser'.
+src/components/auth/supabase-auth-provider-old.tsx(161,9): error TS2304: Cannot find name 'setIsLoading'.
+src/components/auth/supabase-auth-provider-old.tsx(171,29): error TS2304: Cannot find name 'user'.
+src/components/auth/supabase-auth-provider-old.tsx(171,39): error TS2304: Cannot find name 'session'.
+src/components/auth/supabase-auth-provider-old.tsx(182,7): error TS2304: Cannot find name 'setIsLoading'.
+src/components/auth/supabase-auth-provider-old.tsx(206,7): error TS2304: Cannot find name 'setIsLoading'.
+src/components/auth/supabase-auth-provider-old.tsx(213,7): error TS2304: Cannot find name 'setIsLoading'.
+src/components/auth/supabase-auth-provider-old.tsx(230,7): error TS2304: Cannot find name 'setIsLoading'.
+src/components/auth/supabase-auth-provider-old.tsx(237,7): error TS2304: Cannot find name 'setIsLoading'.
+src/components/auth/supabase-auth-provider-old.tsx(256,7): error TS2304: Cannot find name 'setIsLoading'.
+src/components/auth/supabase-auth-provider-old.tsx(263,7): error TS2304: Cannot find name 'setIsLoading'.
+src/components/auth/supabase-auth-provider-old.tsx(277,7): error TS2304: Cannot find name 'setIsLoading'.
+src/components/auth/supabase-auth-provider-old.tsx(300,9): error TS2739: Type '{ user: any; session: any; isLoading: any; isAuthenticated: boolean; signUp: (data: { email: string; password: string; displayName?: string | undefined; preferredPosition?: string | undefined; location?: string | undefined; }) => Promise<...>; signIn: (data: { ...; }) => Promise<...>; signInWithOAuth: (provider: "go...' is missing the following properties from type 'AuthContextType': isValid, lastValidated, validateAuth, refreshSession
+src/components/auth/supabase-auth-provider-old.tsx(301,5): error TS18004: No value exists in scope for the shorthand property 'user'. Either declare one or provide an initializer.
+src/components/auth/supabase-auth-provider-old.tsx(302,5): error TS18004: No value exists in scope for the shorthand property 'session'. Either declare one or provide an initializer.
+src/components/auth/supabase-auth-provider-old.tsx(303,5): error TS18004: No value exists in scope for the shorthand property 'isLoading'. Either declare one or provide an initializer.
+src/components/auth/supabase-auth-provider.tsx(14,42): error TS2307: Cannot find module '@supabase/supabase-js' or its corresponding type declarations.
+src/components/auth/supabase-auth-provider.tsx(82,31): error TS2554: Expected 1 arguments, but got 0.
+src/components/auth/supabase-auth-provider.tsx(83,32): error TS2554: Expected 1 arguments, but got 0.
+src/components/auth/supabase-auth-provider.tsx(145,79): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/components/auth/supabase-auth-provider.tsx(145,86): error TS7006: Parameter 'session' implicitly has an 'any' type.
+src/components/auth/user-profile.tsx(15,25): error TS2307: Cannot find module 'react-hook-form' or its corresponding type declarations.
+src/components/auth/user-profile.tsx(16,29): error TS2307: Cannot find module '@hookform/resolvers/zod' or its corresponding type declarations.
+src/components/auth/user-profile.tsx(17,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+src/components/auth/user-profile.tsx(31,25): error TS2307: Cannot find module './auth-provider' or its corresponding type declarations.
+src/components/features/achievement-showcase.tsx(14,26): error TS2307: Cannot find module '@tanstack/react-query' or its corresponding type declarations.
+src/components/features/achievement-showcase.tsx(16,30): error TS2305: Module '"@/lib/services/achievement.service"' has no exported member 'AchievementProgress'.
+src/components/features/achievement-showcase.tsx(16,51): error TS2459: Module '"@/lib/services/achievement.service"' declares 'AchievementCategory' locally, but it is not exported.
+src/components/features/achievement-showcase.tsx(153,41): error TS7006: Parameter 'achievement' implicitly has an 'any' type.
+src/components/features/achievement-showcase.tsx(176,53): error TS2339: Property 'getUserAchievements' does not exist on type 'AchievementService'.
+src/components/features/achievement-showcase.tsx(230,68): error TS7006: Parameter 'recent' implicitly has an 'any' type.
+src/components/features/achievement-showcase.tsx(292,54): error TS7006: Parameter 'recent' implicitly has an 'any' type.
+src/components/features/achievement-showcase.tsx(324,50): error TS7006: Parameter 'milestone' implicitly has an 'any' type.
+src/components/features/achievement-showcase.tsx(352,42): error TS7006: Parameter 'category' implicitly has an 'any' type.
+src/components/features/global-leaderboard.tsx(19,26): error TS2307: Cannot find module '@tanstack/react-query' or its corresponding type declarations.
+src/components/features/global-leaderboard.tsx(270,40): error TS7006: Parameter 'player' implicitly has an 'any' type.
+src/components/features/global-leaderboard.tsx(270,48): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/components/features/live-match-tracker.tsx(167,26): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/components/features/live-match-tracker.tsx(167,29): error TS7006: Parameter 'b' implicitly has an 'any' type.
+src/components/features/live-match-tracker.tsx(168,25): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/components/layout/header.tsx(23,37): error TS2339: Property 'forceSignOut' does not exist on type 'AuthContextType'.
+src/components/layout/header.tsx(65,20): error TS2339: Property 'canForceLogout' does not exist on type '{ success: boolean; error?: string | undefined; }'.
+src/components/leagues/dashboards/SeasonDashboardLayout.tsx(252,56): error TS2551: Property 'status' does not exist on type 'Season'. Did you mean 'stats'?
+src/components/leagues/dashboards/SeasonDashboardLayout.tsx(308,35): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ standings: { icon: ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>; label: string; }; ... 4 more ...; registration: { ...; }; }'.
+  No index signature with a parameter of type 'string' was found on type '{ standings: { icon: ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>; label: string; }; ... 4 more ...; registration: { ...; }; }'.
+src/components/leagues/dashboards/SeasonDashboardLayout.tsx(309,33): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ standings: { icon: ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>; label: string; }; ... 4 more ...; registration: { ...; }; }'.
+  No index signature with a parameter of type 'string' was found on type '{ standings: { icon: ForwardRefExoticComponent<Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>>; label: string; }; ... 4 more ...; registration: { ...; }; }'.
+src/components/leagues/league-management.tsx(154,45): error TS7006: Parameter 'membership' implicitly has an 'any' type.
+src/components/leagues/league-management.tsx(185,48): error TS7006: Parameter 'league' implicitly has an 'any' type.
+src/components/leagues/league-management.tsx(197,51): error TS7006: Parameter 'league' implicitly has an 'any' type.
+src/components/leagues/league-management.tsx(373,43): error TS7006: Parameter 'l' implicitly has an 'any' type.
+src/components/leagues/league-management.tsx(559,31): error TS7006: Parameter 'league' implicitly has an 'any' type.
+src/components/leagues/league-management.tsx(625,49): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/components/matches/live-match-scorer.tsx(115,20): error TS2554: Expected 1 arguments, but got 0.
+src/components/matches/live-match-scorer.tsx(214,11): error TS7034: Variable 'homeTeamStats' implicitly has type 'any[]' in some locations where its type cannot be determined.
+src/components/matches/live-match-scorer.tsx(215,11): error TS7034: Variable 'awayTeamStats' implicitly has type 'any[]' in some locations where its type cannot be determined.
+src/components/matches/live-match-scorer.tsx(227,7): error TS7005: Variable 'homeTeamStats' implicitly has an 'any[]' type.
+src/components/matches/live-match-scorer.tsx(228,7): error TS7005: Variable 'awayTeamStats' implicitly has an 'any[]' type.
+src/components/matches/live-match-scorer.tsx(279,12): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'LiveMatch'.
+  No index signature with a parameter of type 'string' was found on type 'LiveMatch'.
+src/components/matches/live-match-scorer.tsx(280,16): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'LiveMatch'.
+  No index signature with a parameter of type 'string' was found on type 'LiveMatch'.
+src/components/matches/live-match-scorer.tsx(291,12): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'LiveMatch'.
+  No index signature with a parameter of type 'string' was found on type 'LiveMatch'.
+src/components/matches/live-match-scorer.tsx(292,28): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'LiveMatch'.
+  No index signature with a parameter of type 'string' was found on type 'LiveMatch'.
+src/components/matches/live-match-scorer.tsx(657,20): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'LiveMatch'.
+  No index signature with a parameter of type 'string' was found on type 'LiveMatch'.
+src/components/matches/live-match-scorer.tsx(657,62): error TS7006: Parameter 'player' implicitly has an 'any' type.
+src/components/matches/live-match-scorer.tsx(691,36): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'LiveMatch'.
+  No index signature with a parameter of type 'string' was found on type 'LiveMatch'.
+src/components/matches/live-match-scorer.tsx(691,79): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/components/matches/live-match-scorer.tsx(692,34): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type 'LiveMatch'.
+  No index signature with a parameter of type 'string' was found on type 'LiveMatch'.
+src/components/onboarding/onboarding-wizard.tsx(11,39): error TS2307: Cannot find module 'react-hook-form' or its corresponding type declarations.
+src/components/onboarding/onboarding-wizard.tsx(12,29): error TS2307: Cannot find module '@hookform/resolvers/zod' or its corresponding type declarations.
+src/components/onboarding/onboarding-wizard.tsx(13,29): error TS2307: Cannot find module '@tanstack/react-query' or its corresponding type declarations.
+src/components/onboarding/onboarding-wizard.tsx(25,27): error TS2307: Cannot find module './steps/goals-step' or its corresponding type declarations.
+src/components/onboarding/onboarding-wizard.tsx(26,35): error TS2307: Cannot find module './steps/league-preview-step' or its corresponding type declarations.
+src/components/onboarding/onboarding-wizard.tsx(27,32): error TS2307: Cannot find module './steps/completion-step' or its corresponding type declarations.
+src/components/onboarding/onboarding-wizard.tsx(136,17): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/components/onboarding/onboarding-wizard.tsx(140,15): error TS7006: Parameter 'error' implicitly has an 'any' type.
+src/components/onboarding/steps/preferences-step.tsx(11,32): error TS2307: Cannot find module 'react-hook-form' or its corresponding type declarations.
+src/components/onboarding/steps/preferences-step.tsx(94,42): error TS2731: Implicit conversion of a 'symbol' to a 'string' will fail at runtime. Consider wrapping this expression in 'String(...)'.
+src/components/onboarding/steps/profile-step.tsx(11,32): error TS2307: Cannot find module 'react-hook-form' or its corresponding type declarations.
+src/components/onboarding/steps/sports-step.tsx(11,32): error TS2307: Cannot find module 'react-hook-form' or its corresponding type declarations.
+src/components/onboarding/steps/welcome-step.tsx(11,32): error TS2307: Cannot find module 'react-hook-form' or its corresponding type declarations.
+src/components/onboarding/types.ts(5,19): error TS2307: Cannot find module 'zod' or its corresponding type declarations.
+src/components/onboarding/types.ts(114,36): error TS7006: Parameter 'val' implicitly has an 'any' type.
+src/components/onboarding/types.ts(133,13): error TS7006: Parameter 'date' implicitly has an 'any' type.
+src/components/onboarding/types.ts(166,5): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/components/onboarding/types.ts(199,37): error TS7006: Parameter 'val' implicitly has an 'any' type.
+src/components/player/league-discovery.tsx(192,76): error TS7006: Parameter 'league' implicitly has an 'any' type.
+src/components/player/league-discovery.tsx(196,48): error TS7006: Parameter 'total' implicitly has an 'any' type.
+src/components/player/league-discovery.tsx(196,55): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/components/player/league-discovery.tsx(197,51): error TS7006: Parameter 'total' implicitly has an 'any' type.
+src/components/player/league-discovery.tsx(197,58): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/components/player/player-dashboard.tsx(14,26): error TS2307: Cannot find module '@tanstack/react-query' or its corresponding type declarations.
+src/components/player/player-dashboard.tsx(42,48): error TS2339: Property 'getAggregatedStats' does not exist on type 'PlayerService'.
+src/components/player/player-dashboard.tsx(48,47): error TS2551: Property 'getPlayerUpcomingMatches' does not exist on type 'MatchService'. Did you mean 'getPlayerMatches'?
+src/components/player/player-dashboard.tsx(54,47): error TS2551: Property 'getPlayerRecentMatches' does not exist on type 'MatchService'. Did you mean 'getPlayerMatches'?
+src/components/player/player-dashboard.tsx(164,25): error TS2322: Type '{ userId: string; }' is not assignable to type 'IntrinsicAttributes & LiveMatchTrackerProps'.
+  Property 'userId' does not exist on type 'IntrinsicAttributes & LiveMatchTrackerProps'.
+src/components/player/player-dashboard.tsx(173,47): error TS7006: Parameter 'match' implicitly has an 'any' type.
+src/components/player/player-dashboard.tsx(177,17): error TS2322: Type '"upcoming"' is not assignable to type '"live" | "default" | "result" | "preview" | undefined'.
+src/components/player/player-dashboard.tsx(192,33): error TS7006: Parameter 'match' implicitly has an 'any' type.
+src/components/player/player-dashboard.tsx(197,17): error TS2322: Type '{ key: any; match: any; variant: "result"; showLeague: boolean; }' is not assignable to type 'IntrinsicAttributes & MatchCardProps'.
+  Property 'showLeague' does not exist on type 'IntrinsicAttributes & MatchCardProps'.
+src/components/player/player-dashboard.tsx(235,43): error TS7006: Parameter 'leagueStat' implicitly has an 'any' type.
+src/components/player/player-onboarding.tsx(15,29): error TS2307: Cannot find module '@tanstack/react-query' or its corresponding type declarations.
+src/components/providers/query-provider.tsx(11,50): error TS2307: Cannot find module '@tanstack/react-query' or its corresponding type declarations.
+src/components/teams/EnhancedTeamInviteModal.tsx(327,18): error TS2774: This condition will always return true since this function is always defined. Did you mean to call it instead?
+src/components/teams/team-member-management.tsx(145,42): error TS2339: Property 'email' does not exist on type '{ id: string; display_name: string | null; full_name: string | null; avatar_url: string | null; bio: string | null; phone: string | null; preferred_position: string | null; location: string | null; }'.
+src/components/teams/team-member-management.tsx(312,45): error TS2339: Property 'email' does not exist on type '{ id: string; display_name: string | null; full_name: string | null; avatar_url: string | null; bio: string | null; phone: string | null; preferred_position: string | null; location: string | null; }'.
+src/hooks/useDashboardData.ts(218,34): error TS7006: Parameter 'membership' implicitly has an 'any' type.
+src/hooks/useDashboardData.ts(247,30): error TS7006: Parameter 'stat' implicitly has an 'any' type.
+src/lib/auth/auth.service.ts(16,42): error TS2307: Cannot find module '@supabase/supabase-js' or its corresponding type declarations.
+src/lib/auth/auth.service.ts(354,33): error TS2339: Property 'user_metadata' does not exist on type 'AuthUser'.
+src/lib/auth/mock-auth.service.ts(10,25): error TS2307: Cannot find module 'jose' or its corresponding type declarations.
+src/lib/auth/validator.ts(8,25): error TS2307: Cannot find module '@supabase/supabase-js' or its corresponding type declarations.
+src/lib/auth/validator.ts(142,11): error TS18046: 'healthError' is of type 'unknown'.
+src/lib/auth/validator.ts(144,18): error TS18046: 'healthError' is of type 'unknown'.
+src/lib/database/direct-db.service.ts(8,22): error TS2307: Cannot find module 'pg' or its corresponding type declarations.
+src/lib/database/direct-db.service.ts(9,30): error TS2307: Cannot find module 'uuid' or its corresponding type declarations.
+src/lib/hooks/use-realtime-leagues.ts(15,42): error TS2307: Cannot find module '@tanstack/react-query' or its corresponding type declarations.
+src/lib/hooks/use-realtime-leagues.ts(116,14): error TS7006: Parameter 'payload' implicitly has an 'any' type.
+src/lib/hooks/use-realtime-leagues.ts(147,14): error TS7006: Parameter 'payload' implicitly has an 'any' type.
+src/lib/hooks/use-realtime-leagues.ts(178,14): error TS7006: Parameter 'payload' implicitly has an 'any' type.
+src/lib/hooks/use-realtime-leagues.ts(192,23): error TS7006: Parameter 'status' implicitly has an 'any' type.
+src/lib/hooks/use-realtime-leagues.ts(299,14): error TS7006: Parameter 'payload' implicitly has an 'any' type.
+src/lib/hooks/use-realtime-leagues.ts(320,14): error TS7006: Parameter 'payload' implicitly has an 'any' type.
+src/lib/hooks/use-realtime-leagues.ts(334,23): error TS7006: Parameter 'status' implicitly has an 'any' type.
+src/lib/hooks/use-realtime-leagues.ts(410,14): error TS7006: Parameter 'payload' implicitly has an 'any' type.
+src/lib/hooks/use-realtime-leagues.ts(445,23): error TS7006: Parameter 'status' implicitly has an 'any' type.
+src/lib/hooks/use-realtime-matches.ts(17,42): error TS2307: Cannot find module '@tanstack/react-query' or its corresponding type declarations.
+src/lib/hooks/use-realtime-matches.ts(51,47): error TS2551: Property 'getLiveMatches' does not exist on type 'MatchService'. Did you mean 'getActiveMatches'?
+src/lib/hooks/use-realtime-matches.ts(62,47): error TS2307: Cannot find module '@supabase/supabase-js' or its corresponding type declarations.
+src/lib/hooks/use-realtime-matches.ts(78,14): error TS7006: Parameter 'payload' implicitly has an 'any' type.
+src/lib/hooks/use-realtime-matches.ts(99,14): error TS7006: Parameter 'payload' implicitly has an 'any' type.
+src/lib/hooks/use-realtime-matches.ts(113,23): error TS7006: Parameter 'status' implicitly has an 'any' type.
+src/lib/hooks/use-realtime-matches.ts(156,17): error TS7022: 'match' implicitly has type 'any' because it does not have a type annotation and is referenced directly or indirectly in its own initializer.
+src/lib/hooks/use-realtime-matches.ts(158,57): error TS2339: Property 'getMatchById' does not exist on type 'MatchService'.
+src/lib/hooks/use-realtime-matches.ts(160,22): error TS2448: Block-scoped variable 'match' used before its declaration.
+src/lib/hooks/use-realtime-matches.ts(167,57): error TS2339: Property 'getMatchStatistics' does not exist on type 'MatchService'.
+src/lib/hooks/use-realtime-matches.ts(193,47): error TS2307: Cannot find module '@supabase/supabase-js' or its corresponding type declarations.
+src/lib/hooks/use-realtime-matches.ts(209,14): error TS7006: Parameter 'payload' implicitly has an 'any' type.
+src/lib/hooks/use-realtime-matches.ts(234,14): error TS7006: Parameter 'payload' implicitly has an 'any' type.
+src/lib/hooks/use-realtime-matches.ts(259,23): error TS7006: Parameter 'status' implicitly has an 'any' type.
+src/lib/hooks/use-realtime-matches.ts(319,47): error TS2307: Cannot find module '@supabase/supabase-js' or its corresponding type declarations.
+src/lib/hooks/use-realtime-matches.ts(335,14): error TS7006: Parameter 'payload' implicitly has an 'any' type.
+src/lib/hooks/use-realtime-matches.ts(353,36): error TS2345: Argument of type '(prev: { id: string; type: "goal_scored" | "match_started" | "match_ended"; message: string; timestamp: string; }[]) => { id: string; type: string; message: string; timestamp: string; }[]' is not assignable to parameter of type 'SetStateAction<{ id: string; type: "goal_scored" | "match_started" | "match_ended"; message: string; timestamp: string; }[]>'.
+  Type '(prev: { id: string; type: "goal_scored" | "match_started" | "match_ended"; message: string; timestamp: string; }[]) => { id: string; type: string; message: string; timestamp: string; }[]' is not assignable to type '(prevState: { id: string; type: "goal_scored" | "match_started" | "match_ended"; message: string; timestamp: string; }[]) => { id: string; type: "goal_scored" | "match_started" | "match_ended"; message: string; timestamp: string; }[]'.
+    Type '{ id: string; type: string; message: string; timestamp: string; }[]' is not assignable to type '{ id: string; type: "goal_scored" | "match_started" | "match_ended"; message: string; timestamp: string; }[]'.
+      Type '{ id: string; type: string; message: string; timestamp: string; }' is not assignable to type '{ id: string; type: "goal_scored" | "match_started" | "match_ended"; message: string; timestamp: string; }'.
+        Types of property 'type' are incompatible.
+          Type 'string' is not assignable to type '"goal_scored" | "match_started" | "match_ended"'.
+src/lib/services/achievement.service.ts(13,32): error TS2307: Cannot find module '@supabase/supabase-js' or its corresponding type declarations.
+src/lib/services/achievement.service.ts(189,52): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/services/achievement.service.ts(189,57): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/lib/services/achievement.service.ts(190,54): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/services/achievement.service.ts(190,59): error TS7006: Parameter 'ua' implicitly has an 'any' type.
+src/lib/services/achievement.service.ts(201,9): error TS7006: Parameter 'ua' implicitly has an 'any' type.
+src/lib/services/achievement.service.ts(275,45): error TS7006: Parameter 'ua' implicitly has an 'any' type.
+src/lib/services/achievement.service.ts(378,66): error TS7006: Parameter 'ua' implicitly has an 'any' type.
+src/lib/services/achievement.service.ts(382,14): error TS7006: Parameter 'achievement' implicitly has an 'any' type.
+src/lib/services/achievement.service.ts(570,79): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+src/lib/services/achievement.service.ts(570,86): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/lib/services/analytics.service.ts(127,44): error TS7006: Parameter 'acc' implicitly has an 'any' type.
+src/lib/services/analytics.service.ts(127,49): error TS7006: Parameter 'stat' implicitly has an 'any' type.
+src/lib/services/analytics.service.ts(136,30): error TS7006: Parameter 'stat' implicitly has an 'any' type.
+src/lib/services/division.service.ts(12,32): error TS2307: Cannot find module '@supabase/supabase-js' or its corresponding type declarations.
+src/lib/services/division.service.ts(295,38): error TS7006: Parameter 'division' implicitly has an 'any' type.
+src/lib/services/division.service.ts(355,47): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/lib/services/division.service.ts(356,50): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/lib/services/division.service.ts(734,41): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/lib/services/division.service.ts(735,44): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/lib/services/league.service.ts(13,32): error TS2307: Cannot find module '@supabase/supabase-js' or its corresponding type declarations.
+src/lib/services/league.service.ts(217,44): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/lib/services/league.service.ts(222,36): error TS7006: Parameter 'league' implicitly has an 'any' type.
+src/lib/services/league.service.ts(341,41): error TS7006: Parameter 'total' implicitly has an 'any' type.
+src/lib/services/league.service.ts(341,48): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/lib/services/league.service.ts(342,57): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/lib/services/league.service.ts(347,44): error TS7006: Parameter 'total' implicitly has an 'any' type.
+src/lib/services/league.service.ts(347,51): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/lib/services/league.service.ts(348,57): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/lib/services/league.service.ts(354,40): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/lib/services/league.service.ts(356,51): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/lib/services/league.service.ts(357,44): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/lib/services/league.service.ts(357,76): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/lib/services/league.service.ts(369,30): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/lib/services/league.service.ts(377,40): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/lib/services/league.service.ts(378,35): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/lib/services/league.service.ts(530,37): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/lib/services/league.service.ts(536,72): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/lib/services/league.service.ts(537,57): error TS7006: Parameter 'm' implicitly has an 'any' type.
+src/lib/services/league.service.ts(538,40): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/lib/services/league.service.ts(610,40): error TS7006: Parameter 'membership' implicitly has an 'any' type.
+src/lib/services/league.service.ts(675,34): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/lib/services/league.service.ts(703,44): error TS7006: Parameter 'total' implicitly has an 'any' type.
+src/lib/services/league.service.ts(703,51): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/lib/services/league.service.ts(704,57): error TS7006: Parameter 'member' implicitly has an 'any' type.
+src/lib/services/match.service.ts(13,32): error TS2307: Cannot find module '@supabase/supabase-js' or its corresponding type declarations.
+src/lib/services/match.service.ts(215,37): error TS7006: Parameter 'tm' implicitly has an 'any' type.
+src/lib/services/match.service.ts(261,36): error TS7006: Parameter 'match' implicitly has an 'any' type.
+src/lib/services/match.service.ts(309,54): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/lib/services/match.service.ts(310,54): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/lib/services/match.service.ts(436,55): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/lib/services/match.service.ts(437,55): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/lib/services/match.service.ts(678,8): error TS7006: Parameter 'acc' implicitly has an 'any' type.
+src/lib/services/match.service.ts(678,13): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/lib/services/match.service.ts(748,30): error TS7006: Parameter 'event' implicitly has an 'any' type.
+src/lib/services/match.service.ts(1094,53): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/lib/services/match.service.ts(1095,53): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/lib/services/match.service.ts(1100,46): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/lib/services/match.service.ts(1113,46): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/lib/services/player.service.ts(14,32): error TS2307: Cannot find module '@supabase/supabase-js' or its corresponding type declarations.
+src/lib/services/player.service.ts(166,37): error TS7006: Parameter 'tm' implicitly has an 'any' type.
+src/lib/services/player.service.ts(170,45): error TS7006: Parameter 'ua' implicitly has an 'any' type.
+src/lib/services/player.service.ts(379,49): error TS7006: Parameter 'achievement' implicitly has an 'any' type.
+src/lib/services/season.service.ts(11,32): error TS2307: Cannot find module '@supabase/supabase-js' or its corresponding type declarations.
+src/lib/services/season.service.ts(424,9): error TS2353: Object literal may only specify known properties, and 'fixtures_generation_error' does not exist in type 'Partial<Season>'.
+src/lib/services/stats.service.ts(13,32): error TS2307: Cannot find module '@supabase/supabase-js' or its corresponding type declarations.
+src/lib/services/stats.service.ts(158,25): error TS2339: Property 'code' does not exist on type '{}'.
+src/lib/services/stats.service.ts(159,28): error TS2339: Property 'message' does not exist on type '{}'.
+src/lib/services/stats.service.ts(160,21): error TS2339: Property 'stack' does not exist on type '{}'.
+src/lib/services/stats.service.ts(164,16): error TS2339: Property 'code' does not exist on type '{}'.
+src/lib/services/stats.service.ts(184,20): error TS2339: Property 'code' does not exist on type '{}'.
+src/lib/services/stats.service.ts(185,23): error TS2339: Property 'message' does not exist on type '{}'.
+src/lib/services/stats.service.ts(186,23): error TS2339: Property 'details' does not exist on type '{}'.
+src/lib/services/stats.service.ts(334,9): error TS2739: Type '{ [key: string]: PerformanceTrend[]; }' is missing the following properties from type '{ goals: PerformanceTrend[]; assists: PerformanceTrend[]; overall: PerformanceTrend[]; }': goals, assists, overall
+src/lib/services/stats.service.ts(408,69): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+src/lib/services/stats.service.ts(408,76): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/lib/services/stats.service.ts(495,40): error TS7006: Parameter 'stat' implicitly has an 'any' type.
+src/lib/services/stats.service.ts(921,44): error TS2339: Property 'games_started' does not exist on type '{ id: string; player_id: string; league_id: string; team_id: string; games_played: number | null; goals: number | null; assists: number | null; yellow_cards: number | null; red_cards: number | null; minutes_played: number | null; additional_stats: any; updated_at: string; }'.
+src/lib/services/stats.service.ts(921,67): error TS2339: Property 'games_started' does not exist on type '{ id: string; player_id: string; league_id: string; team_id: string; games_played: number | null; goals: number | null; assists: number | null; yellow_cards: number | null; red_cards: number | null; minutes_played: number | null; additional_stats: any; updated_at: string; }'.
+src/lib/services/stats.service.ts(930,9): error TS18047: 'stats.games_played' is possibly 'null'.
+src/lib/services/stats.service.ts(1019,41): error TS7006: Parameter 'player' implicitly has an 'any' type.
+src/lib/services/stats.service.ts(1019,49): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/lib/services/stats.service.ts(1027,45): error TS7006: Parameter 'player' implicitly has an 'any' type.
+src/lib/services/stats.service.ts(1027,53): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/lib/services/stats.service.ts(1035,49): error TS7006: Parameter 'player' implicitly has an 'any' type.
+src/lib/services/stats.service.ts(1035,57): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/lib/services/stats.service.ts(1086,48): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/services/stats.service.ts(1086,53): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/lib/services/stats.service.ts(1093,40): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/lib/services/stats.service.ts(1094,60): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/lib/services/stats.service.ts(1094,63): error TS7006: Parameter 'b' implicitly has an 'any' type.
+src/lib/services/stats.service.ts(1096,26): error TS7006: Parameter 'sum' implicitly has an 'any' type.
+src/lib/services/stats.service.ts(1096,31): error TS7006: Parameter 'points' implicitly has an 'any' type.
+src/lib/services/team.service.ts(14,32): error TS2307: Cannot find module '@supabase/supabase-js' or its corresponding type declarations.
+src/lib/services/team.service.ts(322,27): error TS7006: Parameter 'stat' implicitly has an 'any' type.
+src/lib/services/team.service.ts(344,30): error TS7006: Parameter 'a' implicitly has an 'any' type.
+src/lib/services/team.service.ts(344,33): error TS7006: Parameter 'b' implicitly has an 'any' type.
+src/lib/services/team.service.ts(437,49): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/lib/services/team.service.ts(547,46): error TS7006: Parameter 'membership' implicitly has an 'any' type.
+src/lib/services/team.service.ts(547,58): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/lib/services/team.service.ts(579,11): error TS2322: Type 'null' is not assignable to type '{ id: string; full_name: string | null; display_name: string | null; avatar_url: string | null; bio: string | null; phone: string | null; date_of_birth: string | null; preferred_position: string | null; location: string | null; created_at: string; updated_at: string; } | undefined'.
+src/lib/services/team.service.ts(597,34): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/lib/services/team.service.ts(598,33): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/lib/services/team.service.ts(601,40): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/lib/services/team.service.ts(609,35): error TS7006: Parameter 't' implicitly has an 'any' type.
+src/lib/services/team.service.ts(768,53): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/lib/services/team.service.ts(774,48): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/lib/services/team.service.ts(778,29): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/lib/services/team.service.ts(886,53): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/lib/services/team.service.ts(892,48): error TS7006: Parameter 'team' implicitly has an 'any' type.
+src/lib/supabase/client-fixed.ts(7,30): error TS2307: Cannot find module '@supabase/supabase-js' or its corresponding type declarations.
+src/lib/supabase/client-fixed.ts(41,13): error TS7006: Parameter 'url' implicitly has an 'any' type.
+src/lib/supabase/client-fixed.ts(47,24): error TS2339: Property 'headers' does not exist on type '{}'.
+src/lib/supabase/client-fixed.ts(95,3): error TS2305: Module '"./client"' has no exported member 'createServerClient'.
+src/lib/supabase/client-fixed.ts(96,3): error TS2305: Module '"./client"' has no exported member 'createAdminClient'.
+src/lib/supabase/client.ts(10,37): error TS2307: Cannot find module '@supabase/ssr' or its corresponding type declarations.
+src/lib/supabase/server-client.ts(8,36): error TS2307: Cannot find module '@supabase/ssr' or its corresponding type declarations.
+src/lib/supabase/server-client.ts(30,16): error TS7006: Parameter 'cookiesToSet' implicitly has an 'any' type.
+src/lib/supabase/server-client.ts(32,37): error TS7031: Binding element 'name' implicitly has an 'any' type.
+src/lib/supabase/server-client.ts(32,43): error TS7031: Binding element 'value' implicitly has an 'any' type.
+src/lib/supabase/server-client.ts(32,50): error TS7031: Binding element 'options' implicitly has an 'any' type.
+src/lib/supabase/server-client.ts(68,16): error TS7006: Parameter 'cookiesToSet' implicitly has an 'any' type.
+src/lib/supabase/server-client.ts(71,37): error TS7031: Binding element 'name' implicitly has an 'any' type.
+src/lib/supabase/server-client.ts(71,43): error TS7031: Binding element 'value' implicitly has an 'any' type.
+src/lib/supabase/server-client.ts(71,50): error TS7031: Binding element 'options' implicitly has an 'any' type.
+src/lib/supabase/server-client.ts(76,35): error TS7031: Binding element 'name' implicitly has an 'any' type.
+src/lib/supabase/server-client.ts(76,41): error TS7031: Binding element 'value' implicitly has an 'any' type.
+src/lib/types/database.types.ts(768,3): error TS2687: All declarations of 'events' must have identical modifiers.
+src/lib/types/database.types.ts(943,3): error TS2687: All declarations of 'events' must have identical modifiers.
+src/lib/types/database.types.ts(943,3): error TS2717: Subsequent property declarations must have the same type.  Property 'events' must be of type '{ id: string; match_id: string; team_id: string | null; player_id: string | null; event_type: string; event_time: number | null; description: string | null; created_at: string; }[] | undefined', but here has type '{ id: string; match_id: string; team_id: string | null; player_id: string | null; event_type: string; event_time: number | null; description: string | null; created_at: string; }[]'.
+ ELIFECYCLE  Command failed with exit code 1.
