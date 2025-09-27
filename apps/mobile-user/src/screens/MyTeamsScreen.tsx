@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { useAuth } from '../contexts/AuthContext';
 import { PlayerService, TeamMembership } from '../services/PlayerService';
 import { CreateTeamModal } from '../components/CreateTeamModal';
 
-const TeamCard: React.FC<{ team: TeamMembership }> = ({ team }) => {
+const TeamCard: React.FC<{ team: TeamMembership; onViewTeam: (teamId: string, teamName: string) => void }> = ({ team, onViewTeam }) => {
   const getTeamColorIcon = (color?: string) => {
     if (!color) return '⚽';
     const colorMap: { [key: string]: string } = {
@@ -67,16 +67,24 @@ const TeamCard: React.FC<{ team: TeamMembership }> = ({ team }) => {
         </View>
       </View>
 
-      <TouchableOpacity style={styles.viewTeamButton}>
+      <TouchableOpacity
+        style={styles.viewTeamButton}
+        onPress={() => onViewTeam(team.teamId, team.teamName)}
+      >
         <Text style={styles.viewTeamButtonText}>View Team Details</Text>
       </TouchableOpacity>
     </View>
   );
 };
 
+type RootStackParamList = {
+  TeamDetails: { teamId: string; teamName: string };
+  ExploreLeaguesTab: undefined;
+};
+
 export const MyTeamsScreen: React.FC = () => {
   const { user } = useAuth();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
 
   const { data: teams, isLoading, refetch } = useQuery({
@@ -91,6 +99,10 @@ export const MyTeamsScreen: React.FC = () => {
 
   const handleTeamCreated = () => {
     refetch(); // Refresh the teams list after creating a new team
+  };
+
+  const handleViewTeamDetails = (teamId: string, teamName: string) => {
+    navigation.navigate('TeamDetails', { teamId, teamName });
   };
 
   if (isLoading) {
@@ -125,7 +137,7 @@ export const MyTeamsScreen: React.FC = () => {
         </View>
 
         {teams && teams.length > 0 ? (
-          teams.map((team) => <TeamCard key={team.teamId} team={team} />)
+          teams.map((team) => <TeamCard key={team.teamId} team={team} onViewTeam={handleViewTeamDetails} />)
         ) : !isLoading ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>⚽</Text>

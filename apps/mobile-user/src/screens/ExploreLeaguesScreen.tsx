@@ -1,10 +1,19 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useNavigation } from '@react-navigation/native';
 import { useQuery } from '@tanstack/react-query';
 import { LeagueService, League } from '../services/LeagueService';
 
 const LeagueCard: React.FC<{ league: League }> = ({ league }) => {
+  const navigation = useNavigation();
+
+  const handleViewLeague = () => {
+    (navigation as any).navigate('LeagueDetails', {
+      leagueId: league.id,
+      leagueName: league.name,
+    });
+  };
   const getSportIcon = (sportType: string) => {
     switch (sportType.toLowerCase()) {
       case 'football':
@@ -80,6 +89,7 @@ const LeagueCard: React.FC<{ league: League }> = ({ league }) => {
           !isAvailable && styles.disabledButton
         ]}
         disabled={!isAvailable}
+        onPress={isAvailable ? handleViewLeague : undefined}
       >
         <Text style={[
           styles.buttonText,

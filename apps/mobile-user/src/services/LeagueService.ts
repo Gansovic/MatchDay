@@ -235,4 +235,55 @@ export class LeagueService {
       return [];
     }
   }
+
+  // Get a single league by ID (for mobile league details screen)
+  async getLeagueById(leagueId: string): Promise<League | null> {
+    try {
+      const { data: league, error } = await supabase
+        .from('leagues')
+        .select(`
+          id,
+          name,
+          description,
+          sport_type,
+          league_type,
+          entry_fee,
+          location,
+          max_teams,
+          created_at,
+          teams(id)
+        `)
+        .eq('id', leagueId)
+        .eq('is_active', true)
+        .single();
+
+      if (error || !league) {
+        console.error('Error fetching league by ID:', error);
+        return null;
+      }
+
+      // Calculate team counts and available spots
+      const currentTeamsCount = (league.teams as any[])?.length || 0;
+      const availableSpots = Math.max(0, league.max_teams - currentTeamsCount);
+      const isRecruiting = availableSpots > 0;
+
+      return {
+        id: league.id,
+        name: league.name,
+        description: league.description,
+        sport_type: league.sport_type || 'football',
+        league_type: league.league_type || 'casual',
+        entry_fee: league.entry_fee || 0,
+        location: league.location,
+        max_teams: league.max_teams,
+        current_teams_count: currentTeamsCount,
+        available_spots: availableSpots,
+        is_recruiting: isRecruiting,
+        created_at: league.created_at,
+      };
+    } catch (error) {
+      console.error('Error fetching league by ID:', error);
+      return null;
+    }
+  }
 }

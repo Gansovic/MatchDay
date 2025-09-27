@@ -11,6 +11,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { LeagueDiscovery as LeagueDiscoveryType } from '@/lib/types/database.types';
 import { NumberFormatters } from '@/lib/utils/formatters';
@@ -151,7 +152,7 @@ export const LeagueDiscovery: React.FC<LeagueDiscoveryProps> = ({
   userId,
   className = ''
 }) => {
-  
+  const router = useRouter();
   const [requestingLeague, setRequestingLeague] = useState<string | null>(null);
   const [leagues, setLeagues] = useState<LeagueDiscoveryType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -215,11 +216,11 @@ export const LeagueDiscovery: React.FC<LeagueDiscoveryProps> = ({
 
   const handleJoinRequest = async (leagueId: string) => {
     if (requestingLeague) return;
-    
+
     setRequestingLeague(leagueId);
     try {
       // Navigate to league details page instead of direct join
-      window.location.href = `/leagues/${leagueId}`;
+      router.push(`/leagues/${leagueId}`);
     } catch (error) {
       console.error('Failed to navigate to league:', error);
     } finally {

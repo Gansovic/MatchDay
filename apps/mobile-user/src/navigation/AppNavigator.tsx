@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text, View, ActivityIndicator } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { QueryProvider } from '../contexts/QueryProvider';
 import { LoginScreen } from '../screens/auth/LoginScreen';
@@ -10,12 +11,16 @@ import { SignupScreen } from '../screens/auth/SignupScreen';
 import { MainScreen } from '../screens/MainScreen';
 import { MyTeamsScreen } from '../screens/MyTeamsScreen';
 import { ExploreLeaguesScreen } from '../screens/ExploreLeaguesScreen';
+import { LeagueDetailsScreen } from '../screens/LeagueDetailsScreen';
+import { TeamDetailsScreen } from '../screens/TeamDetailsScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
 // Tab Navigator for authenticated users
 const TabNavigator: React.FC = () => {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
         screenOptions={{
@@ -25,8 +30,8 @@ const TabNavigator: React.FC = () => {
             backgroundColor: 'white',
             borderTopColor: '#e5e7eb',
             paddingTop: 8,
-            paddingBottom: 8,
-            height: 60,
+            paddingBottom: Math.max(insets.bottom, 8),
+            height: 60 + Math.max(insets.bottom - 8, 0),
           },
           tabBarLabelStyle: {
             fontSize: 12,
@@ -88,6 +93,17 @@ const AuthNavigator: React.FC = () => {
   );
 };
 
+// Main Stack Navigator that includes both tabs and detail screens
+const MainStackNavigator: React.FC = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Tabs" component={TabNavigator} />
+      <Stack.Screen name="LeagueDetails" component={LeagueDetailsScreen} />
+      <Stack.Screen name="TeamDetails" component={TeamDetailsScreen} />
+    </Stack.Navigator>
+  );
+};
+
 // Main Navigator that handles auth state
 const RootNavigator: React.FC = () => {
   const { user, loading } = useAuth();
@@ -104,7 +120,7 @@ const RootNavigator: React.FC = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {user ? (
-        <Stack.Screen name="Main" component={TabNavigator} />
+        <Stack.Screen name="Main" component={MainStackNavigator} />
       ) : (
         <Stack.Screen name="Auth" component={AuthNavigator} />
       )}
@@ -115,12 +131,14 @@ const RootNavigator: React.FC = () => {
 // Main App Navigator with AuthProvider and QueryProvider
 export const AppNavigator: React.FC = () => {
   return (
-    <QueryProvider>
-      <AuthProvider>
-        <NavigationContainer>
-          <RootNavigator />
-        </NavigationContainer>
-      </AuthProvider>
-    </QueryProvider>
+    <SafeAreaProvider>
+      <QueryProvider>
+        <AuthProvider>
+          <NavigationContainer>
+            <RootNavigator />
+          </NavigationContainer>
+        </AuthProvider>
+      </QueryProvider>
+    </SafeAreaProvider>
   );
 };
