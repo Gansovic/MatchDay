@@ -1,0 +1,5 @@
+{
+  "/api/auth/health/route": "app/api/auth/health/route.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/page": "app/page.js"
+}

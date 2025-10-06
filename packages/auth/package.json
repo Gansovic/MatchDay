@@ -1,0 +1,21 @@
+{
+  "name": "@matchday/auth",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@matchday/database": "workspace:*",
+    "@supabase/supabase-js": "^2.56.1",
+    "jose": "^6.1.0",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
+    "typescript": "^5"
+  }
+}

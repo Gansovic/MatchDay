@@ -1,9 +1,0 @@
-{
-  "/auth/login/page": "app/auth/login/page.js",
-  "/demo-dashboard/page": "app/demo-dashboard/page.js",
-  "/favicon.ico/route": "app/favicon.ico/route.js",
-  "/leagues/page": "app/leagues/page.js",
-  "/page": "app/page.js",
-  "/profile/page": "app/profile/page.js",
-  "/teams/page": "app/teams/page.js"
-}
