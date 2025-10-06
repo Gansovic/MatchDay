@@ -44,8 +44,6 @@ export const MyJoinRequests: React.FC<MyJoinRequestsProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const supabase = createClientComponentClient();
-
   useEffect(() => {
     loadRequests();
 
