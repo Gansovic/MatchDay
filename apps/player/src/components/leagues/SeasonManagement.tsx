@@ -11,10 +11,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { 
-  Plus, 
-  Calendar, 
-  Users, 
+import {
+  Plus,
+  Calendar,
+  Users,
   Trophy,
   Play,
   Pause,
@@ -29,6 +29,7 @@ import {
   Target
 } from 'lucide-react';
 import { CreateSeasonModal } from './CreateSeasonModal';
+import { TeamJoinRequestModal } from '../seasons/TeamJoinRequestModal';
 
 export interface Season {
   id: string;
@@ -81,6 +82,7 @@ export const SeasonManagement: React.FC<SeasonManagementProps> = ({
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<Season | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showJoinRequestModal, setShowJoinRequestModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingFixtures, setIsGeneratingFixtures] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -408,9 +410,17 @@ export const SeasonManagement: React.FC<SeasonManagementProps> = ({
                 {/* Actions */}
                 <div className="flex items-center gap-3">
                   <button
+                    onClick={() => setShowJoinRequestModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Request to Join Season
+                  </button>
+
+                  <button
                     onClick={() => handleGenerateFixtures(selectedSeason.id)}
                     disabled={
-                      isGeneratingFixtures === selectedSeason.id || 
+                      isGeneratingFixtures === selectedSeason.id ||
                       selectedSeason.fixtures_status === 'generating' ||
                       (selectedSeason.registered_teams_count || 0) < 2
                     }
@@ -433,10 +443,10 @@ export const SeasonManagement: React.FC<SeasonManagementProps> = ({
                       </>
                     )}
                   </button>
-                  
+
                   {selectedSeason.fixtures_status === 'completed' && (
                     <button
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                      className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
                     >
                       <Eye className="w-4 h-4" />
                       View Fixtures
@@ -457,6 +467,21 @@ export const SeasonManagement: React.FC<SeasonManagementProps> = ({
         onClose={() => setShowCreateModal(false)}
         onSeasonCreated={handleSeasonCreated}
       />
+
+      {/* Team Join Request Modal */}
+      {selectedSeason && (
+        <TeamJoinRequestModal
+          isOpen={showJoinRequestModal}
+          onClose={() => setShowJoinRequestModal(false)}
+          seasonId={selectedSeason.id}
+          seasonName={selectedSeason.display_name || selectedSeason.name}
+          leagueId={leagueId}
+          onRequestSubmitted={() => {
+            setSuccess('Join request submitted successfully!');
+            setTimeout(() => setSuccess(null), 3000);
+          }}
+        />
+      )}
     </div>
   );
 };

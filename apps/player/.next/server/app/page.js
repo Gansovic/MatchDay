@@ -6,7 +6,7 @@ runtime.loadChunk("server/chunks/ssr/b23af_next_dist_e7d71530._.js");
 runtime.loadChunk("server/chunks/ssr/61dca_@swc_helpers_cjs__interop_require_wildcard_cjs_1f84dac3._.js");
 runtime.loadChunk("server/chunks/ssr/[root-of-the-server]__d8593af1._.js");
 runtime.loadChunk("server/chunks/ssr/apps_player_src_app_cd5a30a0._.js");
-runtime.loadChunk("server/chunks/ssr/[root-of-the-server]__3b2bd695._.js");
+runtime.loadChunk("server/chunks/ssr/[root-of-the-server]__cb48a975._.js");
 runtime.loadChunk("server/chunks/ssr/apps_player_src_app_error_tsx_ee893e1f._.js");
 runtime.loadChunk("server/chunks/ssr/b23af_next_dist_client_components_f48c790d._.js");
 runtime.loadChunk("server/chunks/ssr/b23af_next_dist_client_components_builtin_forbidden_dd0486a8.js");

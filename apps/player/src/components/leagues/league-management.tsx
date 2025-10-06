@@ -34,7 +34,6 @@ import {
   WifiOff,
   RefreshCw
 } from 'lucide-react';
-import { useRealtimeLeagues, usePageVisibility } from '@/lib/hooks/use-realtime-leagues';
 
 export interface League {
   id: string;
@@ -101,29 +100,34 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
   // Navigation
   const router = useRouter();
 
-  // Page visibility for optimized subscriptions
-  const isPageVisible = usePageVisibility();
-  
-  // Real-time leagues data with filters
-  const {
-    leagues: realtimeLeagues,
-    isLoading,
-    isConnected,
-    lastUpdate,
-    forceRefresh
-  } = useRealtimeLeagues({
-    sportType: selectedSport,
-    leagueType: selectedLeagueType,
-    isActive: true,
-    isPublic: true
-  });
+  // Leagues data state
+  const [leagues, setLeagues] = useState<League[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
-  // Load user teams only (leagues now come from real-time hook)
+  // Load leagues and user teams
   useEffect(() => {
+    loadLeagues();
     if (userId) {
       loadUserTeams();
     }
-  }, [userId]);
+  }, [userId, selectedSport, selectedLeagueType]);
+
+  const loadLeagues = async () => {
+    setIsLoading(true);
+    try {
+      // TODO: Add LeagueService method with filters
+      const response = await fetch('/api/leagues');
+      const result = await response.json();
+      setLeagues(result.data || []);
+      setLastUpdate(new Date());
+    } catch (error) {
+      console.error('Error loading leagues:', error);
+      setLeagues([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const loadUserTeams = async () => {
     if (!userId) return;
@@ -182,7 +186,7 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
   ];
 
   // Process leagues with user team information and apply search filtering
-  const processedLeagues = realtimeLeagues.map(league => ({
+  const processedLeagues = leagues.map(league => ({
     ...league,
     userTeams: userTeams.map(team => ({
       id: team.id,
@@ -426,7 +430,7 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
         {/* Real-time Status Indicator */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800">
-            {isConnected ? (
+            {lastUpdate ? (
               <>
                 <Wifi className="w-4 h-4 text-green-500" />
                 <span className="text-sm text-green-600 dark:text-green-400">Live</span>
@@ -441,7 +445,7 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
           
           {/* Manual Refresh Button */}
           <button
-            onClick={forceRefresh}
+            onClick={loadLeagues}
             className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
             title="Refresh leagues"
           >

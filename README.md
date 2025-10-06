@@ -18,6 +18,17 @@ matchday/
 └── pnpm-workspace.yaml  # Workspace configuration
 ```
 
+## ✨ Features
+
+- **Team Management**: Create and manage teams with detailed player rosters and statistics
+- **League Discovery**: Browse and join leagues for organized play
+- **Player Dashboard**: Comprehensive player profiles with performance analytics
+- **Match Recording**: Post-match score recording and statistics tracking
+- **Achievement System**: Player achievements and performance recognition
+- **Global Leaderboards**: Track top performers across leagues and teams
+- **User Authentication**: Secure authentication with user profiles and preferences
+- **Responsive Design**: Optimized for desktop and mobile devices
+
 ## 🚀 Quick Start
 
 ### Prerequisites
