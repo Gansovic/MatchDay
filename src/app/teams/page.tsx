@@ -182,24 +182,35 @@ export default function TeamsPage() {
         // Convert API response to local Team format (if any teams exist)
         const teams: Team[] = (result.data || []).map((teamData: any) => {
           console.log('🔍 Processing authenticated team data:', JSON.stringify(teamData, null, 2));
+
+          // Transform team_stats from database format to UI format
+          const stats = teamData.stats ? {
+            wins: teamData.stats.wins || 0,
+            draws: teamData.stats.draws || 0,
+            losses: teamData.stats.losses || 0,
+            goals: teamData.stats.goals_for || 0,
+            position: 1, // TODO: Calculate from league standings
+            totalTeams: teamData.stats.games_played || 0
+          } : {
+            wins: 0,
+            draws: 0,
+            losses: 0,
+            goals: 0,
+            position: 1,
+            totalTeams: 0
+          };
+
           return {
             id: teamData.id,
             name: teamData.name,
             league: teamData.league?.name || 'Independent',
             position: 'Captain', // Default to Captain for now
-            isCaptain: true,     // Default to true for now  
+            isCaptain: true,     // Default to true for now
             memberCount: teamData.current_members || teamData.memberCount || 0,
             maxMembers: teamData.max_players || 22,
             location: teamData.location || 'TBD',
             description: teamData.description || '',
-            stats: teamData.stats || {
-              wins: 0,
-              draws: 0,
-              losses: 0,
-              goals: 0,
-              position: 1,
-              totalTeams: 1
-            },
+            stats,
             color: teamData.color || '#2563eb'
           };
         });

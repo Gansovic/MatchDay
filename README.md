@@ -5,9 +5,9 @@ A comprehensive sports team management application built with Next.js 15, design
 ## Features
 
 - **Team Management**: Create and manage teams with detailed player rosters and statistics
-- **League Discovery**: Browse and join leagues with real-time match tracking
+- **League Discovery**: Browse and join leagues for organized play
 - **Player Dashboard**: Comprehensive player profiles with performance analytics
-- **Live Match Tracker**: Real-time match updates and scoring
+- **Match Recording**: Post-match score recording and statistics tracking
 - **Achievement System**: Player achievements and performance recognition
 - **Global Leaderboards**: Track top performers across leagues and teams
 - **User Authentication**: Secure authentication with user profiles and preferences
@@ -54,17 +54,12 @@ pnpm install
 cp .env.example .env.local
 ```
 
-Update `.env.local` with your Supabase configuration:
-```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-```
+Update `.env.local` with your Supabase configuration (see [Environment Setup](#environment-setup) below for details).
 
 4. Set up the database:
-```bash
-# Run the database migration script
-psql -h your_host -d your_database -f database-schema.sql
-```
+- Go to your Supabase project dashboard
+- Run the migrations in `/supabase/migrations/` in order
+- Or use the Supabase CLI: `supabase db push`
 
 5. Start the development server:
 ```bash
@@ -76,6 +71,45 @@ pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to view the application.
+
+## Environment Setup
+
+### Required Environment Variables
+
+The application requires the following environment variables. Copy `.env.example` to `.env.local` and fill in your values:
+
+```bash
+# Supabase Configuration (REQUIRED)
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+
+# Application URLs
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+NEXT_PUBLIC_ADMIN_APP_URL=http://localhost:3001
+```
+
+### Getting Supabase Credentials
+
+1. Go to [app.supabase.com](https://app.supabase.com)
+2. Create a new project or select an existing one
+3. Go to **Settings** → **API**
+4. Copy the following:
+   - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
+   - **anon/public key** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - **service_role key** → `SUPABASE_SERVICE_ROLE_KEY` (⚠️ Keep this secret!)
+
+### Running the Admin App
+
+The admin app runs separately on port 3001:
+
+```bash
+cd matchday-admin
+cp .env.example .env.local
+# Use the SAME Supabase credentials as the main app
+npm install
+PORT=3001 npm run dev
+```
 
 ## Project Structure
 
