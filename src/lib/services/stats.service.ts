@@ -1173,6 +1173,97 @@ export class StatsService {
   }
 
   /**
+   * Update player cross-league stats after match completion
+   * Aggregates stats from player_stats and updates player_cross_league_stats
+   */
+  async updatePlayerCrossLeagueStats(
+    playerId: string,
+    seasonYear?: string
+  ): Promise<ServiceResponse<void>> {
+    try {
+      const year = seasonYear || new Date().getFullYear().toString();
+
+      // Aggregate all stats for this player for the season
+      const { data: statsData, error: statsError } = await this.supabase
+        .from('player_stats')
+        .select(`
+          goals,
+          assists,
+          minutes_played,
+          team_id,
+          match_id,
+          created_at,
+          teams!inner(league_id),
+          matches!inner(id)
+        `)
+        .eq('user_id', playerId)
+        .gte('created_at', `${year}-01-01`)
+        .lt('created_at', `${parseInt(year) + 1}-01-01`);
+
+      if (statsError) {
+        throw statsError;
+      }
+
+      if (!statsData || statsData.length === 0) {
+        // No stats yet, nothing to aggregate
+        return { success: true, data: undefined, error: null };
+      }
+
+      // Calculate aggregated stats
+      const totalGames = new Set(statsData.map(s => s.match_id)).size;
+      const totalGoals = statsData.reduce((sum, s) => sum + (s.goals || 0), 0);
+      const totalAssists = statsData.reduce((sum, s) => sum + (s.assists || 0), 0);
+      const totalMinutes = statsData.reduce((sum, s) => sum + (s.minutes_played || 0), 0);
+      const uniqueLeagues = new Set(statsData.map(s => (s.teams as any)?.league_id).filter(Boolean));
+      const uniqueTeams = new Set(statsData.map(s => s.team_id));
+
+      // Calculate performance metrics
+      const avgGoalsPerGame = totalGames > 0 ? totalGoals / totalGames : 0;
+      const avgAssistsPerGame = totalGames > 0 ? totalAssists / totalGames : 0;
+      const avgRating = Math.min(10, (avgGoalsPerGame * 3 + avgAssistsPerGame * 2 + 5)).toFixed(2);
+
+      // Upsert to player_cross_league_stats
+      const { error: upsertError } = await this.supabase
+        .from('player_cross_league_stats')
+        .upsert({
+          player_id: playerId,
+          season_year: year,
+          total_leagues: uniqueLeagues.size,
+          total_teams: uniqueTeams.size,
+          total_games: totalGames,
+          total_goals: totalGoals,
+          total_assists: totalAssists,
+          total_minutes: totalMinutes,
+          avg_rating_overall: parseFloat(avgRating),
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'player_id,season_year'
+        });
+
+      if (upsertError) {
+        throw upsertError;
+      }
+
+      // Clear relevant caches
+      this.clearCache(`player:${playerId}`);
+      this.clearCache('global_rankings');
+      this.clearCache('cross_league');
+
+      return { success: true, data: undefined, error: null };
+    } catch (error) {
+      console.error('Error updating cross-league stats:', error);
+      return {
+        success: false,
+        data: undefined,
+        error: {
+          code: 'CROSS_LEAGUE_UPDATE_ERROR',
+          message: error instanceof Error ? error.message : 'Failed to update cross-league stats'
+        }
+      };
+    }
+  }
+
+  /**
    * Clear cache
    */
   clearCache(pattern?: string): void {

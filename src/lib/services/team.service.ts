@@ -543,7 +543,42 @@ export class TeamService {
       // PERFORMANCE OPTIMIZATION: Use embedded team data directly instead of expensive getTeamDetails calls
       console.log('🔍 TeamService.getUserTeams - Processing', memberships?.length || 0, 'memberships');
       console.log('🚀 OPTIMIZATION: Using embedded team data to eliminate N+1 query problem');
-      
+
+      // Batch fetch team stats for all teams (single query)
+      const teamIds = (memberships || [])
+        .filter(m => m.team)
+        .map(m => m.team_id);
+
+      let teamStatsMap = new Map<string, any>();
+      let memberCountsMap = new Map<string, number>();
+
+      if (teamIds.length > 0) {
+        // Fetch all team stats in one query
+        const { data: statsData } = await this.supabase
+          .from('team_stats')
+          .select('*')
+          .in('team_id', teamIds);
+
+        if (statsData) {
+          statsData.forEach(stat => {
+            teamStatsMap.set(stat.team_id, stat);
+          });
+        }
+
+        // Fetch member counts in one query
+        const { data: memberCounts } = await this.supabase
+          .from('team_members')
+          .select('team_id')
+          .in('team_id', teamIds);
+
+        if (memberCounts) {
+          memberCounts.forEach(member => {
+            const count = memberCountsMap.get(member.team_id) || 0;
+            memberCountsMap.set(member.team_id, count + 1);
+          });
+        }
+      }
+
       const teams = (memberships || []).map((membership, index) => {
         console.log(`🔍 TeamService.getUserTeams - Processing membership ${index + 1}:`, {
           teamId: membership.team_id,
@@ -551,13 +586,16 @@ export class TeamService {
           hasEmbeddedTeam: !!membership.team,
           teamName: membership.team?.name
         });
-        
+
         if (!membership.team) {
           console.warn(`⚠️ No embedded team data for membership ${membership.team_id}`);
           return null;
         }
 
-        // Create TeamWithDetails from embedded data - no additional queries needed
+        const stats = teamStatsMap.get(membership.team_id);
+        const memberCount = memberCountsMap.get(membership.team_id) || 1;
+
+        // Create TeamWithDetails from embedded data with actual stats
         const teamWithDetails: TeamWithDetails = {
           // Core team data (all available from the initial query)
           id: membership.team.id,
@@ -571,25 +609,25 @@ export class TeamService {
           is_active: membership.team.is_active ?? true,
           created_at: membership.team.created_at,
           updated_at: membership.team.updated_at,
-          
+
           // League information (already included in query via join)
           league: membership.team.league,
-          
-          // Simplified member information for team listing (avoid expensive queries)
+
+          // Simplified member information for team listing
           captain: null, // Skip captain lookup for performance
           members: [], // Skip member list for team listing
-          memberCount: 1, // At least the current user is a member
-          availableSpots: Math.max(0, (membership.team.max_players || 22) - 1),
-          
+          memberCount,
+          availableSpots: Math.max(0, (membership.team.max_players || 22) - memberCount),
+
           // Status flags
           isOrphaned: !membership.team.league_id,
-          
-          // Skip expensive aggregations for team listing
-          stats: undefined,
+
+          // Include actual stats from batch fetch
+          stats: stats || undefined,
           joinRequests: undefined
         };
 
-        console.log(`✅ Created optimized team data for ${membership.team.name} (no additional queries)`);
+        console.log(`✅ Created optimized team data for ${membership.team.name} (batch stats fetched)`);
         return teamWithDetails;
       });
       console.log('🔍 TeamService.getUserTeams - Team processing results:', {
