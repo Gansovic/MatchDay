@@ -27,7 +27,6 @@ MatchDay is a comprehensive amateur sports league application that makes amateur
 - **StatsDisplay** (`/src/components/ui/stats-display.tsx`) - Professional statistics display
 - **MatchCard** (`/src/components/features/match-card.tsx`) - Professional match displays
 - **GlobalLeaderboard** (`/src/components/features/global-leaderboard.tsx`) - Cross-league rankings
-- **LiveMatchTracker** (`/src/components/features/live-match-tracker.tsx`) - Real-time match tracking
 - **AchievementShowcase** (`/src/components/features/achievement-showcase.tsx`) - Gamification display
 
 ### 4. Cross-League Analytics ✅
@@ -43,13 +42,6 @@ MatchDay is a comprehensive amateur sports league application that makes amateur
 - Automatic profile creation
 - Permission-based access control
 - OAuth provider support
-
-### 6. Real-Time Features ✅
-- **useRealtimeMatches** (`/src/lib/hooks/use-realtime-matches.ts`) - Live match updates
-- Supabase real-time subscriptions
-- Live match events and score updates
-- Team-specific notifications
-- Connection status monitoring
 
 ### 7. Achievement System ✅
 - Comprehensive achievement tracking

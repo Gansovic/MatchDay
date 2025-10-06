@@ -1,0 +1,33 @@
+{
+  "pages": {
+    "/leagues/page": [
+      "static/chunks/b23af_next_dist_e8b7059b._.js",
+      "static/chunks/apps_player_src_app_favicon_ico_mjs_d9094d48._.js",
+      "static/chunks/[root-of-the-server]__de8a3389._.css",
+      "static/chunks/07552_@supabase_node-fetch_browser_6cf56061.js",
+      "static/chunks/_725e9fa4._.js",
+      "static/chunks/b23af_next_2446358d._.js",
+      "static/chunks/4294a_@supabase_auth-js_dist_module_6a384352._.js",
+      "static/chunks/8484d_tailwind-merge_dist_bundle-mjs_mjs_4d8e7d9e._.js",
+      "static/chunks/f59b3_@tanstack_query-core_build_modern_1d0ce58a._.js",
+      "static/chunks/node_modules__pnpm_919ddbed._.js",
+      "static/chunks/apps_player_src_app_layout_tsx_6af102b9._.js",
+      "static/chunks/apps_player_src_app_error_tsx_5f43cd09._.js",
+      "static/chunks/apps_player_src_app_error_tsx_a230a351._.js",
+      "static/chunks/b23af_next_dist_client_components_builtin_global-error_a230a351.js",
+      "static/chunks/_28dc6f8a._.js",
+      "static/chunks/apps_player_src_b56ad60c._.js",
+      "static/chunks/node_modules__pnpm_65bc7def._.js",
+      "static/chunks/apps_player_src_app_leagues_page_tsx_a230a351._.js",
+      "static/chunks/[turbopack]_browser_dev_hmr-client_hmr-client_ts_4280e160._.js",
+      "static/chunks/b23af_next_dist_compiled_react-dom_7126e0f5._.js",
+      "static/chunks/b23af_next_dist_compiled_next-devtools_index_96968704.js",
+      "static/chunks/b23af_next_dist_compiled_ae757604._.js",
+      "static/chunks/b23af_next_dist_client_0dd4e680._.js",
+      "static/chunks/b23af_next_dist_a9028ddf._.js",
+      "static/chunks/61dca_@swc_helpers_cjs_28edb73c._.js",
+      "static/chunks/apps_player_e69f0d32._.js",
+      "static/chunks/apps_player_34af841b._.js"
+    ]
+  }
+}

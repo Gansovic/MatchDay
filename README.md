@@ -1,164 +1,259 @@
-# MatchDay
+# MatchDay Monorepo
 
-A comprehensive sports team management application built with Next.js 15, designed to streamline team organization, player management, and match tracking for sports leagues and organizations.
+A comprehensive sports team management platform with separate player and admin applications, built on a shared codebase.
 
-## Features
+## 📦 Monorepo Structure
 
-- **Team Management**: Create and manage teams with detailed player rosters and statistics
-- **League Discovery**: Browse and join leagues with real-time match tracking
-- **Player Dashboard**: Comprehensive player profiles with performance analytics
-- **Live Match Tracker**: Real-time match updates and scoring
-- **Achievement System**: Player achievements and performance recognition
-- **Global Leaderboards**: Track top performers across leagues and teams
-- **User Authentication**: Secure authentication with user profiles and preferences
-- **Responsive Design**: Optimized for desktop and mobile devices
+```
+matchday/
+├── apps/
+│   ├── player/          # Player-facing Next.js app (port 3000)
+│   ├── admin/           # Admin Next.js app (port 3001)
+├── packages/
+│   ├── database/        # Shared database types and schema
+│   ├── services/        # Shared business logic services
+│   ├── auth/            # Authentication utilities
+│   └── shared/          # Common utilities and helpers
+├── supabase/            # Database migrations and config
+└── pnpm-workspace.yaml  # Workspace configuration
+```
 
-## Tech Stack
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- pnpm 8+ (`npm install -g pnpm`)
+- Supabase account
+
+### Installation
+
+```bash
+# Install all dependencies
+pnpm install
+
+# Start player app (port 3000)
+pnpm dev:player
+
+# Start admin app (port 3001)
+pnpm dev:admin
+
+# Run both apps simultaneously
+pnpm dev
+```
+
+## 📱 Applications
+
+### Player App (`apps/player/`)
+Player-facing features:
+- Team management and player rosters
+- League discovery and joining
+- Match tracking and live scoring
+- Player dashboards and statistics
+- Achievement system
+- Global leaderboards
+
+**Port**: 3000
+**Environment**: `.env.local` with `NEXT_PUBLIC_SITE_URL=http://localhost:3000`
+
+### Admin App (`apps/admin/`)
+Admin-facing features:
+- League management and creation
+- Team join request approval
+- Match scheduling and management
+- User role administration
+- System oversight and analytics
+
+**Port**: 3001
+**Environment**: `.env.local` with `NEXT_PUBLIC_SITE_URL=http://localhost:3001`
+
+## 📚 Shared Packages
+
+### @matchday/database
+Database types and schema definitions generated from Supabase. Provides type-safe access to:
+- User profiles
+- Leagues and seasons
+- Teams and team members
+- Matches and statistics
+
+### @matchday/services
+Shared business logic services:
+- League service
+- Team service
+- Match service
+- Season service
+- Player service
+- User service
+- Stats service
+- Analytics service
+- Achievement service
+
+### @matchday/auth
+Authentication and authorization utilities:
+- JWT validation
+- Role-based access control
+- Session management
+
+### @matchday/shared
+Common utilities and helpers:
+- Tailwind class utilities (cn)
+- Date formatters
+- Environment validation
+- Constants and configurations
+
+## 🛠 Development Commands
+
+```bash
+# Development
+pnpm dev              # Run both apps in parallel
+pnpm dev:player       # Run player app only
+pnpm dev:admin        # Run admin app only
+
+# Building
+pnpm build            # Build all apps and packages
+pnpm build:player     # Build player app
+pnpm build:admin      # Build admin app
+pnpm build:packages   # Build shared packages only
+
+# Code Quality
+pnpm lint             # Lint both apps
+pnpm type-check       # Type-check both apps
+pnpm test             # Run player app tests
+pnpm format           # Format all code with Prettier
+
+# Cleaning
+pnpm clean            # Remove all node_modules and build artifacts
+```
+
+## 🗄️ Database
+
+Both apps share the same Supabase PostgreSQL database.
+
+### Migrations
+
+Database migrations are located in `supabase/migrations/` and managed centrally.
+
+```bash
+# Apply migrations
+npx supabase db push
+
+# Create new migration
+npx supabase migration new migration_name
+```
+
+### Schema Updates
+
+When database schema changes:
+1. Update migrations in `supabase/migrations/`
+2. Regenerate types in `packages/database/src/database.types.ts`
+3. Update service layer if needed
+
+## 🔐 Environment Setup
+
+Both apps require environment variables for Supabase connection.
+
+### Player App (`.env.local`)
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
+
+### Admin App (`.env.local`)
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+NEXT_PUBLIC_SITE_URL=http://localhost:3002
+```
+
+## 🏗️ Tech Stack
 
 - **Framework**: Next.js 15 with App Router
 - **Frontend**: React 19, TypeScript 5
 - **Styling**: Tailwind CSS v4
 - **Database**: Supabase (PostgreSQL)
 - **Authentication**: Supabase Auth
-- **State Management**: React Query
-- **Fonts**: Geist Sans & Mono
-- **Deployment**: Vercel
+- **State Management**: React Query (TanStack Query)
+- **Monorepo**: pnpm workspaces
+- **Testing**: Jest, React Testing Library
 
-## Getting Started
+## 📝 Development Guidelines
 
-### Prerequisites
+### Adding Shared Code
 
-- Node.js 18+ 
-- npm, yarn, pnpm, or bun
-- Supabase account (for database and authentication)
+1. **Database Types**: Add to `packages/database/src/database.types.ts`
+2. **Services**: Add to `packages/services/src/`
+3. **Auth Logic**: Add to `packages/auth/src/`
+4. **Utilities**: Add to `packages/shared/src/`
 
-### Installation
+### Creating New Apps
 
-1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/matchday.git
-cd matchday
+# Create new app directory
+mkdir apps/new-app
+
+# Add to workspace
+# Update pnpm-workspace.yaml (already includes apps/*)
+
+# Install workspace dependencies
+cd apps/new-app
+pnpm add @matchday/database@workspace:*
+pnpm add @matchday/services@workspace:*
 ```
 
-2. Install dependencies:
-```bash
-npm install
-# or
-yarn install
-# or
-pnpm install
+### Importing Shared Packages
+
+```typescript
+// In any app
+import { Database } from '@matchday/database';
+import { LeagueService } from '@matchday/services';
+import { validateSession } from '@matchday/auth';
+import { cn, formatDate } from '@matchday/shared';
 ```
 
-3. Set up environment variables:
-```bash
-cp .env.example .env.local
-```
-
-Update `.env.local` with your Supabase configuration:
-```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-```
-
-4. Set up the database:
-```bash
-# Run the database migration script
-psql -h your_host -d your_database -f database-schema.sql
-```
-
-5. Start the development server:
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) to view the application.
-
-## Project Structure
-
-```
-src/
-├── app/                    # Next.js App Router pages
-│   ├── auth/              # Authentication pages
-│   ├── dashboard/         # Main dashboard
-│   ├── leagues/          # League management
-│   ├── teams/            # Team management
-│   └── profile/          # User profiles
-├── components/            # React components
-│   ├── auth/             # Authentication components
-│   ├── features/         # Feature-specific components
-│   ├── layout/           # Layout components
-│   ├── player/           # Player-related components
-│   └── ui/               # Reusable UI components
-├── lib/                   # Utility functions and services
-│   ├── auth/             # Authentication services
-│   ├── services/         # API services
-│   ├── supabase/         # Supabase client
-│   └── types/            # TypeScript type definitions
-└── docs/                  # Documentation
-```
-
-## Database Schema
-
-The application uses a comprehensive PostgreSQL schema with the following main entities:
-
-- **Users**: Player and admin user accounts
-- **Teams**: Team information and management
-- **Leagues**: League organization and settings
-- **Matches**: Match scheduling and results
-- **Players**: Player profiles and statistics
-- **Achievements**: Player achievements and rewards
-
-See `docs/database-schema.md` for detailed schema documentation.
-
-## Development
-
-### Available Scripts
-
-- `npm run dev` - Start development server with Turbopack
-- `npm run build` - Build production application
-- `npm run start` - Start production server
-- `npm run lint` - Run ESLint with TypeScript support
-
-### Code Style
-
-This project uses:
-- ESLint for code linting
-- TypeScript strict mode
-- Tailwind CSS for styling
-- Component-based architecture
-
-## Deployment
+## 🚢 Deployment
 
 ### Vercel (Recommended)
 
-1. Connect your GitHub repository to Vercel
-2. Configure environment variables in Vercel dashboard
-3. Deploy automatically on every push to main branch
+Both apps can be deployed separately to Vercel:
+
+```bash
+# Deploy player app
+cd apps/player
+vercel
+
+# Deploy admin app
+cd apps/admin
+vercel --prod
+```
+
+Configure environment variables in Vercel dashboard for each app.
 
 ### Other Platforms
 
-The application can be deployed to any platform that supports Next.js:
+The monorepo is compatible with:
 - Netlify
-- AWS Amplify
 - Railway
+- AWS Amplify
 - DigitalOcean App Platform
 
-## Contributing
+## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Commit your changes: `git commit -m 'Add some feature'`
-4. Push to the branch: `git push origin feature/your-feature`
-5. Open a pull request
+1. Create a feature branch: `git checkout -b feature/your-feature`
+2. Make your changes
+3. Test both apps: `pnpm test && pnpm type-check`
+4. Commit: `git commit -m 'feat: add feature'`
+5. Push: `git push origin feature/your-feature`
+6. Open a pull request
 
-## License
+## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see LICENSE file for details
 
-## Support
+## 🆘 Support
 
-For support, email support@matchday.app or open an issue on GitHub.
+For issues and questions:
+- Check existing issues on GitHub
+- Create a new issue with detailed description
+- Include error messages and reproduction steps

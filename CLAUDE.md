@@ -4,18 +4,47 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Next.js 15 application called "MatchDay" built with React 19, TypeScript, and Tailwind CSS v4. It uses the App Router architecture with modern Next.js patterns.
+This is a **pnpm monorepo** containing the MatchDay platform:
+- **Player App** (`apps/player/`) - Player-facing Next.js 15 application (port 3000)
+- **Admin App** (`apps/admin/`) - Admin-facing Next.js 15 application (port 3001)
+- **Shared Packages** (`packages/`) - Common code shared between apps
+
+Both apps use React 19, TypeScript 5, and Tailwind CSS v4 with the App Router architecture.
+
+## Monorepo Structure
+
+```
+matchday/
+├── apps/
+│   ├── player/          # Player app (Next.js 15)
+│   └── admin/           # Admin app (Next.js 15)
+├── packages/
+│   ├── database/        # Shared database types (@matchday/database)
+│   ├── services/        # Shared services (@matchday/services)
+│   ├── auth/            # Auth utilities (@matchday/auth)
+│   └── shared/          # Common utilities (@matchday/shared)
+├── supabase/            # Database migrations
+└── pnpm-workspace.yaml  # Workspace config
+```
 
 ## Development Commands
 
 ### Core Development
-- `npm run dev` - Start development server with Turbopack for fast builds
-- `npm run build` - Build production application
-- `npm run start` - Start production server
-- `npm run lint` - Run ESLint with Next.js TypeScript configuration
+- `pnpm dev` - Run both player and admin apps in parallel
+- `pnpm dev:player` - Start player app only (port 3000)
+- `pnpm dev:admin` - Start admin app only (port 3002)
+- `pnpm build` - Build all apps and packages
+- `pnpm lint` - Lint both apps
+- `pnpm type-check` - Type-check both apps
 
-### Development Server
-The development server runs on `http://localhost:3000` by default and uses Turbopack for enhanced performance.
+### Working with Specific Apps
+- `pnpm --filter @matchday/player dev` - Run player app
+- `pnpm --filter @matchday/admin build` - Build admin app
+
+### Development Servers
+- Player app: `http://localhost:3000`
+- Admin app: `http://localhost:3001`
+Both use Turbopack for enhanced performance.
 
 ## Architecture & Structure
 
