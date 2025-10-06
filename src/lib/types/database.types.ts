@@ -532,6 +532,141 @@ export interface Database {
           updated_at?: string;
         };
       };
+      seasons: {
+        Row: {
+          id: string;
+          league_id: string;
+          name: string;
+          description: string | null;
+          start_date: string | null;
+          end_date: string | null;
+          registration_start: string | null;
+          registration_end: string | null;
+          max_teams: number | null;
+          min_teams: number | null;
+          status: string;
+          format: string | null;
+          rules: any | null;
+          prize_structure: any | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          league_id: string;
+          name: string;
+          description?: string | null;
+          start_date?: string | null;
+          end_date?: string | null;
+          registration_start?: string | null;
+          registration_end?: string | null;
+          max_teams?: number | null;
+          min_teams?: number | null;
+          status?: string;
+          format?: string | null;
+          rules?: any | null;
+          prize_structure?: any | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          league_id?: string;
+          name?: string;
+          description?: string | null;
+          start_date?: string | null;
+          end_date?: string | null;
+          registration_start?: string | null;
+          registration_end?: string | null;
+          max_teams?: number | null;
+          min_teams?: number | null;
+          status?: string;
+          format?: string | null;
+          rules?: any | null;
+          prize_structure?: any | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      season_teams: {
+        Row: {
+          id: string;
+          season_id: string;
+          team_id: string;
+          status: string;
+          registration_date: string;
+          seed: number | null;
+          group_assignment: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          season_id: string;
+          team_id: string;
+          status?: string;
+          registration_date?: string;
+          seed?: number | null;
+          group_assignment?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          season_id?: string;
+          team_id?: string;
+          status?: string;
+          registration_date?: string;
+          seed?: number | null;
+          group_assignment?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      season_join_requests: {
+        Row: {
+          id: string;
+          season_id: string;
+          team_id: string;
+          user_id: string;
+          message: string | null;
+          status: 'pending' | 'approved' | 'rejected' | 'withdrawn';
+          responded_by: string | null;
+          responded_at: string | null;
+          response_message: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          season_id: string;
+          team_id: string;
+          user_id: string;
+          message?: string | null;
+          status?: 'pending' | 'approved' | 'rejected' | 'withdrawn';
+          responded_by?: string | null;
+          responded_at?: string | null;
+          response_message?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          season_id?: string;
+          team_id?: string;
+          user_id?: string;
+          message?: string | null;
+          status?: 'pending' | 'approved' | 'rejected' | 'withdrawn';
+          responded_by?: string | null;
+          responded_at?: string | null;
+          response_message?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {
       league_standings: {
@@ -653,11 +788,16 @@ export type UserAchievement = Database['public']['Tables']['user_achievements'][
 export type TeamJoinRequest = Database['public']['Tables']['team_join_requests']['Row'];
 export type TeamInvitation = Database['public']['Tables']['team_invitations']['Row'];
 export type AppConfiguration = Database['public']['Tables']['app_configurations']['Row'];
+export type Season = Database['public']['Tables']['seasons']['Row'];
+export type SeasonTeam = Database['public']['Tables']['season_teams']['Row'];
+export type SeasonJoinRequest = Database['public']['Tables']['season_join_requests']['Row'];
 
 // Insert types
 export type InsertLeague = Database['public']['Tables']['leagues']['Insert'];
 export type InsertTeam = Database['public']['Tables']['teams']['Insert'];
 export type InsertMatch = Database['public']['Tables']['matches']['Insert'];
+export type InsertSeason = Database['public']['Tables']['seasons']['Insert'];
+export type InsertSeasonJoinRequest = Database['public']['Tables']['season_join_requests']['Insert'];
 
 // Update types
 export type UpdateLeague = Database['public']['Tables']['leagues']['Update'];
@@ -665,6 +805,8 @@ export type UpdateTeam = Database['public']['Tables']['teams']['Update'];
 export type UpdateMatch = Database['public']['Tables']['matches']['Update'];
 export type UpdateUserProfile = Database['public']['Tables']['user_profiles']['Update'];
 export type UpdatePlayerStats = Database['public']['Tables']['player_stats']['Update'];
+export type UpdateSeason = Database['public']['Tables']['seasons']['Update'];
+export type UpdateSeasonJoinRequest = Database['public']['Tables']['season_join_requests']['Update'];
 
 // View types
 export type LeagueStanding = Database['public']['Views']['league_standings']['Row'];
@@ -726,6 +868,22 @@ export enum JoinRequestStatus {
   WITHDRAWN = 'withdrawn'
 }
 
+export enum SeasonStatus {
+  DRAFT = 'draft',
+  REGISTRATION_OPEN = 'registration_open',
+  REGISTRATION_CLOSED = 'registration_closed',
+  ACTIVE = 'active',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled'
+}
+
+export enum SeasonJoinRequestStatus {
+  PENDING = 'pending',
+  APPROVED = 'approved',
+  REJECTED = 'rejected',
+  WITHDRAWN = 'withdrawn'
+}
+
 export enum InvitationStatus {
   PENDING = 'pending',
   ACCEPTED = 'accepted',
@@ -759,6 +917,21 @@ export interface LeagueWithDetails extends League {
     total_matches: number;
     completed_matches: number;
   };
+}
+
+export interface SeasonWithDetails extends Season {
+  league: League;
+  teams?: Team[];
+  team_count: number;
+  available_spots: number;
+  join_requests?: SeasonJoinRequestWithDetails[];
+}
+
+export interface SeasonJoinRequestWithDetails extends SeasonJoinRequest {
+  season: Season;
+  team: Team;
+  user: UserProfile;
+  responded_by_user?: UserProfile;
 }
 
 export interface MatchWithDetails extends Match {
@@ -815,6 +988,16 @@ export interface SendInvitationForm {
   email: string;
   position?: string;
   jersey_number?: number;
+  message?: string;
+}
+
+export interface CreateSeasonJoinRequestForm {
+  season_id: string;
+  team_id: string;
+  message?: string;
+}
+
+export interface SeasonJoinRequestForm {
   message?: string;
 }
 

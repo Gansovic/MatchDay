@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server-client';
 import { validateApiAuth } from '@/lib/auth/api-auth';
+import { StatsService } from '@/lib/services/stats.service';
 // import { findMatchByIdOrNumber, findMatchForScoreUpdate } from '@/lib/utils/match-lookup';
 
 interface PlayerStat {
@@ -363,6 +364,19 @@ export async function PUT(
             // Don't fail the entire request, but log the error
           } else {
             console.log(`✅ Created ${allPlayerStats.length} player stat records`);
+
+            // Update cross-league aggregated stats for all players
+            const statsService = StatsService.getInstance(supabase);
+            const uniquePlayerIds = new Set(allPlayerStats.map(s => s.user_id));
+
+            for (const playerId of uniquePlayerIds) {
+              const result = await statsService.updatePlayerCrossLeagueStats(playerId);
+              if (!result.success) {
+                console.error(`Failed to update cross-league stats for player ${playerId}:`, result.error);
+              } else {
+                console.log(`✅ Updated cross-league stats for player ${playerId}`);
+              }
+            }
           }
         }
       } catch (statsCreationError) {

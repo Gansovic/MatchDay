@@ -11,7 +11,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "lint:fix": "next lint --fix",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "server": "node dev-server.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

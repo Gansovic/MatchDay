@@ -16,7 +16,6 @@ import { AchievementShowcase } from '@/components/features/achievement-showcase'
 import { GlobalLeaderboard } from '@/components/features/global-leaderboard';
 import { ProfessionalCard } from '@/components/ui/professional-card';
 import { StatsDisplay } from '@/components/ui/stats-display';
-import { LiveMatchTracker } from '@/components/features/live-match-tracker';
 import { MatchCard } from '@/components/features/match-card';
 import { PlayerService } from '@/lib/services/player.service';
 import { MatchService } from '@/lib/services/match.service';
@@ -159,9 +158,6 @@ export const PlayerDashboard: React.FC<PlayerDashboardProps> = ({
           ]}
         />
       </div>
-
-      {/* Live Matches */}
-      <LiveMatchTracker userId={userId} />
 
       {/* Upcoming Matches */}
       {upcomingMatches && upcomingMatches.length > 0 && (
