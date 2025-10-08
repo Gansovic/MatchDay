@@ -57,6 +57,14 @@ export declare class LeagueService {
      */
     createLeague(name: string, userId: string): Promise<ServiceResponse<League>>;
     /**
+     * Get leagues created by a specific admin user
+     * Returns both public and private leagues
+     */
+    getAdminLeagues(adminId: string, options?: {
+        limit?: number;
+        offset?: number;
+    }): Promise<PaginatedServiceResponse<LeagueDiscovery>>;
+    /**
      * Discover available leagues with advanced filtering
      */
     discoverLeagues(filters?: LeagueFilters, options?: {

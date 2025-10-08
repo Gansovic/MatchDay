@@ -6,8 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { createAdminClient } from '@/lib/supabase/client';
+import { supabase as browserClient } from '@/lib/supabase/client';
 
 interface CreateSeasonRequest {
   name: string;
@@ -39,15 +39,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies }
-    );
+    // Get user from browser client (for user ID)
+    const { data: { user }, error: authError } = await browserClient.auth.getUser();
 
-    // Check if user is authenticated and has admin rights
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    // Try to get userId from header if browser client fails
+    let userId: string | null = user?.id || null;
+
+    if (!userId) {
+      const authHeader = request.headers.get('authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        const { data: { user: tokenUser }, error } = await browserClient.auth.getUser(token);
+        if (!error && tokenUser) {
+          userId = tokenUser.id;
+        }
+      }
+    }
+
+    if (!userId) {
+      console.log('Season creation - No user ID found');
       return NextResponse.json(
         {
           success: false,
@@ -57,10 +67,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Use admin client to bypass RLS for season creation
+    const supabase = createAdminClient();
+
     // Verify league exists and is accessible
     const { data: league, error: leagueError } = await supabase
       .from('leagues')
-      .select('id, name, status')
+      .select('id, name, is_active')
       .eq('id', body.league_id)
       .single();
 
@@ -105,7 +118,7 @@ export async function POST(request: NextRequest) {
       min_teams: body.min_teams,
       max_teams: body.max_teams,
       status: body.status,
-      created_by: session.user.id,
+      created_by: userId,
       created_at: new Date().toISOString()
     };
 
@@ -140,7 +153,7 @@ export async function POST(request: NextRequest) {
       await supabase
         .from('admin_actions')
         .insert([{
-          admin_id: session.user.id,
+          admin_id: userId,
           action_type: 'season_created',
           resource_type: 'season',
           resource_id: newSeason.id,
@@ -175,15 +188,25 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies }
-    );
+    // Get user from browser client (for user ID)
+    const { data: { user }, error: authError } = await browserClient.auth.getUser();
 
-    // Check authentication
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    // Try to get userId from header if browser client fails
+    let userId: string | null = user?.id || null;
+
+    if (!userId) {
+      const authHeader = request.headers.get('authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        const { data: { user: tokenUser }, error } = await browserClient.auth.getUser(token);
+        if (!error && tokenUser) {
+          userId = tokenUser.id;
+        }
+      }
+    }
+
+    if (!userId) {
+      console.log('Seasons fetch - No user ID found');
       return NextResponse.json(
         {
           success: false,
@@ -192,6 +215,9 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    // Use admin client to bypass RLS for season queries
+    const supabase = createAdminClient();
 
     const { searchParams } = new URL(request.url);
     const leagueId = searchParams.get('league_id');

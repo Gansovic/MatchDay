@@ -515,6 +515,10 @@ export default function LeagueDashboardPage({ params }: LeagueDashboardPageProps
         <CreateSeasonModal
           isOpen={showCreateSeasonModal}
           onClose={() => setShowCreateSeasonModal(false)}
+          onSeasonCreated={() => {
+            setShowCreateSeasonModal(false);
+            forceRefresh();
+          }}
           selectedLeagueId={leagueId}
         />
       )}

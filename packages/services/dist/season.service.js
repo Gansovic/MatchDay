@@ -130,7 +130,8 @@ export class SeasonService {
                     home_away_balance: seasonData.home_away_balance !== false,
                     rules: seasonData.rules || {},
                     settings: seasonData.settings || {},
-                    metadata: seasonData.metadata || {}
+                    metadata: seasonData.metadata || {},
+                    created_by: seasonData.created_by
                 }])
                 .select()
                 .single();

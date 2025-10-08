@@ -2,14 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, Users, Trophy, AlertCircle, Loader2 } from 'lucide-react';
-import { createBrowserClient } from '@supabase/ssr';
-
-interface League {
-  id: string;
-  name: string;
-  sport_type: string;
-  league_type: string;
-}
+import { SeasonService } from '@matchday/services';
+import { supabase } from '@/lib/supabase/client';
+import { useAuth } from '@/components/auth/auth-provider';
 
 interface CreateSeasonData {
   name: string;
@@ -29,15 +24,16 @@ interface CreateSeasonModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSeasonCreated: () => void;
+  selectedLeagueId?: string;
 }
 
 export const CreateSeasonModal: React.FC<CreateSeasonModalProps> = ({
   isOpen,
   onClose,
-  onSeasonCreated
+  onSeasonCreated,
+  selectedLeagueId
 }) => {
-  const [leagues, setLeagues] = useState<League[]>([]);
-  const [isLoadingLeagues, setIsLoadingLeagues] = useState(false);
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,7 +42,7 @@ export const CreateSeasonModal: React.FC<CreateSeasonModalProps> = ({
   const [formData, setFormData] = useState<CreateSeasonData>({
     name: '',
     display_name: '',
-    league_id: '',
+    league_id: selectedLeagueId || '',
     season_year: currentYear,
     tournament_format: 'league',
     start_date: '',
@@ -57,34 +53,12 @@ export const CreateSeasonModal: React.FC<CreateSeasonModalProps> = ({
     status: 'draft'
   });
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
+  // Update league_id when selectedLeagueId changes
   useEffect(() => {
-    if (isOpen) {
-      loadLeagues();
+    if (selectedLeagueId) {
+      setFormData(prev => ({ ...prev, league_id: selectedLeagueId }));
     }
-  }, [isOpen]);
-
-  const loadLeagues = async () => {
-    setIsLoadingLeagues(true);
-    try {
-      const { data, error } = await supabase
-        .from('leagues')
-        .select('id, name, sport_type, league_type')
-        .eq('status', 'published')
-        .order('name');
-
-      if (error) throw error;
-      setLeagues(data || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load leagues');
-    } finally {
-      setIsLoadingLeagues(false);
-    }
-  };
+  }, [selectedLeagueId]);
 
   const handleInputChange = (field: keyof CreateSeasonData, value: string | number) => {
     setFormData(prev => ({
@@ -103,7 +77,6 @@ export const CreateSeasonModal: React.FC<CreateSeasonModalProps> = ({
 
   const validateForm = (): string | null => {
     if (!formData.name.trim()) return 'Season name is required';
-    if (!formData.league_id) return 'League selection is required';
     if (!formData.start_date) return 'Start date is required';
     if (!formData.end_date) return 'End date is required';
     if (!formData.registration_deadline) return 'Registration deadline is required';
@@ -141,21 +114,22 @@ export const CreateSeasonModal: React.FC<CreateSeasonModalProps> = ({
       return;
     }
 
+    if (!user?.id) {
+      setError('You must be logged in to create a season');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/seasons', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(formData)
+      const seasonService = SeasonService.getInstance(supabase);
+      const result = await seasonService.createSeason({
+        ...formData,
+        created_by: user.id
       });
 
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to create season');
+      if (!result.success || !result.data) {
+        throw new Error(result.error?.message || 'Failed to create season');
       }
 
       onSeasonCreated();
@@ -171,7 +145,7 @@ export const CreateSeasonModal: React.FC<CreateSeasonModalProps> = ({
     setFormData({
       name: '',
       display_name: '',
-      league_id: '',
+      league_id: selectedLeagueId || '',
       season_year: currentYear,
       tournament_format: 'league',
       start_date: '',
@@ -244,61 +218,21 @@ export const CreateSeasonModal: React.FC<CreateSeasonModalProps> = ({
             </div>
           </div>
 
-          {/* League Selection */}
+          {/* Tournament Format */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              League *
+              Tournament Format *
             </label>
             <select
-              value={formData.league_id}
-              onChange={(e) => handleInputChange('league_id', e.target.value)}
+              value={formData.tournament_format}
+              onChange={(e) => handleInputChange('tournament_format', e.target.value as 'league' | 'knockout' | 'hybrid')}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               required
-              disabled={isLoadingLeagues}
             >
-              <option value="">
-                {isLoadingLeagues ? 'Loading leagues...' : 'Select a league'}
-              </option>
-              {leagues.map((league) => (
-                <option key={league.id} value={league.id}>
-                  {league.name} ({league.sport_type})
-                </option>
-              ))}
+              <option value="league">League (Round Robin)</option>
+              <option value="knockout">Knockout (Elimination)</option>
+              <option value="hybrid">Hybrid (League + Playoffs)</option>
             </select>
-          </div>
-
-          {/* Season Year and Format */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Season Year *
-              </label>
-              <input
-                type="number"
-                value={formData.season_year}
-                onChange={(e) => handleInputChange('season_year', parseInt(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                min={currentYear - 1}
-                max={currentYear + 2}
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Tournament Format *
-              </label>
-              <select
-                value={formData.tournament_format}
-                onChange={(e) => handleInputChange('tournament_format', e.target.value as 'league' | 'knockout' | 'hybrid')}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              >
-                <option value="league">League (Round Robin)</option>
-                <option value="knockout">Knockout (Elimination)</option>
-                <option value="hybrid">Hybrid (League + Playoffs)</option>
-              </select>
-            </div>
           </div>
 
           {/* Dates */}
