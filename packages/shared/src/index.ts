@@ -6,3 +6,4 @@
 
 export * from './utils';
 export * from './environment/validation';
+export * from './environment/env-validator';

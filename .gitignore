@@ -66,5 +66,12 @@ matchday-admin/src/components/auth/player-login-form.tsx
 # Database - ignore local copies but keep schemas and migrations
 database/local/
 
-# Archived legacy scripts (may contain credentials)
-scripts/archive/
+# Scripts folder - contains credentials and utility scripts
+scripts/
+apps/admin/scripts/
+tests/scripts/
+
+# Keep example scripts (if needed in future)
+!scripts/README.md
+!scripts/*.example.js
+.next/
