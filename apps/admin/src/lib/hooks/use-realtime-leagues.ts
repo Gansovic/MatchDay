@@ -55,17 +55,17 @@ export function useRealtimeLeagues(adminId?: string) {
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const queryClient = useQueryClient();
 
-  // Get admin leagues
+  // Get admin leagues (both public and private leagues created by this admin)
   const { data: leagues = [], isLoading, error, refetch } = useQuery({
     queryKey: ['admin-leagues', adminId],
     queryFn: async () => {
-      const response = await fetch('/api/leagues');
+      const response = await fetch('/api/admin/leagues');
       if (!response.ok) {
-        throw new Error(`Failed to fetch leagues: ${response.status}`);
+        throw new Error(`Failed to fetch admin leagues: ${response.status}`);
       }
       const result = await response.json();
       if (!result.success) {
-        throw new Error(result.error || 'Failed to load leagues');
+        throw new Error(result.error || 'Failed to load admin leagues');
       }
       return result.data || [];
     },

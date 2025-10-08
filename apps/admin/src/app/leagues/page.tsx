@@ -13,6 +13,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
 import { 
   Trophy, 
@@ -40,6 +41,7 @@ import { LeagueRequestService } from '@/lib/services/league-request.service';
 import { LeagueService, type PublishLeagueData } from '@matchday/services';
 import { supabase } from '@/lib/supabase/client';
 import { RequestActionModal } from '@/components/modals/request-action-modal';
+import { CreateLeagueModal } from '@/components/leagues/CreateLeagueModal';
 import { useRealtimeLeagues, usePageVisibility } from '@/lib/hooks/use-realtime-leagues';
 
 interface League {
@@ -67,8 +69,10 @@ interface League {
 
 export default function AdminLeaguesPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [selectedLeague, setSelectedLeague] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   
   // Real-time data with connection status
   const {
@@ -333,7 +337,10 @@ export default function AdminLeaguesPage() {
                 <RefreshCw className="w-4 h-4" />
               </button>
               
-              <button className="inline-flex items-center gap-2 px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg transition-colors">
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg transition-colors"
+              >
                 <Plus className="w-5 h-5" />
                 Create League
               </button>
@@ -572,6 +579,16 @@ export default function AdminLeaguesPage() {
         action={modalAction}
         onConfirm={handleModalConfirm}
         isLoading={processingRequest}
+      />
+
+      {/* Create League Modal */}
+      <CreateLeagueModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onLeagueCreated={(leagueId) => {
+          setShowCreateModal(false);
+          router.push(`/leagues/${leagueId}`);
+        }}
       />
     </div>
   );

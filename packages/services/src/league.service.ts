@@ -25,7 +25,8 @@ import {
   SportType,
   LeagueType,
   CacheOptions,
-  RealtimeSubscriptionOptions
+  RealtimeSubscriptionOptions,
+  InsertLeague
 } from '@matchday/database';
 
 export interface LeagueCompatibilityScore {
@@ -119,6 +120,152 @@ export class LeagueService {
       timestamp: Date.now(),
       ttl
     });
+  }
+
+  /**
+   * Create a new league (Admin only)
+   */
+  async createLeague(
+    name: string,
+    userId: string
+  ): Promise<ServiceResponse<League>> {
+    try {
+      const leagueData: InsertLeague = {
+        name,
+        sport_type: 'football',
+        league_type: 'competitive',
+        created_by: userId,
+        is_active: true,
+        is_public: false
+      };
+
+      const { data, error } = await this.supabase
+        .from('leagues')
+        .insert(leagueData)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Clear cache to reflect new league
+      this.clearCache('discoverLeagues');
+      this.clearCache('getAdminLeagues');
+
+      return { data, error: null, success: true };
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'createLeague'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Get leagues created by a specific admin user
+   * Returns both public and private leagues
+   */
+  async getAdminLeagues(
+    adminId: string,
+    options: {
+      limit?: number;
+      offset?: number;
+    } = {}
+  ): Promise<PaginatedServiceResponse<LeagueDiscovery>> {
+    try {
+      const cacheKey = this.getCacheKey('getAdminLeagues', { adminId, options });
+      const cached = this.getFromCache<LeagueDiscovery[]>(cacheKey);
+
+      if (cached) {
+        return {
+          data: cached,
+          error: null,
+          success: true,
+          pagination: {
+            page: Math.floor((options.offset || 0) / (options.limit || 20)) + 1,
+            limit: options.limit || 20,
+            total: cached.length,
+            totalPages: Math.ceil(cached.length / (options.limit || 20)),
+            hasNext: false,
+            hasPrevious: false
+          }
+        };
+      }
+
+      // Build query - fetch leagues created by this admin
+      const { data: leagues, error, count } = await this.supabase
+        .from('leagues')
+        .select(`
+          *,
+          teams (
+            id,
+            name,
+            team_color,
+            captain_id,
+            max_players,
+            min_players,
+            is_recruiting
+          )
+        `, { count: 'exact' })
+        .eq('created_by', adminId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .range(options.offset || 0, (options.offset || 0) + (options.limit || 100) - 1);
+
+      if (error) throw error;
+
+      // Process leagues into discovery format
+      const discoveryLeagues: LeagueDiscovery[] = await Promise.all(
+        (leagues || []).map(async (league) => {
+          const teams = league.teams || [];
+          const playerCount = await this.getLeaguePlayerCount(league.id);
+          const availableSpots = await this.getLeagueAvailableSpots(league.id);
+
+          return {
+            ...league,
+            teams,
+            teamCount: teams.length,
+            playerCount: playerCount.data || 0,
+            availableSpots: availableSpots.data || 0,
+            isUserMember: false
+          };
+        })
+      );
+
+      // Cache results for 5 minutes
+      this.setCache(cacheKey, discoveryLeagues, 300);
+
+      const pagination = {
+        page: Math.floor((options.offset || 0) / (options.limit || 20)) + 1,
+        limit: options.limit || 20,
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / (options.limit || 20)),
+        hasNext: ((options.offset || 0) + (options.limit || 20)) < (count || 0),
+        hasPrevious: (options.offset || 0) > 0
+      };
+
+      return {
+        data: discoveryLeagues,
+        error: null,
+        success: true,
+        pagination
+      };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'getAdminLeagues'),
+        success: false,
+        pagination: {
+          page: 1,
+          limit: options.limit || 20,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrevious: false
+        }
+      };
+    }
   }
 
   /**
