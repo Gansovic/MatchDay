@@ -249,6 +249,20 @@ The monorepo is compatible with:
 - AWS Amplify
 - DigitalOcean App Platform
 
+## 🔒 Security
+
+**🚨 CRITICAL:** If you've leaked Supabase keys, follow the **[KEY_ROTATION_CHECKLIST.md](./KEY_ROTATION_CHECKLIST.md)** immediately.
+
+For security best practices, RLS policies, and incident response procedures, see **[SECURITY.md](./SECURITY.md)**.
+
+### Quick Security Tips
+
+- ✅ Keep `.env.local` files OUT of git (already in `.gitignore`)
+- ✅ Use LOCAL Supabase for development (not production)
+- ✅ Environment variables are validated on app startup
+- ✅ All database tables have Row Level Security (RLS) enabled
+- ⚠️ Never commit `SUPABASE_SERVICE_ROLE_KEY` - it's server-side only
+
 ## 🤝 Contributing
 
 1. Create a feature branch: `git checkout -b feature/your-feature`

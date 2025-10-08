@@ -5,6 +5,11 @@ import { AdminHeader } from "@/components/layout/admin-header";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { AdminGuard } from "@/components/auth/admin-guard-fixed";
+import { validateEnv, warnIfProductionInDev } from "@matchday/shared";
+
+// Validate environment variables on app startup
+validateEnv();
+warnIfProductionInDev();
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

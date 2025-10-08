@@ -28,9 +28,13 @@ export const supabase = createBrowserClient<Database>(
   supabaseUrl,
   supabaseAnonKey,
   {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
     cookieOptions: {
       name: 'matchday-auth',
-      lifetime: 60 * 60 * 24 * 7, // 7 days
       domain: undefined,
       path: '/',
       sameSite: 'lax',
