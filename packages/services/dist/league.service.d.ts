@@ -36,6 +36,14 @@ export interface TeamAvailability {
         id: string;
     };
 }
+export interface PublishLeagueData {
+    leagueId: string;
+    isPublic: boolean;
+    autoApproveTeams?: boolean;
+    registrationDeadline?: string;
+    maxTeams?: number;
+    featured?: boolean;
+}
 export declare class LeagueService {
     private static instance;
     private supabase;
@@ -56,6 +64,11 @@ export declare class LeagueService {
      * Create a new league (Admin only)
      */
     createLeague(name: string, userId: string): Promise<ServiceResponse<League>>;
+    /**
+     * Publish or unpublish a league (Admin only)
+     * Publishing makes a league discoverable to teams who can request to join
+     */
+    publishLeague(publishData: PublishLeagueData): Promise<ServiceResponse<League>>;
     /**
      * Get leagues created by a specific admin user
      * Returns both public and private leagues

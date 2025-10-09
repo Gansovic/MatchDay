@@ -18,7 +18,7 @@ export default function SeasonDetailsPage() {
   const seasonId = params.seasonId as string;
 
   useEffect(() => {
-    // Redirect to the dashboard router which will handle status-specific routing
+    // Redirect to the unified dashboard
     const dashboardPath = `/leagues/${leagueId}/seasons/${seasonId}/dashboard`;
     router.replace(dashboardPath);
   }, [leagueId, seasonId, router]);

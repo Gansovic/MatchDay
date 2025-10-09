@@ -215,38 +215,13 @@ export class LeagueRequestService {
    */
   async approveRequest({ requestId, adminId, responseMessage }: ApproveRequestData): Promise<ServiceResponse<TeamLeagueRequest>> {
     try {
-      // First, verify the admin has permission to approve this request
-      const { data: request, error: fetchError } = await supabase
-        .from('team_join_requests')
-        .select(`
-          *,
-          leagues:league_id (
-            created_by
-          )
-        `)
-        .eq('id', requestId)
-        .single();
-
-      if (fetchError) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
         return {
           data: null,
           error: {
-            code: 'REQUEST_NOT_FOUND',
-            message: 'Request not found',
-            details: fetchError,
-            timestamp: new Date().toISOString()
-          },
-          success: false
-        };
-      }
-
-      // Check if admin owns the league
-      if ((request.leagues as any)?.created_by !== adminId) {
-        return {
-          data: null,
-          error: {
-            code: 'INSUFFICIENT_PERMISSIONS',
-            message: 'You do not have permission to approve this request',
+            code: 'NO_SESSION',
+            message: 'No valid session found',
             details: null,
             timestamp: new Date().toISOString()
           },
@@ -254,84 +229,38 @@ export class LeagueRequestService {
         };
       }
 
-      // Check if request is still pending
-      if (request.status !== 'pending') {
+      const response = await fetch(`/api/league-requests/${requestId}/approve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          responseMessage
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
         return {
           data: null,
           error: {
-            code: 'REQUEST_ALREADY_PROCESSED',
-            message: `Request has already been ${request.status}`,
-            details: null,
+            code: 'API_ERROR',
+            message: errorData.error || `API request failed with status ${response.status}`,
+            details: errorData,
             timestamp: new Date().toISOString()
           },
           success: false
         };
       }
 
-      // Approve the request via API endpoint
-      // Note: We call the player app's API endpoints because that's where the business logic
-      // and proper database permissions are implemented. In production, this would be
-      // configured via NEXT_PUBLIC_PLAYER_API_URL environment variable.
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-          return {
-            data: null,
-            error: {
-              code: 'NO_SESSION',
-              message: 'No valid session found',
-              details: null,
-              timestamp: new Date().toISOString()
-            },
-            success: false
-          };
-        }
-
-        const response = await fetch(`/api/league-requests/${requestId}/approve`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({
-            responseMessage
-          })
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          return {
-            data: null,
-            error: {
-              code: 'API_ERROR',
-              message: errorData.error || `API request failed with status ${response.status}`,
-              details: errorData,
-              timestamp: new Date().toISOString()
-            },
-            success: false
-          };
-        }
-
-        const result = await response.json();
-        const updatedRequest = result.data;
-      } catch (apiError) {
-        return {
-          data: null,
-          error: {
-            code: 'API_REQUEST_ERROR',
-            message: 'Failed to make API request',
-            details: apiError,
-            timestamp: new Date().toISOString()
-          },
-          success: false
-        };
-      }
+      const result = await response.json();
 
       return {
-        data: updatedRequest as TeamLeagueRequest,
+        data: result.data as TeamLeagueRequest,
         error: null,
         success: true,
-        message: 'Request approved successfully'
+        message: result.message || 'Request approved successfully'
       };
     } catch (error) {
       return {
@@ -352,38 +281,13 @@ export class LeagueRequestService {
    */
   async rejectRequest({ requestId, adminId, responseMessage }: RejectRequestData): Promise<ServiceResponse<TeamLeagueRequest>> {
     try {
-      // First, verify the admin has permission to reject this request
-      const { data: request, error: fetchError } = await supabase
-        .from('team_join_requests')
-        .select(`
-          *,
-          leagues:league_id (
-            created_by
-          )
-        `)
-        .eq('id', requestId)
-        .single();
-
-      if (fetchError) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
         return {
           data: null,
           error: {
-            code: 'REQUEST_NOT_FOUND',
-            message: 'Request not found',
-            details: fetchError,
-            timestamp: new Date().toISOString()
-          },
-          success: false
-        };
-      }
-
-      // Check if admin owns the league
-      if ((request.leagues as any)?.created_by !== adminId) {
-        return {
-          data: null,
-          error: {
-            code: 'INSUFFICIENT_PERMISSIONS',
-            message: 'You do not have permission to reject this request',
+            code: 'NO_SESSION',
+            message: 'No valid session found',
             details: null,
             timestamp: new Date().toISOString()
           },
@@ -391,81 +295,38 @@ export class LeagueRequestService {
         };
       }
 
-      // Check if request is still pending
-      if (request.status !== 'pending') {
+      const response = await fetch(`/api/league-requests/${requestId}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          responseMessage
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
         return {
           data: null,
           error: {
-            code: 'REQUEST_ALREADY_PROCESSED',
-            message: `Request has already been ${request.status}`,
-            details: null,
+            code: 'API_ERROR',
+            message: errorData.error || `API request failed with status ${response.status}`,
+            details: errorData,
             timestamp: new Date().toISOString()
           },
           success: false
         };
       }
 
-      // Reject the request via API endpoint
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.access_token) {
-          return {
-            data: null,
-            error: {
-              code: 'NO_SESSION',
-              message: 'No valid session found',
-              details: null,
-              timestamp: new Date().toISOString()
-            },
-            success: false
-          };
-        }
-
-        const response = await fetch(`/api/league-requests/${requestId}/reject`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({
-            responseMessage
-          })
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          return {
-            data: null,
-            error: {
-              code: 'API_ERROR',
-              message: errorData.error || `API request failed with status ${response.status}`,
-              details: errorData,
-              timestamp: new Date().toISOString()
-            },
-            success: false
-          };
-        }
-
-        const result = await response.json();
-        const updatedRequest = result.data;
-      } catch (apiError) {
-        return {
-          data: null,
-          error: {
-            code: 'API_REQUEST_ERROR',
-            message: 'Failed to make API request',
-            details: apiError,
-            timestamp: new Date().toISOString()
-          },
-          success: false
-        };
-      }
+      const result = await response.json();
 
       return {
-        data: updatedRequest as TeamLeagueRequest,
+        data: result.data as TeamLeagueRequest,
         error: null,
         success: true,
-        message: 'Request rejected successfully'
+        message: result.message || 'Request rejected successfully'
       };
     } catch (error) {
       return {

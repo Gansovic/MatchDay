@@ -15,20 +15,20 @@ export async function POST(
 ) {
   try {
     const { teamId } = await params;
-    const { leagueId, message, requestedBy } = await request.json();
-    
-    if (!teamId || !leagueId || !requestedBy) {
+    const { seasonId, message, requestedBy } = await request.json();
+
+    if (!teamId || !seasonId || !requestedBy) {
       return NextResponse.json(
-        { 
+        {
           success: false,
-          error: 'Team ID, League ID, and requestedBy are required' 
+          error: 'Team ID, Season ID, and requestedBy are required'
         },
         { status: 400 }
       );
     }
 
     const supabase = createAdminSupabaseClient();
-    
+
     // Check if team exists
     const { data: team, error: teamError } = await (supabase as any)
       .from('teams')
@@ -38,99 +38,125 @@ export async function POST(
 
     if (teamError || !team) {
       return NextResponse.json(
-        { 
+        {
           success: false,
-          error: 'Team not found' 
+          error: 'Team not found'
         },
         { status: 404 }
       );
     }
 
-    // Check if league exists, is active, and requires manual approval
-    const { data: league, error: leagueError } = await (supabase as any)
-      .from('leagues')
-      .select('id, name, auto_approve_teams, is_active, is_public, registration_deadline, max_teams')
-      .eq('id', leagueId)
-      .eq('is_active', true)
+    // Check if season exists and is active
+    const { data: season, error: seasonError } = await (supabase as any)
+      .from('seasons')
+      .select(`
+        id,
+        name,
+        league_id,
+        status,
+        registration_deadline,
+        max_teams,
+        min_teams,
+        leagues (id, name, is_active, is_public)
+      `)
+      .eq('id', seasonId)
       .single();
 
-    if (leagueError || !league) {
+    if (seasonError || !season) {
       return NextResponse.json(
-        { 
+        {
           success: false,
-          error: 'League not found or inactive' 
+          error: 'Season not found'
         },
         { status: 404 }
       );
     }
 
-    // If league has auto-approval, redirect to regular join endpoint
-    if (league.auto_approve_teams) {
+    // Verify league is public and active
+    if (!season.leagues.is_public || !season.leagues.is_active) {
       return NextResponse.json(
-        { 
+        {
           success: false,
-          error: 'This league has auto-approval enabled. Use the regular join endpoint instead.',
-          redirect_to_auto_join: true
+          error: 'League is not accepting registrations'
         },
         { status: 400 }
       );
     }
 
-    // Verify league is public and accepting registrations
-    if (!league.is_public) {
+    // Check if season is accepting registrations
+    if (season.status !== 'draft' && season.status !== 'registration') {
       return NextResponse.json(
-        { 
+        {
           success: false,
-          error: 'League is not accepting public registrations' 
+          error: 'Season is not accepting new team registrations'
         },
         { status: 400 }
       );
     }
 
     // Check registration deadline
-    if (league.registration_deadline && new Date(league.registration_deadline) < new Date()) {
+    if (season.registration_deadline && new Date(season.registration_deadline) < new Date()) {
       return NextResponse.json(
-        { 
+        {
           success: false,
-          error: 'Registration deadline has passed' 
+          error: 'Registration deadline has passed'
         },
         { status: 400 }
       );
     }
 
     // Check max teams limit
-    if (league.max_teams) {
+    if (season.max_teams) {
       const { count: teamCount } = await (supabase as any)
-        .from('teams')
+        .from('season_teams')
         .select('*', { count: 'exact', head: true })
-        .eq('league_id', leagueId);
+        .eq('season_id', seasonId)
+        .in('status', ['registered', 'confirmed']);
 
-      if (teamCount && teamCount >= league.max_teams) {
+      if (teamCount && teamCount >= season.max_teams) {
         return NextResponse.json(
-          { 
+          {
             success: false,
-            error: 'League has reached maximum team capacity' 
+            error: 'Season has reached maximum team capacity'
           },
           { status: 400 }
         );
       }
     }
 
-    // Check if team already has a pending or approved request for this league
+    // Check if team is already in this season
+    const { data: existingTeam } = await (supabase as any)
+      .from('season_teams')
+      .select('id')
+      .eq('season_id', seasonId)
+      .eq('team_id', teamId)
+      .single();
+
+    if (existingTeam) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Team "${team.name}" is already registered for this season`
+        },
+        { status: 400 }
+      );
+    }
+
+    // Check if team already has a pending request for this season
     const { data: existingRequest, error: checkError } = await (supabase as any)
-      .from('team_join_requests')
+      .from('season_join_requests')
       .select('id, status')
       .eq('team_id', teamId)
-      .eq('league_id', leagueId)
-      .in('status', ['pending', 'approved'])
+      .eq('season_id', seasonId)
+      .eq('status', 'pending')
       .single();
 
     if (checkError && checkError.code !== 'PGRST116') {
       console.error('Error checking existing requests:', checkError);
       return NextResponse.json(
-        { 
+        {
           success: false,
-          error: 'Failed to check existing requests' 
+          error: 'Failed to check existing requests'
         },
         { status: 500 }
       );
@@ -138,9 +164,9 @@ export async function POST(
 
     if (existingRequest) {
       return NextResponse.json(
-        { 
+        {
           success: false,
-          error: `Team "${team.name}" already has a ${existingRequest.status} request for this league` 
+          error: `Team "${team.name}" already has a pending request for this season`
         },
         { status: 400 }
       );
@@ -149,29 +175,28 @@ export async function POST(
     // Create the join request
     const requestData = {
       team_id: teamId,
-      league_id: leagueId,
-      requested_by: requestedBy,
+      season_id: seasonId,
+      user_id: requestedBy,
       message: message || null,
-      status: 'pending',
-      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 days
+      status: 'pending'
     };
 
-    const { data: newRequest, error: createError } = await (supabase as any)
-      .from('team_join_requests')
+    const { data: newRequest, error: createError} = await (supabase as any)
+      .from('season_join_requests')
       .insert(requestData)
       .select(`
         *,
-        teams:team_id (id, name),
-        leagues:league_id (id, name)
+        team:teams (id, name),
+        season:seasons (id, name, league_id, leagues (id, name))
       `)
       .single();
 
     if (createError) {
       console.error('Failed to create join request:', createError);
       return NextResponse.json(
-        { 
+        {
           success: false,
-          error: 'Failed to create join request' 
+          error: 'Failed to create join request'
         },
         { status: 500 }
       );
@@ -181,24 +206,24 @@ export async function POST(
       success: true,
       data: {
         request: newRequest,
-        message: `Join request submitted successfully! Team "${team.name}" is now waiting for approval to join "${league.name}".`
+        message: `Join request submitted successfully! Team "${team.name}" is now waiting for approval to join "${season.name}".`
       },
       error: null
     });
-    
+
     // Add CORS headers
     response.headers.set('Access-Control-Allow-Origin', '*');
     response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    
+
     return response;
   } catch (error) {
     console.error('Error creating join request:', error);
     return NextResponse.json(
-      { 
+      {
         success: false,
         data: null,
-        error: 'Failed to create join request' 
+        error: 'Failed to create join request'
       },
       { status: 500 }
     );

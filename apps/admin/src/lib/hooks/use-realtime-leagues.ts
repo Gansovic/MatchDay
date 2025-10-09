@@ -140,10 +140,10 @@ export function useRealtimeLeagues(adminId?: string) {
             {
               event: '*',
               schema: 'public',
-              table: 'team_join_requests'
+              table: 'season_join_requests'
             },
             (payload) => {
-              console.log('📋 Team request update received:', {
+              console.log('📋 Season request update received:', {
                 event: payload.eventType,
                 requestId: payload.new?.id || payload.old?.id,
                 status: payload.new?.status || payload.old?.status,
@@ -297,16 +297,34 @@ export function useRealtimeLeagueDetail(leagueId: string | null, adminId?: strin
         }
       }
 
-      // Transform teams data to match the expected structure
-      const teams = (leagueData.teams || []).map((team: any) => ({
-        team_id: team.id,
-        team_name: team.name,
-        team_color: team.team_color || '#374151',
-        team_logo_url: null,
-        joined_at: team.created_at || new Date().toISOString(),
-        is_active: true,
-        member_count: team.currentPlayers || team.members?.length || 0
-      }));
+      // Aggregate teams from all seasons
+      const teamsMap = new Map();
+      for (const season of seasons) {
+        if (season.teams && Array.isArray(season.teams)) {
+          for (const seasonTeam of season.teams) {
+            if (!teamsMap.has(seasonTeam.team_id)) {
+              teamsMap.set(seasonTeam.team_id, {
+                team_id: seasonTeam.team_id,
+                team_name: seasonTeam.team?.name || 'Unknown Team',
+                team_color: seasonTeam.team?.team_color || '#374151',
+                team_logo_url: null,
+                joined_at: seasonTeam.registration_date || seasonTeam.created_at,
+                is_active: seasonTeam.status === 'registered' || seasonTeam.status === 'confirmed',
+                member_count: Array.isArray(seasonTeam.team?.currentPlayers)
+                  ? seasonTeam.team.currentPlayers[0]?.count || 0
+                  : 0,
+                seasons: [season.name]
+              });
+            } else {
+              // Team is in multiple seasons
+              const existing = teamsMap.get(seasonTeam.team_id);
+              existing.seasons.push(season.name);
+            }
+          }
+        }
+      }
+
+      const teams = Array.from(teamsMap.values());
       
       return {
         league: leagueData,
@@ -372,11 +390,10 @@ export function useRealtimeLeagueDetail(leagueId: string | null, adminId?: strin
             {
               event: '*',
               schema: 'public',
-              table: 'team_join_requests',
-              filter: `league_id=eq.${leagueId}`
+              table: 'season_join_requests'
             },
             (payload) => {
-              console.log(`📋 Team request update for league ${leagueId}:`, {
+              console.log(`📋 Season request update for league ${leagueId}:`, {
                 event: payload.eventType,
                 requestId: payload.new?.id || payload.old?.id,
                 status: payload.new?.status

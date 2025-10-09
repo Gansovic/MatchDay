@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Season } from '@matchday/services';
 
 export interface SeasonManagementProps {
@@ -9,11 +10,12 @@ export interface SeasonManagementProps {
   onSeasonsUpdate?: (seasons: Season[]) => void;
 }
 
-export default function SeasonManagement({ 
-  leagueId, 
+export default function SeasonManagement({
+  leagueId,
   seasons,
-  onSeasonsUpdate 
+  onSeasonsUpdate
 }: SeasonManagementProps) {
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
   const formatDate = (dateString: string) => {
@@ -101,7 +103,11 @@ export default function SeasonManagement({
         ) : (
           <div className="space-y-4">
             {seasons.map((season) => (
-              <div key={season.id} className="border border-gray-600 rounded-lg p-4 hover:border-gray-500 transition-colors bg-gray-800">
+              <div
+                key={season.id}
+                onClick={() => router.push(`/leagues/${leagueId}/seasons/${season.id}`)}
+                className="border border-gray-600 rounded-lg p-4 hover:border-gray-500 transition-colors bg-gray-800 cursor-pointer hover:bg-gray-750"
+              >
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <h4 className="font-medium text-white">

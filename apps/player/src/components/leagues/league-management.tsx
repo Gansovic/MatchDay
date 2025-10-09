@@ -92,8 +92,11 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
   const [selectedSport, setSelectedSport] = useState<string>('all');
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [selectedLeague, setSelectedLeague] = useState<League | null>(null);
+  const [availableSeasons, setAvailableSeasons] = useState<any[]>([]);
+  const [selectedSeason, setSelectedSeason] = useState<string>('');
   const [selectedTeam, setSelectedTeam] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingSeasons, setIsLoadingSeasons] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   
@@ -116,8 +119,8 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
   const loadLeagues = async () => {
     setIsLoading(true);
     try {
-      // TODO: Add LeagueService method with filters
-      const response = await fetch('/api/leagues');
+      // Only show public and active leagues for discovery
+      const response = await fetch('/api/leagues?isPublic=true&isActive=true');
       const result = await response.json();
       setLeagues(result.data || []);
       setLastUpdate(new Date());
@@ -220,10 +223,34 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
     }
   };
 
-  const handleJoinLeague = (league: League) => {
+  const handleJoinLeague = async (league: League) => {
     setSelectedLeague(league);
     setSelectedTeam('');
+    setSelectedSeason('');
     setShowJoinModal(true);
+    setIsLoadingSeasons(true);
+
+    try {
+      // Load available seasons for this league
+      const response = await fetch(`/api/leagues/${league.id}/seasons`);
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        // Filter for seasons accepting registrations
+        const openSeasons = result.data.filter((season: any) =>
+          (season.status === 'draft' || season.status === 'registration') &&
+          (!season.max_teams || (season.registered_teams_count || 0) < season.max_teams)
+        );
+        setAvailableSeasons(openSeasons);
+      } else {
+        setAvailableSeasons([]);
+      }
+    } catch (error) {
+      console.error('Error loading seasons:', error);
+      setAvailableSeasons([]);
+    } finally {
+      setIsLoadingSeasons(false);
+    }
   };
 
   const handleViewLeague = (league: League) => {
@@ -231,119 +258,42 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
   };
 
   const handleConfirmJoin = async () => {
-    if (!selectedLeague || !selectedTeam) return;
+    if (!selectedLeague || !selectedTeam || !selectedSeason) return;
 
     setIsSubmitting(true);
     setError(null);
-    
+
     try {
-      // First, get the league details to check if it requires manual approval
-      const leagueResponse = await fetch(`/api/leagues/${selectedLeague.id}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const selectedSeasonData = availableSeasons.find(s => s.id === selectedSeason);
 
-      const leagueResult = await leagueResponse.json();
-      
-      if (!leagueResult.success) {
-        throw new Error(leagueResult.error || 'Failed to get league details');
-      }
-
-      const leagueDetails = leagueResult.data;
-      
-      // Check if league requires manual approval
-      if (!leagueDetails.auto_approve_teams) {
-        // Create join request instead of directly joining
-        const requestResponse = await fetch(`/api/teams/${selectedTeam}/request-league-join`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            leagueId: selectedLeague.id,
-            requestedBy: userId,
-            message: `Request to join ${selectedLeague.name} league`
-          }),
-        });
-
-        const requestResult = await requestResponse.json();
-
-        if (!requestResult.success) {
-          // Handle specific request error types
-          if (requestResult.error?.includes('already has a')) {
-            setError(requestResult.error);
-            setShowJoinModal(false);
-          } else {
-            throw new Error(requestResult.error || 'Failed to create join request');
-          }
-          return;
-        }
-
-        setShowJoinModal(false);
-        setSuccess(requestResult.data?.message || `Join request submitted for ${selectedLeague.name}! Please wait for admin approval.`);
-        setTimeout(() => setSuccess(null), 5000);
-        return;
-      }
-
-      // League has auto-approval, proceed with direct join
-      const response = await fetch(`/api/teams/${selectedTeam}/join-league`, {
+      // Always create a join request (no auto-approval)
+      const requestResponse = await fetch(`/api/teams/${selectedTeam}/request-league-join`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          leagueId: selectedLeague.id
+          seasonId: selectedSeason,
+          requestedBy: userId,
+          message: `Request to join ${selectedSeasonData?.name || 'season'} in ${selectedLeague.name}`
         }),
       });
 
-      const result = await response.json();
+      const requestResult = await requestResponse.json();
 
-      if (!result.success) {
-        // Check for specific error types
-        if (result.error?.includes('already registered')) {
-          // Team is already in this season
-          setError(result.error);
+      if (!requestResult.success) {
+        // Handle specific request error types
+        if (requestResult.error?.includes('already has a') || requestResult.error?.includes('already registered')) {
+          setError(requestResult.error);
           setShowJoinModal(false);
-        } else if (result.error?.includes('No active season')) {
-          // No active season available
-          setError(result.error);
-        } else if (result.error?.includes('is full')) {
-          // Season is full
-          setError(result.error);
-        } else if (result.redirect_to_auto_join) {
-          // Redirect error from request endpoint
-          setError('This league requires manual approval. Please wait for admin approval.');
         } else {
-          // Generic error
-          throw new Error(result.error || 'Failed to join league');
+          throw new Error(requestResult.error || 'Failed to create join request');
         }
         return;
       }
-      
-      // Update local user teams state - real-time hook will handle league updates
-      const seasonInfo = result.data?.season;
-      setUserTeams(prev => prev.map(team => 
-        team.id === selectedTeam 
-          ? { ...team, league_id: selectedLeague.id, league_name: selectedLeague.name }
-          : team
-      ));
 
       setShowJoinModal(false);
-      
-      // Show success message with season information
-      const successMessage = result.data?.message || 
-        (seasonInfo 
-          ? `Successfully joined ${selectedLeague.name} for the ${seasonInfo.display_name} season!`
-          : `Successfully joined ${selectedLeague.name}!`);
-      
-      setSuccess(successMessage);
-      onTeamJoinedLeague?.(selectedTeam, selectedLeague.id);
-      
-      // Real-time hook will automatically update league data, so no manual refresh needed
-      console.log('✅ Team joined league - real-time updates will handle data sync');
-      
+      setSuccess(requestResult.data?.message || `Join request submitted for ${selectedSeasonData?.name || 'season'}! Please wait for admin approval.`);
       setTimeout(() => setSuccess(null), 5000);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to join league. Please try again.';
@@ -655,8 +605,8 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
                 View League
               </button>
               
-              {/* Join Button - Only when spots available */}
-              {league.availableSpots > 0 && (
+              {/* Join Button - Show if league is accepting teams */}
+              {(!league.max_teams || league.teamCount < league.max_teams) && (
                 <button
                   onClick={() => handleJoinLeague(league)}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
@@ -699,6 +649,34 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
             </div>
 
             <div className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Select Season *
+                </label>
+                {isLoadingSeasons ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                  </div>
+                ) : availableSeasons.length === 0 ? (
+                  <p className="text-sm text-gray-600 dark:text-gray-400 py-4">
+                    No seasons are currently accepting registrations for this league.
+                  </p>
+                ) : (
+                  <select
+                    value={selectedSeason}
+                    onChange={(e) => setSelectedSeason(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Choose a season...</option>
+                    {availableSeasons.map((season: any) => (
+                      <option key={season.id} value={season.id}>
+                        {season.name} ({season.status})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Select Team *
@@ -746,18 +724,18 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
                 </button>
                 <button
                   onClick={handleConfirmJoin}
-                  disabled={isSubmitting || !selectedTeam}
+                  disabled={isSubmitting || !selectedTeam || !selectedSeason}
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Joining...
+                      Submitting...
                     </>
                   ) : (
                     <>
                       <UserPlus className="w-4 h-4" />
-                      Join League
+                      Request to Join
                     </>
                   )}
                 </button>

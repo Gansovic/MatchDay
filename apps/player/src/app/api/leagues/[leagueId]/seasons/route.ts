@@ -76,28 +76,41 @@ export async function GET(
     
     console.log('[Seasons API] Supabase query successful. Seasons count:', seasons?.length || 0);
     
-    // Enhance seasons with team registration counts
-    const seasonsWithCounts = await Promise.all(
+    // Enhance seasons with team registration data
+    const seasonsWithTeams = await Promise.all(
       (seasons || []).map(async (season: any) => {
         try {
           const { data: teamRegs, error: teamError } = await (supabase as any)
             .from('season_teams')
-            .select('id')
+            .select(`
+              team_id,
+              status,
+              registration_date,
+              created_at,
+              team:teams (
+                id,
+                name,
+                team_color,
+                currentPlayers:team_members(count)
+              )
+            `)
             .eq('season_id', season.id)
-            .in('status', ['registered', 'active']);
-            
+            .in('status', ['registered', 'confirmed']);
+
           if (teamError) {
-            console.warn('[Seasons API] Team count query failed for season:', season.id, teamError);
+            console.warn('[Seasons API] Team query failed for season:', season.id, teamError);
           }
-          
+
           return {
             ...season,
+            teams: teamRegs || [],
             registered_teams_count: teamRegs?.length || 0
           };
         } catch (error) {
-          console.warn('[Seasons API] Failed to get team count for season:', season.id, error);
+          console.warn('[Seasons API] Failed to get teams for season:', season.id, error);
           return {
             ...season,
+            teams: [],
             registered_teams_count: 0
           };
         }
@@ -106,7 +119,7 @@ export async function GET(
 
     const response = NextResponse.json({
       success: true,
-      data: seasonsWithCounts,
+      data: seasonsWithTeams,
       error: null,
       message: 'Seasons retrieved successfully'
     });

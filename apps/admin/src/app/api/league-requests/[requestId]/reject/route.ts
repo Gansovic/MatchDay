@@ -1,27 +1,28 @@
 /**
- * API Route: Reject Team League Request
- * 
+ * API Route: Reject Team Season Join Request
+ *
  * POST /api/league-requests/[requestId]/reject
- * Rejects a team's request to join a league
+ * Rejects a team's request to join a season
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { LeagueRequestService } from '@/lib/services/league-request.service';
-import { supabase } from '@/lib/supabase/client';
+import { createAdminClient } from '@/lib/supabase/client';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { requestId: string } }
+  { params }: { params: Promise<{ requestId: string }> }
 ) {
   try {
     const { requestId } = await params;
-    
+
     if (!requestId) {
       return NextResponse.json(
         { error: 'Request ID is required' },
         { status: 400 }
       );
     }
+
+    const supabase = createAdminClient();
 
     // Get the user from the session
     const authHeader = request.headers.get('authorization');
@@ -33,10 +34,10 @@ export async function POST(
     }
 
     const token = authHeader.substring(7);
-    
+
     // Get user from token
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
+    const { data: { user }, error: authError } = await (supabase as any).auth.getUser(token);
+
     if (authError || !user) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
@@ -48,41 +49,82 @@ export async function POST(
     const body = await request.json().catch(() => ({}));
     const { responseMessage } = body;
 
-    // Use the LeagueRequestService to reject the request
-    const leagueRequestService = LeagueRequestService.getInstance();
-    
-    const result = await leagueRequestService.rejectRequest({
-      requestId,
-      adminId: user.id,
-      responseMessage: responseMessage || undefined
-    });
+    // Fetch the join request with season and league info
+    const { data: joinRequest, error: fetchError } = await (supabase as any)
+      .from('season_join_requests')
+      .select(`
+        *,
+        season:seasons (
+          id,
+          name,
+          league_id,
+          leagues (
+            id,
+            name,
+            created_by
+          )
+        ),
+        team:teams (
+          id,
+          name
+        )
+      `)
+      .eq('id', requestId)
+      .single();
 
-    if (!result.success) {
-      const statusCode = result.error?.code === 'REQUEST_NOT_FOUND' ? 404 :
-                        result.error?.code === 'INSUFFICIENT_PERMISSIONS' ? 403 :
-                        result.error?.code === 'REQUEST_ALREADY_PROCESSED' ? 409 :
-                        500;
-
+    if (fetchError || !joinRequest) {
       return NextResponse.json(
-        { 
-          error: result.error?.message || 'Failed to reject request',
-          code: result.error?.code
-        },
-        { status: statusCode }
+        { error: 'Request not found' },
+        { status: 404 }
+      );
+    }
+
+    // Check if user has permission (must be league creator)
+    if (joinRequest.season?.leagues?.created_by !== user.id) {
+      return NextResponse.json(
+        { error: 'You do not have permission to reject this request' },
+        { status: 403 }
+      );
+    }
+
+    // Check if request is still pending
+    if (joinRequest.status !== 'pending') {
+      return NextResponse.json(
+        { error: `Request has already been ${joinRequest.status}` },
+        { status: 409 }
+      );
+    }
+
+    // Delete the join request
+    const { error: deleteError } = await (supabase as any)
+      .from('season_join_requests')
+      .delete()
+      .eq('id', requestId);
+
+    if (deleteError) {
+      console.error('Error deleting request:', deleteError);
+      return NextResponse.json(
+        { error: 'Failed to delete request' },
+        { status: 500 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      message: result.message || 'Request rejected successfully',
-      data: result.data
+      message: `Request from team "${joinRequest.team?.name}" has been rejected.`,
+      data: {
+        requestId: joinRequest.id,
+        teamId: joinRequest.team_id,
+        seasonId: joinRequest.season_id,
+        leagueId: joinRequest.season?.league_id
+      }
     });
 
   } catch (error) {
     console.error('Error rejecting request:', error);
-    
+
     return NextResponse.json(
-      { 
+      {
         error: 'Internal server error',
         message: error instanceof Error ? error.message : 'Unknown error'
       },

@@ -56,6 +56,15 @@ export interface TeamAvailability {
   };
 }
 
+export interface PublishLeagueData {
+  leagueId: string;
+  isPublic: boolean;
+  autoApproveTeams?: boolean;
+  registrationDeadline?: string;
+  maxTeams?: number;
+  featured?: boolean;
+}
+
 export class LeagueService {
   private static instance: LeagueService;
   private supabase: SupabaseClient<Database>;
@@ -156,6 +165,69 @@ export class LeagueService {
       return {
         data: null,
         error: this.handleError(error, 'createLeague'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Publish or unpublish a league (Admin only)
+   * Publishing makes a league discoverable to teams who can request to join
+   */
+  async publishLeague(publishData: PublishLeagueData): Promise<ServiceResponse<League>> {
+    try {
+      console.log('[LeagueService] publishLeague called with:', {
+        leagueId: publishData.leagueId,
+        isPublic: publishData.isPublic,
+        maxTeams: publishData.maxTeams
+      });
+
+      const updateData: any = {
+        is_public: publishData.isPublic,
+        updated_at: new Date().toISOString()
+      };
+
+      // Only add max_teams if provided (this column exists)
+      if (publishData.maxTeams !== undefined) {
+        updateData.max_teams = publishData.maxTeams;
+      }
+
+      console.log('[LeagueService] Updating league with data:', updateData);
+
+      // Note: auto_approve_teams, registration_deadline, published_at, and featured
+      // columns don't exist yet in the leagues table. They can be added via migration later.
+
+      const { data, error } = await this.supabase
+        .from('leagues')
+        .update(updateData)
+        .eq('id', publishData.leagueId)
+        .select()
+        .single();
+
+      console.log('[LeagueService] Update result:', { data, error });
+
+      if (error) {
+        console.error('[LeagueService] Update error:', error);
+        throw error;
+      }
+
+      if (!data) {
+        console.warn('[LeagueService] Update succeeded but no data returned');
+        throw new Error('Update succeeded but no data returned');
+      }
+
+      console.log('[LeagueService] Successfully updated league:', data);
+
+      // Clear cache to reflect updated league
+      this.clearCache('discoverLeagues');
+      this.clearCache('getAdminLeagues');
+
+      return { data, error: null, success: true };
+    } catch (error) {
+      console.error('[LeagueService] publishLeague error:', error);
+      return {
+        data: null,
+        error: this.handleError(error, 'publishLeague'),
         success: false
       };
     }
