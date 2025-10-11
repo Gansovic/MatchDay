@@ -286,7 +286,7 @@ export const CreateSeasonModal: React.FC<CreateSeasonModalProps> = ({
               <input
                 type="number"
                 value={formData.min_teams}
-                onChange={(e) => handleInputChange('min_teams', parseInt(e.target.value))}
+                onChange={(e) => handleInputChange('min_teams', parseInt(e.target.value) || 2)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 min={2}
                 max={64}
@@ -301,7 +301,7 @@ export const CreateSeasonModal: React.FC<CreateSeasonModalProps> = ({
               <input
                 type="number"
                 value={formData.max_teams}
-                onChange={(e) => handleInputChange('max_teams', parseInt(e.target.value))}
+                onChange={(e) => handleInputChange('max_teams', parseInt(e.target.value) || 2)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 min={2}
                 max={64}

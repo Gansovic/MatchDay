@@ -35,6 +35,14 @@ export interface Season {
   fixtures_status: 'pending' | 'generating' | 'completed' | 'error';
   fixtures_generated_at?: string;
   total_matches_planned?: number;
+  // Amateur league scheduling fields
+  match_day?: string; // Day of week: 'monday', 'tuesday', etc.
+  match_start_time?: string; // Start time: '19:00:00'
+  match_end_time?: string; // End time: '21:00:00'
+  courts_available?: number; // Number of courts
+  games_per_court?: number; // Games per court in time window
+  rest_weeks_between_matches?: number; // Weeks between team matches
+  // End scheduling
   rules?: any;
   settings?: any;
   metadata?: any;
@@ -64,6 +72,9 @@ export interface Match {
   home_team_id: string;
   away_team_id: string;
   match_date?: string;
+  match_time?: string;
+  matchday_number?: number;
+  court_number?: number;
   round_number?: number;
   status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
   home_score?: number;
@@ -341,10 +352,194 @@ export class SeasonService {
   }
 
   /**
-   * Generate round-robin fixtures for a season
+   * Get all match dates for a specific day of week within season
+   * For amateur leagues: Returns all Thursdays (or specified day) within the season
    */
-  async generateFixtures(seasonId: string): Promise<ServiceResponse<Match[]>> {
+  private getMatchDatesForDay(
+    startDate: Date,
+    endDate: Date,
+    matchDay: string
+  ): Date[] {
+    const dates: Date[] = [];
+    const dayMap: Record<string, number> = {
+      sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
+      thursday: 4, friday: 5, saturday: 6
+    };
+
+    const targetDayNumber = dayMap[matchDay.toLowerCase()];
+    if (targetDayNumber === undefined) {
+      throw new Error(`Invalid match day: ${matchDay}`);
+    }
+
+    let currentDate = new Date(startDate);
+
+    // Find first occurrence of target day
+    while (currentDate.getDay() !== targetDayNumber && currentDate <= endDate) {
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Collect all occurrences of target day
+    while (currentDate <= endDate) {
+      dates.push(new Date(currentDate));
+      currentDate.setDate(currentDate.getDate() + 7); // Move to next week
+    }
+
+    return dates;
+  }
+
+  /**
+   * Assign match dates for amateur league scheduling
+   * All games in a matchday happen at the SAME time on different courts
+   *
+   * Example: Thursday 19:00-21:00, 4 courts, 2 games per court = 8 games capacity
+   * - Matchday 1: 8 games on Thursday Week 1 at 19:00, courts 1-4
+   * - Matchday 2: 8 games on Thursday Week 2 at 19:00, courts 1-4
+   */
+  private assignMatchDatesAdvanced(
+    fixtures: Array<{
+      home_team_id: string;
+      away_team_id: string;
+      round_number: number;
+    }>,
+    season: Season
+  ): Array<{
+    home_team_id: string;
+    away_team_id: string;
+    round_number: number;
+    match_date: string;
+    match_time: string;
+    court_number: number;
+    matchday_number: number;
+  }> {
+    const startDate = new Date(season.start_date);
+    const endDate = new Date(season.end_date);
+
+    // Parse configuration with defaults for amateur leagues
+    const matchDay = season.match_day || 'saturday';
+    const matchTime = season.match_start_time || '19:00:00';
+    const courtsAvailable = season.courts_available || 1;
+    const gamesPerCourt = season.games_per_court || 2;
+    const restWeeks = season.rest_weeks_between_matches || 0;
+
+    // Calculate total capacity per matchday
+    const gamesPerMatchday = courtsAvailable * gamesPerCourt;
+
+    // Get all available match dates (e.g., all Thursdays in the season)
+    const availableDates = this.getMatchDatesForDay(startDate, endDate, matchDay);
+
+    // Calculate matchdays needed
+    const totalMatches = fixtures.length;
+    const matchdaysNeeded = Math.ceil(totalMatches / gamesPerMatchday);
+
+    if (availableDates.length < matchdaysNeeded) {
+      throw new Error(
+        `Not enough ${matchDay}s in season: Need ${matchdaysNeeded} matchdays but only ${availableDates.length} ${matchDay}s available between ${season.start_date} and ${season.end_date}. ` +
+        `Try extending the season duration or reducing games per court.`
+      );
+    }
+
+    // Track when each team last played (for rest period validation)
+    const teamLastMatchday = new Map<string, number>();
+
+    const fixturesWithDates: any[] = [];
+    let matchdayNumber = 1;
+    let dateIndex = 0;
+    let courtNumber = 1;
+    let gamesOnCurrentMatchday = 0;
+
+    for (let i = 0; i < fixtures.length; i++) {
+      const fixture = fixtures[i];
+
+      // Check if we need to move to next matchday
+      let needNewMatchday = gamesOnCurrentMatchday >= gamesPerMatchday;
+
+      // Check rest period if configured
+      if (!needNewMatchday && restWeeks > 0) {
+        const homeLastMatchday = teamLastMatchday.get(fixture.home_team_id) || 0;
+        const awayLastMatchday = teamLastMatchday.get(fixture.away_team_id) || 0;
+
+        const weeksSinceHome = matchdayNumber - homeLastMatchday;
+        const weeksSinceAway = matchdayNumber - awayLastMatchday;
+
+        if (weeksSinceHome < restWeeks || weeksSinceAway < restWeeks) {
+          needNewMatchday = true;
+        }
+      }
+
+      // Move to next matchday if needed
+      if (needNewMatchday) {
+        matchdayNumber++;
+        dateIndex++;
+        courtNumber = 1;
+        gamesOnCurrentMatchday = 0;
+
+        if (dateIndex >= availableDates.length) {
+          throw new Error(
+            `Not enough ${matchDay}s to schedule all fixtures with rest period of ${restWeeks} weeks. ` +
+            `Try extending the season, reducing rest weeks, or increasing courts/games per court.`
+          );
+        }
+
+        // Re-check rest period for this fixture on new matchday
+        if (restWeeks > 0) {
+          const homeLastMatchday = teamLastMatchday.get(fixture.home_team_id) || 0;
+          const awayLastMatchday = teamLastMatchday.get(fixture.away_team_id) || 0;
+
+          const weeksSinceHome = matchdayNumber - homeLastMatchday;
+          const weeksSinceAway = matchdayNumber - awayLastMatchday;
+
+          if (weeksSinceHome < restWeeks || weeksSinceAway < restWeeks) {
+            // Skip ahead until both teams have rested enough
+            const minMatchdayForHome = homeLastMatchday + restWeeks;
+            const minMatchdayForAway = awayLastMatchday + restWeeks;
+            const minMatchday = Math.max(minMatchdayForHome, minMatchdayForAway);
+
+            const matchdaysToSkip = minMatchday - matchdayNumber;
+            dateIndex += matchdaysToSkip;
+            matchdayNumber = minMatchday;
+
+            if (dateIndex >= availableDates.length) {
+              throw new Error(
+                `Cannot schedule match: Team(s) cannot play their matches with ${restWeeks} weeks rest. ` +
+                `Try extending the season or reducing rest weeks.`
+              );
+            }
+          }
+        }
+      }
+
+      const matchDate = availableDates[dateIndex];
+
+      // Update team last played matchday
+      teamLastMatchday.set(fixture.home_team_id, matchdayNumber);
+      teamLastMatchday.set(fixture.away_team_id, matchdayNumber);
+
+      // Calculate court number (cycle through available courts)
+      courtNumber = (gamesOnCurrentMatchday % courtsAvailable) + 1;
+
+      fixturesWithDates.push({
+        ...fixture,
+        match_date: matchDate.toISOString().split('T')[0],
+        match_time: matchTime,
+        court_number: courtNumber,
+        matchday_number: matchdayNumber
+      });
+
+      gamesOnCurrentMatchday++;
+    }
+
+    return fixturesWithDates;
+  }
+
+  /**
+   * Generate round-robin fixtures for a season
+   * @param seasonId The season to generate fixtures for
+   * @param preview If true, returns preview without saving to database
+   */
+  async generateFixtures(seasonId: string, preview: boolean = false): Promise<ServiceResponse<Match[]>> {
     try {
+      console.log('🔧 [SeasonService] Starting fixture generation for season:', seasonId);
+
       // Get season details
       const seasonResponse = await this.getSeasonDetails(seasonId);
       if (!seasonResponse.success || !seasonResponse.data) {
@@ -352,7 +547,11 @@ export class SeasonService {
       }
 
       const season = seasonResponse.data;
+      console.log('🔧 [SeasonService] Season loaded:', season.name);
+      console.log('🔧 [SeasonService] Season teams:', season.teams?.length || 0);
+
       const teams = season.teams?.filter(t => t.status === 'registered' || t.status === 'confirmed') || [];
+      console.log('🔧 [SeasonService] Registered teams count:', teams.length);
 
       if (teams.length < 2) {
         return {
@@ -362,32 +561,58 @@ export class SeasonService {
         };
       }
 
-      // Update fixtures status to generating
-      await this.updateSeason(seasonId, { 
-        fixtures_status: 'generating',
-        total_matches_planned: this.calculateTotalMatches(teams.length, season.rounds || 1, season.home_away_balance || false)
-      });
+      // Update fixtures status to generating (skip in preview mode)
+      if (!preview) {
+        console.log('🔧 [SeasonService] Updating season status to generating...');
+        const updateResult = await this.updateSeason(seasonId, {
+          fixtures_status: 'generating',
+          total_matches_planned: this.calculateTotalMatches(teams.length, season.rounds || 1, season.home_away_balance || false)
+        });
+        console.log('🔧 [SeasonService] Update season result:', updateResult.success ? 'SUCCESS' : 'FAILED');
+        if (!updateResult.success) {
+          console.error('🔧 [SeasonService] Update season error:', updateResult.error);
+        }
+      }
 
       // Generate round-robin fixtures
+      console.log('🔧 [SeasonService] Generating round-robin fixtures...');
       const fixtures = this.generateRoundRobinFixtures(teams, season.rounds || 1, season.home_away_balance || false);
-      
-      // Calculate match dates based on season start date and frequency
-      const fixturesWithDates = this.assignMatchDates(fixtures, season);
+      console.log('🔧 [SeasonService] Generated', fixtures.length, 'fixtures');
+
+      // Assign dates using advanced algorithm (respects venue capacity, days, time slots)
+      console.log('🔧 [SeasonService] Assigning match dates...');
+      const fixturesWithDates = this.assignMatchDatesAdvanced(fixtures, season);
+      console.log('🔧 [SeasonService] Assigned dates to', fixturesWithDates.length, 'fixtures');
+
+      // Preview mode: return without saving
+      if (preview) {
+        return {
+          data: fixturesWithDates as any,
+          error: null,
+          success: true,
+          message: `Preview: ${fixturesWithDates.length} fixtures across ${Math.max(...fixturesWithDates.map(f => f.matchday_number))} matchdays`
+        };
+      }
 
       // Clear existing fixtures for this season
+      console.log('🔧 [SeasonService] Clearing existing fixtures...');
       await this.supabase
         .from('matches')
         .delete()
         .eq('season_id', seasonId);
 
       // Insert new fixtures
+      console.log('🔧 [SeasonService] Inserting', fixturesWithDates.length, 'new fixtures...');
       const { data: matches, error } = await this.supabase
         .from('matches')
         .insert(fixturesWithDates.map(fixture => ({
           season_id: seasonId,
           home_team_id: fixture.home_team_id,
           away_team_id: fixture.away_team_id,
-          match_date: fixture.match_date,
+          match_date: `${fixture.match_date}T${fixture.match_time}Z`,
+          match_time: fixture.match_time,
+          court_number: fixture.court_number,
+          matchday_number: fixture.matchday_number,
           status: 'scheduled'
         })))
         .select(`
@@ -404,10 +629,15 @@ export class SeasonService {
           )
         `);
 
-      if (error) throw error;
+      if (error) {
+        console.error('🔧 [SeasonService] Database insert error:', error);
+        throw error;
+      }
+
+      console.log('🔧 [SeasonService] Successfully inserted', matches?.length || 0, 'matches');
 
       // Update fixtures status to completed
-      await this.updateSeason(seasonId, { 
+      await this.updateSeason(seasonId, {
         fixtures_status: 'completed',
         fixtures_generated_at: new Date().toISOString()
       });
@@ -416,20 +646,21 @@ export class SeasonService {
         data: matches || [],
         error: null,
         success: true,
-        message: 'Fixtures generated successfully'
+        message: `Successfully generated ${matches?.length || 0} fixtures`
       };
     } catch (error) {
-      // Update fixtures status to error
-      await this.updateSeason(seasonId, { 
-        fixtures_status: 'error',
-        fixtures_generation_error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      // Update fixtures status to error (skip in preview mode)
+      if (!preview) {
+        await this.updateSeason(seasonId, {
+          fixtures_status: 'error'
+        });
+      }
 
       return {
         data: null,
-        error,
+        error: error instanceof Error ? error.message : 'Failed to generate fixtures',
         success: false,
-        message: 'Failed to generate fixtures'
+        message: error instanceof Error ? error.message : 'Failed to generate fixtures'
       };
     }
   }
@@ -531,31 +762,5 @@ export class SeasonService {
     }
 
     return fixtures;
-  }
-
-  private assignMatchDates(fixtures: Array<{
-    home_team_id: string;
-    away_team_id: string;
-    round_number: number;
-  }>, season: Season): Array<{
-    home_team_id: string;
-    away_team_id: string;
-    round_number: number;
-    match_date: string;
-  }> {
-    const startDate = new Date(season.start_date);
-    const matchFrequencyDays = season.match_frequency || 7;
-    const preferredTime = season.preferred_match_time || '15:00:00';
-
-    return fixtures.map((fixture, index) => {
-      const dayOffset = Math.floor(index / 2) * matchFrequencyDays; // 2 matches per day
-      const matchDate = new Date(startDate);
-      matchDate.setDate(matchDate.getDate() + dayOffset);
-      
-      return {
-        ...fixture,
-        match_date: `${matchDate.toISOString().split('T')[0]}T${preferredTime}Z`
-      };
-    });
   }
 }
