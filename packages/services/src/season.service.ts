@@ -441,6 +441,9 @@ export class SeasonService {
     // Track when each team last played (for rest period validation)
     const teamLastMatchday = new Map<string, number>();
 
+    // Track teams playing on CURRENT matchday (prevents same-day conflicts)
+    const teamsPlayingToday = new Set<string>();
+
     const fixturesWithDates: any[] = [];
     let matchdayNumber = 1;
     let dateIndex = 0;
@@ -450,37 +453,29 @@ export class SeasonService {
     for (let i = 0; i < fixtures.length; i++) {
       const fixture = fixtures[i];
 
-      // Check if we need to move to next matchday
-      let needNewMatchday = gamesOnCurrentMatchday >= gamesPerMatchday;
-
-      // Check rest period if configured
-      if (!needNewMatchday && restWeeks > 0) {
-        const homeLastMatchday = teamLastMatchday.get(fixture.home_team_id) || 0;
-        const awayLastMatchday = teamLastMatchday.get(fixture.away_team_id) || 0;
-
-        const weeksSinceHome = matchdayNumber - homeLastMatchday;
-        const weeksSinceAway = matchdayNumber - awayLastMatchday;
-
-        if (weeksSinceHome < restWeeks || weeksSinceAway < restWeeks) {
-          needNewMatchday = true;
-        }
-      }
-
-      // Move to next matchday if needed
-      if (needNewMatchday) {
-        matchdayNumber++;
+      // Check if either team is already playing on the current date
+      // OR if we've exceeded court capacity for this date
+      // If so, move to the next available date
+      while (
+        teamsPlayingToday.has(fixture.home_team_id) ||
+        teamsPlayingToday.has(fixture.away_team_id) ||
+        gamesOnCurrentMatchday >= gamesPerMatchday
+      ) {
+        // Move to next matchday/date
         dateIndex++;
-        courtNumber = 1;
+        matchdayNumber++;
         gamesOnCurrentMatchday = 0;
+        teamsPlayingToday.clear();
 
         if (dateIndex >= availableDates.length) {
           throw new Error(
-            `Not enough ${matchDay}s to schedule all fixtures with rest period of ${restWeeks} weeks. ` +
-            `Try extending the season, reducing rest weeks, or increasing courts/games per court.`
+            `Not enough ${matchDay}s in season to schedule all fixtures. ` +
+            `Need more dates between ${season.start_date} and ${season.end_date}. ` +
+            `Try extending the season or increasing courts/games per court.`
           );
         }
 
-        // Re-check rest period for this fixture on new matchday
+        // Check rest period if configured
         if (restWeeks > 0) {
           const homeLastMatchday = teamLastMatchday.get(fixture.home_team_id) || 0;
           const awayLastMatchday = teamLastMatchday.get(fixture.away_team_id) || 0;
@@ -488,21 +483,16 @@ export class SeasonService {
           const weeksSinceHome = matchdayNumber - homeLastMatchday;
           const weeksSinceAway = matchdayNumber - awayLastMatchday;
 
+          // If rest period not satisfied, skip ahead
           if (weeksSinceHome < restWeeks || weeksSinceAway < restWeeks) {
-            // Skip ahead until both teams have rested enough
             const minMatchdayForHome = homeLastMatchday + restWeeks;
             const minMatchdayForAway = awayLastMatchday + restWeeks;
             const minMatchday = Math.max(minMatchdayForHome, minMatchdayForAway);
 
             const matchdaysToSkip = minMatchday - matchdayNumber;
-            dateIndex += matchdaysToSkip;
-            matchdayNumber = minMatchday;
-
-            if (dateIndex >= availableDates.length) {
-              throw new Error(
-                `Cannot schedule match: Team(s) cannot play their matches with ${restWeeks} weeks rest. ` +
-                `Try extending the season or reducing rest weeks.`
-              );
+            if (matchdaysToSkip > 0) {
+              dateIndex += matchdaysToSkip - 1; // -1 because loop will increment
+              matchdayNumber = minMatchday - 1; // -1 because loop will increment
             }
           }
         }
@@ -510,21 +500,33 @@ export class SeasonService {
 
       const matchDate = availableDates[dateIndex];
 
-      // Update team last played matchday
-      teamLastMatchday.set(fixture.home_team_id, matchdayNumber);
-      teamLastMatchday.set(fixture.away_team_id, matchdayNumber);
-
       // Calculate court number (cycle through available courts)
-      courtNumber = (gamesOnCurrentMatchday % courtsAvailable) + 1;
+      const courtNumber = (gamesOnCurrentMatchday % courtsAvailable) + 1;
+
+      // Calculate time slot based on which game this is on the court
+      // Games are sequential on the same court
+      // Example: If games_per_court = 2 and match starts at 19:00
+      //   - Games 0,1: Court 1&2 at 19:00 (first time slot)
+      //   - Games 2,3: Court 1&2 at 20:00 (second time slot)
+      const gameSlotOnCourt = Math.floor(gamesOnCurrentMatchday / courtsAvailable);
+      const [hours, minutes, seconds] = matchTime.split(':').map(Number);
+      const startTime = new Date();
+      startTime.setHours(hours + gameSlotOnCourt, minutes, seconds || 0);
+      const calculatedMatchTime = startTime.toTimeString().split(' ')[0]; // HH:MM:SS format
 
       fixturesWithDates.push({
         ...fixture,
         match_date: matchDate.toISOString().split('T')[0],
-        match_time: matchTime,
+        match_time: calculatedMatchTime,
         court_number: courtNumber,
         matchday_number: matchdayNumber
       });
 
+      // Update tracking
+      teamLastMatchday.set(fixture.home_team_id, matchdayNumber);
+      teamLastMatchday.set(fixture.away_team_id, matchdayNumber);
+      teamsPlayingToday.add(fixture.home_team_id);
+      teamsPlayingToday.add(fixture.away_team_id);
       gamesOnCurrentMatchday++;
     }
 
@@ -594,6 +596,11 @@ export class SeasonService {
       console.log('🔧 [SeasonService] Assigning match dates...');
       const fixturesWithDates = this.assignMatchDatesAdvanced(fixtures, season);
       console.log('🔧 [SeasonService] Assigned dates to', fixturesWithDates.length, 'fixtures');
+
+      // Validate fixtures: ensure no team plays twice on same day
+      console.log('🔧 [SeasonService] Validating fixture constraints...');
+      this.validateFixtureConstraints(fixturesWithDates);
+      console.log('🔧 [SeasonService] Validation passed ✓');
 
       // Preview mode: return without saving
       if (preview) {
@@ -742,6 +749,78 @@ export class SeasonService {
     return matchesPerRound * rounds * multiplier;
   }
 
+  /**
+   * Validate fixture constraints:
+   * 1. No team plays more than once on the same matchday
+   *
+   * Note: Courts can have multiple games on the same day at different times
+   * (e.g., games_per_court = 2 means 2 sequential time slots on same court)
+   */
+  private validateFixtureConstraints(fixtures: Array<{
+    home_team_id: string;
+    away_team_id: string;
+    matchday_number: number;
+    round_number: number;
+    match_date: string;
+    match_time: string;
+    court_number: number;
+  }>): void {
+    // Group fixtures by matchday
+    const matchdayMap = new Map<number, Array<{ home_team_id: string; away_team_id: string }>>();
+
+    for (const fixture of fixtures) {
+      const matchday = fixture.matchday_number;
+      if (!matchdayMap.has(matchday)) {
+        matchdayMap.set(matchday, []);
+      }
+      matchdayMap.get(matchday)!.push({
+        home_team_id: fixture.home_team_id,
+        away_team_id: fixture.away_team_id
+      });
+    }
+
+    // Validate each matchday
+    const matchdays = Array.from(matchdayMap.entries());
+    for (const [matchdayNumber, matches] of matchdays) {
+      const teamsPlayingToday = new Set<string>();
+
+      for (const match of matches) {
+        // Check home team
+        if (teamsPlayingToday.has(match.home_team_id)) {
+          throw new Error(
+            `Validation failed: Team ${match.home_team_id} is scheduled to play multiple times on matchday ${matchdayNumber}`
+          );
+        }
+        teamsPlayingToday.add(match.home_team_id);
+
+        // Check away team
+        if (teamsPlayingToday.has(match.away_team_id)) {
+          throw new Error(
+            `Validation failed: Team ${match.away_team_id} is scheduled to play multiple times on matchday ${matchdayNumber}`
+          );
+        }
+        teamsPlayingToday.add(match.away_team_id);
+      }
+    }
+
+    console.log(`✓ Validation passed: No team plays multiple times on the same matchday`);
+  }
+
+  /**
+   * Generate round-robin fixtures using the circle/polygon method
+   * This ensures each team plays exactly once per round and proper distribution
+   *
+   * Circle Method Algorithm:
+   * - Fix one team in position, rotate others clockwise
+   * - For N teams, generates N-1 rounds (or N if odd, with byes)
+   * - Each round has N/2 matches (or (N-1)/2 if odd)
+   *
+   * Example with 6 teams (A,B,C,D,E,F):
+   * Round 1: A-F, B-E, C-D
+   * Round 2: A-E, F-D, B-C
+   * Round 3: A-D, E-C, F-B
+   * etc.
+   */
   private generateRoundRobinFixtures(teams: SeasonTeam[], rounds: number, homeAndAway: boolean): Array<{
     home_team_id: string;
     away_team_id: string;
@@ -753,22 +832,65 @@ export class SeasonService {
       round_number: number;
     }> = [];
 
+    if (teams.length < 2) {
+      return fixtures;
+    }
+
+    // Make a copy of team IDs to manipulate
+    const teamIds = teams.map(t => t.team_id);
+    const numTeams = teamIds.length;
+    const isOdd = numTeams % 2 === 1;
+
+    // If odd number of teams, add a "bye" placeholder
+    if (isOdd) {
+      teamIds.push('BYE');
+    }
+
+    const totalTeams = teamIds.length;
+    const roundsInFullCycle = totalTeams - 1; // For round-robin, we need n-1 rounds
+
+    // Generate fixtures for each round
     for (let round = 1; round <= rounds; round++) {
-      // Generate all possible pairings
-      for (let i = 0; i < teams.length; i++) {
-        for (let j = i + 1; j < teams.length; j++) {
+      // For each round in the cycle
+      for (let cycleRound = 0; cycleRound < roundsInFullCycle; cycleRound++) {
+        // Calculate actual round number
+        const actualRound = round;
+
+        // Generate matches for this round using circle method
+        // Team at index 0 is fixed, others rotate
+        for (let matchIndex = 0; matchIndex < totalTeams / 2; matchIndex++) {
+          let home = matchIndex;
+          let away = totalTeams - 1 - matchIndex;
+
+          // Apply rotation (except for team at index 0 which is fixed)
+          if (home !== 0) {
+            home = 1 + ((home - 1 + cycleRound) % (totalTeams - 1));
+          }
+          if (away !== 0) {
+            away = 1 + ((away - 1 + cycleRound) % (totalTeams - 1));
+          }
+
+          const homeTeamId = teamIds[home];
+          const awayTeamId = teamIds[away];
+
+          // Skip if either team is the BYE placeholder
+          if (homeTeamId === 'BYE' || awayTeamId === 'BYE') {
+            continue;
+          }
+
+          // Add the fixture
           fixtures.push({
-            home_team_id: teams[i].team_id,
-            away_team_id: teams[j].team_id,
-            round_number: round
+            home_team_id: homeTeamId,
+            away_team_id: awayTeamId,
+            round_number: actualRound
           });
 
-          // Add reverse fixture if home and away
+          // Add reverse fixture if home and away enabled
           if (homeAndAway) {
             fixtures.push({
-              home_team_id: teams[j].team_id,
-              away_team_id: teams[i].team_id,
-              round_number: round
+              home_team_id: awayTeamId,
+              away_team_id: homeTeamId,
+              round_number: actualRound
             });
           }
         }

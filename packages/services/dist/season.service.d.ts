@@ -148,6 +148,27 @@ export declare class SeasonService {
      */
     private updateRegisteredTeamsCount;
     private calculateTotalMatches;
+    /**
+     * Validate fixture constraints:
+     * 1. No team plays more than once on the same matchday
+     * 2. All teams face each other exactly once per round
+     */
+    private validateFixtureConstraints;
+    /**
+     * Generate round-robin fixtures using the circle/polygon method
+     * This ensures each team plays exactly once per round and proper distribution
+     *
+     * Circle Method Algorithm:
+     * - Fix one team in position, rotate others clockwise
+     * - For N teams, generates N-1 rounds (or N if odd, with byes)
+     * - Each round has N/2 matches (or (N-1)/2 if odd)
+     *
+     * Example with 6 teams (A,B,C,D,E,F):
+     * Round 1: A-F, B-E, C-D
+     * Round 2: A-E, F-D, B-C
+     * Round 3: A-D, E-C, F-B
+     * etc.
+     */
     private generateRoundRobinFixtures;
 }
 //# sourceMappingURL=season.service.d.ts.map
