@@ -147,23 +147,23 @@ export default function LeagueDashboardPage() {
     }
   }, [leagueId]);
 
-  // Fetch recent activity stats
+  // Fetch recent activity stats from ALL seasons
   const fetchRecentActivity = useCallback(async (seasons: Season[]) => {
     try {
       setLoading(prev => ({ ...prev, activity: true }));
       setErrors(prev => ({ ...prev, activity: null }));
-      
-      // Get current season matches for activity stats
-      const currentSeason = seasons.find(s => s.is_current) || seasons[0];
-      if (!currentSeason) {
+
+      // If no seasons, return zeros
+      if (!seasons || seasons.length === 0) {
         return { totalMatches: 0, completedMatches: 0, upcomingMatches: 0, totalGoals: 0 };
       }
 
-      const baseUrl = typeof window !== 'undefined' 
-        ? window.location.origin 
+      const baseUrl = typeof window !== 'undefined'
+        ? window.location.origin
         : process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001';
-      
-      const response = await fetch(`${baseUrl}/api/leagues/${leagueId}/matches?season_id=${currentSeason.id}`, {
+
+      // Fetch matches from ALL seasons (remove season_id filter)
+      const response = await fetch(`${baseUrl}/api/leagues/${leagueId}/matches`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -188,7 +188,7 @@ export default function LeagueDashboardPage() {
           };
         }
       }
-      
+
       return { totalMatches: 0, completedMatches: 0, upcomingMatches: 0, totalGoals: 0 };
     } catch (error) {
       console.error('Error fetching recent activity:', error);

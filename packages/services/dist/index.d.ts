@@ -7,6 +7,7 @@ export * from './league.service';
 export * from './team.service';
 export * from './match.service';
 export * from './season.service';
+export * from './season-simulation.service';
 export * from './player.service';
 export * from './user.service';
 export * from './stats.service';
