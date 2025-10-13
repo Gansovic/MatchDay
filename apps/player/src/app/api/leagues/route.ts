@@ -38,10 +38,10 @@ export async function GET(request: NextRequest) {
     if (leagueType) {
       query = query.eq('league_type', leagueType);
     }
-    if (isActive !== null) {
+    if (isActive) {
       query = query.eq('is_active', isActive === 'true');
     }
-    if (isPublic !== null) {
+    if (isPublic) {
       query = query.eq('is_public', isPublic === 'true');
     }
 
@@ -55,26 +55,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // For each league, get teams from the current season via season_teams
+    // For each league, get all teams across all seasons
     const processedLeagues = await Promise.all(leagues?.map(async (league) => {
-      // Get current season for this league
-      const { data: currentSeason } = await supabase
+      // Get all seasons for this league
+      const { data: seasons } = await supabase
         .from('seasons')
         .select('id')
-        .eq('league_id', league.id)
-        .eq('is_current', true)
-        .single();
+        .eq('league_id', league.id);
 
       let teams = [];
       let teamCount = 0;
       let playerCount = 0;
       let availableSpots = 0;
 
-      if (currentSeason) {
-        // Get teams registered for the current season
+      if (seasons && seasons.length > 0) {
+        // Get all unique teams registered across all seasons
         const { data: seasonTeams } = await supabase
           .from('season_teams')
           .select(`
+            team_id,
             team:teams (
               id,
               name,
@@ -89,13 +88,21 @@ export async function GET(request: NextRequest) {
               )
             )
           `)
-          .eq('season_id', currentSeason.id)
+          .in('season_id', seasons.map(s => s.id))
           .in('status', ['registered', 'confirmed']);
 
         if (seasonTeams) {
-          teams = seasonTeams.map(st => st.team).filter(Boolean);
+          // Get unique teams (a team might be in multiple seasons)
+          const uniqueTeamsMap = new Map();
+          seasonTeams.forEach(st => {
+            if (st.team && !uniqueTeamsMap.has(st.team.id)) {
+              uniqueTeamsMap.set(st.team.id, st.team);
+            }
+          });
+
+          teams = Array.from(uniqueTeamsMap.values());
           teamCount = teams.length;
-          
+
           // Calculate total players across all teams in this league
           playerCount = teams.reduce((total, team) => {
             const activeMembers = team.team_members?.filter(member => member.is_active) || [];

@@ -12,11 +12,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Trophy, 
-  Users, 
-  Calendar, 
-  MapPin, 
+import {
+  Trophy,
+  Users,
+  Calendar,
+  MapPin,
   Star,
   Search,
   Filter,
@@ -34,6 +34,8 @@ import {
   WifiOff,
   RefreshCw
 } from 'lucide-react';
+import { LeagueCard, type LeagueCardData } from './LeagueCard';
+import { LeagueQuickView } from './LeagueQuickView';
 
 export interface League {
   id: string;
@@ -77,12 +79,14 @@ export interface UserTeam {
 
 interface LeagueManagementProps {
   userId?: string;
+  excludeLeagueIds?: string[]; // Array of league IDs to exclude from display
   onTeamJoinedLeague?: (teamId: string, leagueId: string) => void;
   onTeamLeftLeague?: (teamId: string, leagueId: string) => void;
 }
 
 export const LeagueManagement: React.FC<LeagueManagementProps> = ({
   userId,
+  excludeLeagueIds = [], // Default to empty array
   onTeamJoinedLeague,
   onTeamLeftLeague
 }) => {
@@ -99,7 +103,8 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
   const [isLoadingSeasons, setIsLoadingSeasons] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+  const [expandedLeagues, setExpandedLeagues] = useState<Set<string>>(new Set());
+
   // Navigation
   const router = useRouter();
 
@@ -188,17 +193,19 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
     { value: 'football', label: 'Football', icon: '⚽' }
   ];
 
-  // Process leagues with user team information and apply search filtering
-  const processedLeagues = leagues.map(league => ({
-    ...league,
-    userTeams: userTeams.map(team => ({
-      id: team.id,
-      name: team.name,
-      isInLeague: team.league_id === league.id,
-      canJoin: !team.league_id && league.availableSpots > 0,
-      canLeave: team.league_id === league.id
-    }))
-  }));
+  // Process leagues with user team information and exclude specified leagues
+  const processedLeagues = leagues
+    .filter(league => !excludeLeagueIds.includes(league.id)) // Exclude user's active leagues
+    .map(league => ({
+      ...league,
+      userTeams: userTeams.map(team => ({
+        id: team.id,
+        name: team.name,
+        isInLeague: team.league_id === league.id,
+        canJoin: !team.league_id && league.availableSpots > 0,
+        canLeave: team.league_id === league.id
+      }))
+    }));
 
   // Apply search filter (league type and sport filtering is done by the hook)
   const filteredLeagues = processedLeagues.filter(league => {
@@ -255,6 +262,54 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
 
   const handleViewLeague = (league: League) => {
     router.push(`/leagues/${league.id}`);
+  };
+
+  const handleExpandLeague = (leagueId: string) => {
+    setExpandedLeagues(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(leagueId)) {
+        newSet.delete(leagueId);
+      } else {
+        newSet.add(leagueId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleQuickJoin = async (leagueId: string, seasonId: string, teamId: string) => {
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      const league = filteredLeagues.find(l => l.id === leagueId);
+      const requestResponse = await fetch(`/api/teams/${teamId}/request-league-join`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          seasonId,
+          requestedBy: userId,
+          message: `Request to join season in ${league?.name}`
+        }),
+      });
+
+      const requestResult = await requestResponse.json();
+
+      if (!requestResult.success) {
+        throw new Error(requestResult.error || 'Failed to create join request');
+      }
+
+      setSuccess(requestResult.data?.message || `Join request submitted! Please wait for admin approval.`);
+      setExpandedLeagues(new Set()); // Collapse all
+      setTimeout(() => setSuccess(null), 5000);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to join league. Please try again.';
+      setError(errorMessage);
+      setTimeout(() => setError(null), 7000);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleConfirmJoin = async () => {
@@ -369,14 +424,14 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            League Management
-          </h1>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            Leagues
+          </h2>
           <p className="text-gray-600 dark:text-gray-400">
-            Join leagues with your teams and manage your competition participation
+            Find and join leagues that match your team's level and interests
           </p>
         </div>
-        
+
         {/* Real-time Status Indicator */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800">
@@ -392,7 +447,7 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
               </>
             )}
           </div>
-          
+
           {/* Manual Refresh Button */}
           <button
             onClick={loadLeagues}
@@ -424,46 +479,6 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
             <button onClick={() => setError(null)} className="text-red-600">
               <X className="w-4 h-4" />
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* My Teams in Leagues */}
-      {userTeams.some(team => team.league_id) && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-            My Teams in Leagues
-          </h2>
-          <div className="space-y-3">
-            {userTeams
-              .filter(team => team.league_id)
-              .map(team => (
-                <div key={team.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-900/20 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <div 
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm"
-                      style={{ backgroundColor: team.team_color }}
-                    >
-                      {team.name.charAt(0)}
-                    </div>
-                    <div>
-                      <div className="font-medium text-gray-900 dark:text-white">
-                        {team.name}
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
-                        in {team.league_name}
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleLeaveLeague(team.id, team.league_id!)}
-                    className="flex items-center gap-2 px-3 py-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-sm"
-                  >
-                    <UserMinus className="w-4 h-4" />
-                    Leave League
-                  </button>
-                </div>
-              ))}
           </div>
         </div>
       )}
@@ -508,116 +523,62 @@ export const LeagueManagement: React.FC<LeagueManagementProps> = ({
         </div>
       </div>
 
-      {/* Leagues Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {filteredLeagues.map((league) => (
-          <div key={league.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-shadow">
-            {/* League Header */}
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                    {league.name}
-                  </h3>
-                  <span className="text-xl">
-                    {getLeagueTypeIcon(league.league_type)}
-                  </span>
-                </div>
-                {league.description && (
-                  <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">
-                    {league.description}
-                  </p>
-                )}
-              </div>
-            </div>
+      {/* Leagues List with Cards */}
+      <div className="space-y-6">
+        {filteredLeagues.map((league) => {
+          const isExpanded = expandedLeagues.has(league.id);
+          const userIsInLeague = userTeams.some(team => team.league_id === league.id);
+          const userCanJoin = userTeams.some(team => !team.league_id && team.is_captain) && league.availableSpots > 0;
 
-            {/* League Stats */}
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <div className="text-center">
-                <div className="font-bold text-gray-900 dark:text-white">
-                  {league.teamCount}/{league.max_teams || '∞'}
-                </div>
-                <div className="text-xs text-gray-500">Teams</div>
-              </div>
-              <div className="text-center">
-                <div className="font-bold text-gray-900 dark:text-white capitalize">
-                  {league.league_type}
-                </div>
-                <div className="text-xs text-gray-500">Level</div>
-              </div>
-              <div className="text-center">
-                <div className="font-bold text-gray-900 dark:text-white">
-                  {league.entry_fee ? `$${league.entry_fee}` : 'Free'}
-                </div>
-                <div className="text-xs text-gray-500">Entry</div>
-              </div>
-            </div>
+          const cardData: LeagueCardData = {
+            id: league.id,
+            name: league.name,
+            description: league.description,
+            sport_type: league.sport_type,
+            league_type: league.league_type,
+            location: league.location,
+            season_start: league.season_start,
+            season_end: league.season_end,
+            max_teams: league.max_teams,
+            entry_fee: league.entry_fee,
+            is_active: league.is_active,
+            teamCount: league.teamCount,
+            availableSpots: league.availableSpots,
+            status: league.is_active ? 'registration' : 'completed',
+            topTeams: league.teams?.slice(0, 3).map(team => ({
+              id: team.id,
+              name: team.name,
+              team_color: team.team_color,
+              points: 0 // Would come from actual standings
+            })),
+            userCanJoin,
+            userIsInLeague
+          };
 
-            {/* League Details */}
-            <div className="space-y-2 mb-4">
-              {league.location && (
-                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                  <MapPin className="w-4 h-4" />
-                  {league.location}
-                </div>
-              )}
-              {league.season_start && league.season_end && (
-                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                  <Calendar className="w-4 h-4" />
-                  {formatDate(league.season_start)} - {formatDate(league.season_end)}
+          return (
+            <div key={league.id}>
+              <LeagueCard
+                league={cardData}
+                onJoin={() => handleJoinLeague(league)}
+                onView={() => handleViewLeague(league)}
+                onExpand={handleExpandLeague}
+                isExpanded={isExpanded}
+              />
+
+              {/* Expanded Quick View */}
+              {isExpanded && (
+                <div className="mt-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                  <LeagueQuickView
+                    leagueId={league.id}
+                    leagueName={league.name}
+                    userTeams={userTeams}
+                    onJoinClick={handleQuickJoin}
+                  />
                 </div>
               )}
             </div>
-
-            {/* Teams in League */}
-            {league.teams && league.teams.length > 0 && (
-              <div className="mb-4">
-                <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Teams ({league.teams.length})
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  {league.teams.slice(0, 3).map(team => (
-                    <div key={team.id} className="flex items-center gap-1 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">
-                      <div 
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: team.team_color }}
-                      />
-                      {team.name}
-                    </div>
-                  ))}
-                  {league.teams.length > 3 && (
-                    <div className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-400">
-                      +{league.teams.length - 3} more
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="space-y-2">
-              {/* View League Button - Always Available */}
-              <button
-                onClick={() => handleViewLeague(league)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-medium rounded-lg transition-colors"
-              >
-                <Eye className="w-4 h-4" />
-                View League
-              </button>
-              
-              {/* Join Button - Show if league is accepting teams */}
-              {(!league.max_teams || league.teamCount < league.max_teams) && (
-                <button
-                  onClick={() => handleJoinLeague(league)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Join with Team
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {filteredLeagues.length === 0 && (

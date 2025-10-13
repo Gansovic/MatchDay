@@ -55,8 +55,11 @@ export async function POST(
 
     // Parse request body
     const body = await request.json().catch(() => ({}));
-    const { preview = false } = body;
+    const { preview = false, schedulingOverride } = body;
     console.log('📄 Request body parsed, preview mode:', preview);
+    if (schedulingOverride) {
+      console.log('📄 Scheduling override provided:', schedulingOverride);
+    }
 
     // Fetch the season with league info
     console.log('🔍 Fetching season from database...');
@@ -101,13 +104,23 @@ export async function POST(
       );
     }
 
+    // Apply scheduling override if provided (for preview or generation)
+    let seasonWithOverride = season;
+    if (schedulingOverride) {
+      console.log('✅ Applying scheduling override');
+      seasonWithOverride = {
+        ...season,
+        ...schedulingOverride
+      };
+    }
+
     // Initialize SeasonService
     const seasonService = new SeasonService(supabase);
     console.log('🎮 SeasonService initialized');
 
     // Generate fixtures
     console.log(`🎯 Generating fixtures (preview=${preview})...`);
-    const result = await seasonService.generateFixtures(seasonId, preview);
+    const result = await seasonService.generateFixtures(seasonId, preview, seasonWithOverride);
 
     if (!result.success) {
       throw new Error(result.message || 'Failed to generate fixtures');

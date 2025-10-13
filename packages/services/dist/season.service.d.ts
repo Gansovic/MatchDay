@@ -33,6 +33,12 @@ export interface Season {
     fixtures_status: 'pending' | 'generating' | 'completed' | 'error';
     fixtures_generated_at?: string;
     total_matches_planned?: number;
+    match_day?: string;
+    match_start_time?: string;
+    match_end_time?: string;
+    courts_available?: number;
+    games_per_court?: number;
+    rest_weeks_between_matches?: number;
     rules?: any;
     settings?: any;
     metadata?: any;
@@ -60,6 +66,9 @@ export interface Match {
     home_team_id: string;
     away_team_id: string;
     match_date?: string;
+    match_time?: string;
+    matchday_number?: number;
+    court_number?: number;
     round_number?: number;
     status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
     home_score?: number;
@@ -110,9 +119,26 @@ export declare class SeasonService {
      */
     registerTeamForSeason(seasonId: string, teamId: string): Promise<ServiceResponse<SeasonTeam>>;
     /**
-     * Generate round-robin fixtures for a season
+     * Get all match dates for a specific day of week within season
+     * For amateur leagues: Returns all Thursdays (or specified day) within the season
      */
-    generateFixtures(seasonId: string): Promise<ServiceResponse<Match[]>>;
+    private getMatchDatesForDay;
+    /**
+     * Assign match dates for amateur league scheduling
+     * All games in a matchday happen at the SAME time on different courts
+     *
+     * Example: Thursday 19:00-21:00, 4 courts, 2 games per court = 8 games capacity
+     * - Matchday 1: 8 games on Thursday Week 1 at 19:00, courts 1-4
+     * - Matchday 2: 8 games on Thursday Week 2 at 19:00, courts 1-4
+     */
+    private assignMatchDatesAdvanced;
+    /**
+     * Generate round-robin fixtures for a season
+     * @param seasonId The season to generate fixtures for
+     * @param preview If true, returns preview without saving to database
+     * @param seasonOverride Optional season data override (for preview with unsaved changes)
+     */
+    generateFixtures(seasonId: string, preview?: boolean, seasonOverride?: any): Promise<ServiceResponse<Match[]>>;
     /**
      * Get matches for a season
      */
@@ -123,6 +149,5 @@ export declare class SeasonService {
     private updateRegisteredTeamsCount;
     private calculateTotalMatches;
     private generateRoundRobinFixtures;
-    private assignMatchDates;
 }
 //# sourceMappingURL=season.service.d.ts.map

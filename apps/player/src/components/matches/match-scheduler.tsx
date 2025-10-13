@@ -126,106 +126,51 @@ export const MatchScheduler: React.FC<MatchSchedulerProps> = ({
   const loadData = async () => {
     setIsLoading(true);
     try {
-      // Mock matches data for development
-      const mockMatches: Match[] = [
-        {
-          id: '1',
-          league_id: '550e8400-e29b-41d4-a716-446655440001',
-          league_name: 'League1',
-          home_team_id: '550e8400-e29b-41d4-a716-446655440200',
-          home_team_name: 'Thunder Eagles',
-          home_team_color: '#3B82F6',
-          away_team_id: '550e8400-e29b-41d4-a716-446655440201',
-          away_team_name: 'Lightning Strikers',
-          away_team_color: '#EF4444',
-          match_date: '2024-09-15T15:00:00Z',
-          venue: 'Central Stadium',
-          status: 'scheduled',
-          created_by: userId || 'admin',
-          created_at: '2024-08-15T10:00:00Z',
-          match_week: 1,
-          round: 'Round 1'
-        },
-        {
-          id: '2',
-          league_id: '550e8400-e29b-41d4-a716-446655440001',
-          league_name: 'League1',
-          home_team_id: '550e8400-e29b-41d4-a716-446655440201',
-          home_team_name: 'Lightning Strikers',
-          home_team_color: '#EF4444',
-          away_team_id: '550e8400-e29b-41d4-a716-446655440202',
-          away_team_name: 'Phoenix United',
-          away_team_color: '#F97316',
-          match_date: '2024-09-08T18:00:00Z',
-          venue: 'North Field',
-          status: 'completed',
-          home_score: 2,
-          away_score: 1,
-          created_by: userId || 'admin',
-          created_at: '2024-08-08T10:00:00Z',
-          match_week: 2,
-          round: 'Round 2'
-        },
-        {
-          id: '3',
-          league_id: '550e8400-e29b-41d4-a716-446655440001',
-          league_name: 'League1',
-          home_team_id: '550e8400-e29b-41d4-a716-446655440200',
-          home_team_name: 'Thunder Eagles',
-          home_team_color: '#3B82F6',
-          away_team_id: '550e8400-e29b-41d4-a716-446655440202',
-          away_team_name: 'Phoenix United',
-          away_team_color: '#F97316',
-          match_date: '2024-09-22T14:00:00Z',
-          venue: 'Sports Complex',
-          status: 'scheduled',
-          created_by: userId || 'admin',
-          created_at: '2024-08-15T11:00:00Z',
-          match_week: 3,
-          round: 'Round 3'
-        }
-      ];
+      // Build query parameters
+      const params = new URLSearchParams();
+      if (leagueId) params.append('leagueId', leagueId);
+      if (teamId) params.append('teamId', teamId);
 
-      // Mock available teams for the league
-      const mockTeams: Team[] = [
-        {
-          id: '550e8400-e29b-41d4-a716-446655440200',
-          name: 'Thunder Eagles',
-          team_color: '#3B82F6',
-          league_id: '550e8400-e29b-41d4-a716-446655440001',
-          league_name: 'League1'
-        },
-        {
-          id: '550e8400-e29b-41d4-a716-446655440201',
-          name: 'Lightning Strikers',
-          team_color: '#EF4444',
-          league_id: '550e8400-e29b-41d4-a716-446655440001',
-          league_name: 'League1'
-        },
-        {
-          id: '550e8400-e29b-41d4-a716-446655440202',
-          name: 'Phoenix United',
-          team_color: '#F97316',
-          league_id: '550e8400-e29b-41d4-a716-446655440001',
-          league_name: 'League1'
-        }
-      ];
+      // Fetch matches from API
+      const matchesResponse = await fetch(`/api/matches?${params.toString()}`);
 
-      // Filter matches based on provided constraints
-      let filteredMatches = mockMatches;
+      if (!matchesResponse.ok) {
+        throw new Error('Failed to load matches');
+      }
+
+      const matchesResult = await matchesResponse.json();
+      const matchesData = matchesResult.data || [];
+      setMatches(matchesData);
+
+      // Fetch available teams for the league (if leagueId is provided)
       if (leagueId) {
-        filteredMatches = filteredMatches.filter(match => match.league_id === leagueId);
-      }
-      if (teamId) {
-        filteredMatches = filteredMatches.filter(match => 
-          match.home_team_id === teamId || match.away_team_id === teamId
-        );
-      }
+        const teamsResponse = await fetch(`/api/leagues/${leagueId}/teams`);
 
-      setMatches(filteredMatches);
-      setAvailableTeams(mockTeams);
+        if (teamsResponse.ok) {
+          const teamsResult = await teamsResponse.json();
+          const teamsData = (teamsResult.data || []).map((team: any) => ({
+            id: team.id,
+            name: team.name,
+            team_color: team.team_color,
+            league_id: team.league_id,
+            league_name: team.league?.name
+          }));
+          setAvailableTeams(teamsData);
+        } else {
+          console.warn('Failed to load teams for league:', leagueId);
+          setAvailableTeams([]);
+        }
+      } else if (userTeams && userTeams.length > 0) {
+        // Use provided user teams if no specific league
+        setAvailableTeams(userTeams);
+      } else {
+        setAvailableTeams([]);
+      }
     } catch (err) {
+      console.error('Error loading match data:', err);
       setError('Failed to load matches');
+      setMatches([]);
+      setAvailableTeams([]);
     } finally {
       setIsLoading(false);
     }

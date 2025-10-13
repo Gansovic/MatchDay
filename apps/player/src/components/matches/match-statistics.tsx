@@ -134,196 +134,35 @@ export const MatchStatistics: React.FC<MatchStatisticsProps> = ({
   const loadMatchStatistics = async () => {
     setIsLoading(true);
     try {
-      // Mock comprehensive match statistics
-      const mockPlayerStats: PlayerMatchStats[] = [
-        {
-          player_id: '1',
-          player_name: 'John Captain',
-          jersey_number: 10,
-          position: 'midfielder',
-          minutes_played: 90,
-          goals: 1,
-          assists: 2,
-          yellow_cards: 0,
-          red_cards: 0,
-          shots: 4,
-          shots_on_target: 2,
-          passes: 78,
-          passes_completed: 65,
-          tackles: 6,
-          fouls: 2,
-          rating: 8.5
-        },
-        {
-          player_id: '2',
-          player_name: 'Jane Forward',
-          jersey_number: 9,
-          position: 'forward',
-          minutes_played: 85,
-          goals: 2,
-          assists: 0,
-          yellow_cards: 1,
-          red_cards: 0,
-          shots: 6,
-          shots_on_target: 4,
-          passes: 32,
-          passes_completed: 28,
-          tackles: 1,
-          fouls: 3,
-          rating: 9.0
-        },
-        {
-          player_id: '3',
-          player_name: 'Mike Keeper',
-          jersey_number: 1,
-          position: 'goalkeeper',
-          minutes_played: 90,
-          goals: 0,
-          assists: 0,
-          yellow_cards: 0,
-          red_cards: 0,
-          shots: 0,
-          shots_on_target: 0,
-          passes: 24,
-          passes_completed: 20,
-          tackles: 0,
-          fouls: 0,
-          saves: 5,
-          rating: 7.5
+      if (!matchId) {
+        console.warn('No match ID provided to load statistics');
+        setMatchResult(null);
+        return;
+      }
+
+      // Fetch match statistics from API
+      const response = await fetch(`/api/matches/${matchId}/statistics`);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.warn('Match statistics not found for match:', matchId);
+          setMatchResult(null);
+          return;
         }
-      ];
+        throw new Error(`Failed to load match statistics: ${response.status}`);
+      }
 
-      const mockAwayPlayerStats: PlayerMatchStats[] = [
-        {
-          player_id: '8',
-          player_name: 'Alex Captain',
-          jersey_number: 10,
-          position: 'midfielder',
-          minutes_played: 90,
-          goals: 0,
-          assists: 1,
-          yellow_cards: 1,
-          red_cards: 0,
-          shots: 3,
-          shots_on_target: 1,
-          passes: 72,
-          passes_completed: 58,
-          tackles: 8,
-          fouls: 4,
-          rating: 7.0
-        },
-        {
-          player_id: '9',
-          player_name: 'Emma Striker',
-          jersey_number: 9,
-          position: 'forward',
-          minutes_played: 90,
-          goals: 1,
-          assists: 0,
-          yellow_cards: 0,
-          red_cards: 0,
-          shots: 5,
-          shots_on_target: 3,
-          passes: 28,
-          passes_completed: 22,
-          tackles: 0,
-          fouls: 1,
-          rating: 7.5
-        }
-      ];
+      const result = await response.json();
 
-      const mockResult: MatchResult = {
-        id: matchId || '1',
-        league_id: '550e8400-e29b-41d4-a716-446655440001',
-        league_name: 'League1',
-        match_date: '2024-09-08T15:00:00Z',
-        venue: 'Central Stadium',
-        status: 'completed',
-        duration_minutes: 90,
-        attendance: 1250,
-        referee: 'John Referee',
-        home_team: {
-          team_id: '550e8400-e29b-41d4-a716-446655440200',
-          team_name: 'Thunder Eagles',
-          team_color: '#3B82F6',
-          score: 3,
-          possession_percentage: 58,
-          shots: 15,
-          shots_on_target: 8,
-          corners: 6,
-          fouls: 12,
-          cards: { yellow: 1, red: 0 },
-          passes: { total: 524, completed: 445, accuracy_percentage: 85 },
-          players: mockPlayerStats
-        },
-        away_team: {
-          team_id: '550e8400-e29b-41d4-a716-446655440201',
-          team_name: 'Lightning Strikers',
-          team_color: '#EF4444',
-          score: 1,
-          possession_percentage: 42,
-          shots: 11,
-          shots_on_target: 4,
-          corners: 3,
-          fouls: 18,
-          cards: { yellow: 2, red: 0 },
-          passes: { total: 398, completed: 312, accuracy_percentage: 78 },
-          players: mockAwayPlayerStats
-        },
-        events: [
-          {
-            id: '1',
-            type: 'goal',
-            player_id: '2',
-            player_name: 'Jane Forward',
-            team_id: '550e8400-e29b-41d4-a716-446655440200',
-            minute: 18,
-            details: { assisted_by: 'John Captain' }
-          },
-          {
-            id: '2',
-            type: 'goal',
-            player_id: '9',
-            player_name: 'Emma Striker',
-            team_id: '550e8400-e29b-41d4-a716-446655440201',
-            minute: 34
-          },
-          {
-            id: '3',
-            type: 'yellow_card',
-            player_id: '8',
-            player_name: 'Alex Captain',
-            team_id: '550e8400-e29b-41d4-a716-446655440201',
-            minute: 42
-          },
-          {
-            id: '4',
-            type: 'goal',
-            player_id: '2',
-            player_name: 'Jane Forward',
-            team_id: '550e8400-e29b-41d4-a716-446655440200',
-            minute: 67
-          },
-          {
-            id: '5',
-            type: 'goal',
-            player_id: '1',
-            player_name: 'John Captain',
-            team_id: '550e8400-e29b-41d4-a716-446655440200',
-            minute: 82,
-            details: { assisted_by: 'Jane Forward' }
-          }
-        ],
-        weather: {
-          condition: 'Sunny',
-          temperature: 22
-        },
-        created_at: '2024-09-08T17:00:00Z'
-      };
-
-      setMatchResult(mockResult);
+      if (result.success && result.data) {
+        setMatchResult(result.data);
+      } else {
+        console.warn('Match statistics not available:', result.error);
+        setMatchResult(null);
+      }
     } catch (error) {
       console.error('Error loading match statistics:', error);
+      setMatchResult(null);
     } finally {
       setIsLoading(false);
     }

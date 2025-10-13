@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Users, Calendar, Settings, Clock } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
-import SchedulingConfigPanel from '@/components/SchedulingConfigPanel';
+import SchedulingConfigPanel, { SchedulingConfig } from '@/components/SchedulingConfigPanel';
 import FixtureGenerationPanel from '@/components/FixtureGenerationPanel';
 import FixturePreviewModal from '@/components/FixturePreviewModal';
 
@@ -21,6 +21,7 @@ export default function AdminSeasonDashboard() {
   const [loadingFixtures, setLoadingFixtures] = useState(false);
   const [previewData, setPreviewData] = useState<any>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [schedulingConfig, setSchedulingConfig] = useState<SchedulingConfig | undefined>();
 
   const loadSeasonData = async () => {
     try {
@@ -178,6 +179,7 @@ export default function AdminSeasonDashboard() {
             seasonId={seasonId}
             leagueId={leagueId}
             disabled={seasonData.status === 'active' || seasonData.status === 'completed'}
+            onConfigChange={setSchedulingConfig}
           />
         </div>
 
@@ -190,6 +192,7 @@ export default function AdminSeasonDashboard() {
             fixturesCount={fixturesCount}
             onFixturesGenerated={handleFixturesGenerated}
             onPreview={handlePreview}
+            schedulingConfig={schedulingConfig}
           />
         </div>
 
@@ -374,6 +377,9 @@ export default function AdminSeasonDashboard() {
         isOpen={showPreviewModal}
         onClose={() => setShowPreviewModal(false)}
         previewData={previewData}
+        seasonId={seasonId}
+        schedulingConfig={schedulingConfig}
+        onFixturesGenerated={handleFixturesGenerated}
       />
     </div>
   );

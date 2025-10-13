@@ -535,18 +535,29 @@ export class SeasonService {
    * Generate round-robin fixtures for a season
    * @param seasonId The season to generate fixtures for
    * @param preview If true, returns preview without saving to database
+   * @param seasonOverride Optional season data override (for preview with unsaved changes)
    */
-  async generateFixtures(seasonId: string, preview: boolean = false): Promise<ServiceResponse<Match[]>> {
+  async generateFixtures(seasonId: string, preview: boolean = false, seasonOverride?: any): Promise<ServiceResponse<Match[]>> {
     try {
       console.log('🔧 [SeasonService] Starting fixture generation for season:', seasonId);
 
-      // Get season details
-      const seasonResponse = await this.getSeasonDetails(seasonId);
-      if (!seasonResponse.success || !seasonResponse.data) {
-        throw new Error('Season not found');
+      // Get season details or use override
+      let season: any;
+      if (seasonOverride) {
+        console.log('🔧 [SeasonService] Using season override for preview');
+        season = seasonOverride;
+        // Fetch teams separately if using override
+        const seasonResponse = await this.getSeasonDetails(seasonId);
+        if (seasonResponse.success && seasonResponse.data) {
+          season.teams = seasonResponse.data.teams;
+        }
+      } else {
+        const seasonResponse = await this.getSeasonDetails(seasonId);
+        if (!seasonResponse.success || !seasonResponse.data) {
+          throw new Error('Season not found');
+        }
+        season = seasonResponse.data;
       }
-
-      const season = seasonResponse.data;
       console.log('🔧 [SeasonService] Season loaded:', season.name);
       console.log('🔧 [SeasonService] Season teams:', season.teams?.length || 0);
 
@@ -636,11 +647,14 @@ export class SeasonService {
 
       console.log('🔧 [SeasonService] Successfully inserted', matches?.length || 0, 'matches');
 
-      // Update fixtures status to completed
+      // Update fixtures status to completed AND activate season
+      console.log('🔧 [SeasonService] Activating season...');
       await this.updateSeason(seasonId, {
         fixtures_status: 'completed',
-        fixtures_generated_at: new Date().toISOString()
+        fixtures_generated_at: new Date().toISOString(),
+        status: 'active'
       });
+      console.log('🔧 [SeasonService] Season activated successfully');
 
       return {
         data: matches || [],

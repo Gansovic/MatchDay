@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Settings, Calendar, Clock, Users, Save, AlertCircle, TrendingUp } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 
-interface SchedulingConfig {
+export interface SchedulingConfig {
   match_day: string; // Day of week: 'monday', 'tuesday', etc.
   match_start_time: string; // Start time: '19:00:00'
   match_end_time: string; // End time: '21:00:00'
@@ -17,6 +17,7 @@ interface SchedulingConfigPanelProps {
   seasonId: string;
   leagueId: string;
   disabled?: boolean;
+  onConfigChange?: (config: SchedulingConfig) => void;
 }
 
 const DAYS_OF_WEEK = [
@@ -32,7 +33,8 @@ const DAYS_OF_WEEK = [
 export default function SchedulingConfigPanel({
   seasonId,
   leagueId,
-  disabled = false
+  disabled = false,
+  onConfigChange
 }: SchedulingConfigPanelProps) {
   const [config, setConfig] = useState<SchedulingConfig>({
     match_day: 'saturday',
@@ -77,6 +79,10 @@ export default function SchedulingConfigPanel({
         const result = await response.json();
         if (result.success && result.data) {
           setConfig(result.data);
+          // Notify parent of initial config
+          if (onConfigChange) {
+            onConfigChange(result.data);
+          }
         }
       } catch (err) {
         console.error('Failed to load scheduling config:', err);
@@ -87,7 +93,15 @@ export default function SchedulingConfigPanel({
     };
 
     loadConfig();
-  }, [seasonId]);
+  }, [seasonId, onConfigChange]);
+
+  // Helper to update config and notify parent
+  const updateConfig = (newConfig: SchedulingConfig) => {
+    setConfig(newConfig);
+    if (onConfigChange) {
+      onConfigChange(newConfig);
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -191,7 +205,7 @@ export default function SchedulingConfigPanel({
           </label>
           <select
             value={config.match_day}
-            onChange={(e) => setConfig(prev => ({ ...prev, match_day: e.target.value }))}
+            onChange={(e) => updateConfig({ ...config, match_day: e.target.value })}
             disabled={disabled}
             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-purple-500 focus:border-transparent"
           >
@@ -216,7 +230,7 @@ export default function SchedulingConfigPanel({
             <input
               type="time"
               value={config.match_start_time.substring(0, 5)}
-              onChange={(e) => setConfig(prev => ({ ...prev, match_start_time: `${e.target.value}:00` }))}
+              onChange={(e) => updateConfig({ ...config, match_start_time: `${e.target.value}:00` })}
               disabled={disabled}
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             />
@@ -229,7 +243,7 @@ export default function SchedulingConfigPanel({
             <input
               type="time"
               value={config.match_end_time.substring(0, 5)}
-              onChange={(e) => setConfig(prev => ({ ...prev, match_end_time: `${e.target.value}:00` }))}
+              onChange={(e) => updateConfig({ ...config, match_end_time: `${e.target.value}:00` })}
               disabled={disabled}
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             />
@@ -250,7 +264,7 @@ export default function SchedulingConfigPanel({
             min="1"
             max="20"
             value={config.courts_available}
-            onChange={(e) => setConfig(prev => ({ ...prev, courts_available: parseInt(e.target.value) || 1 }))}
+            onChange={(e) => updateConfig({ ...config, courts_available: parseInt(e.target.value) || 1 })}
             disabled={disabled}
             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-purple-500 focus:border-transparent"
           />
@@ -270,7 +284,7 @@ export default function SchedulingConfigPanel({
             min="1"
             max="10"
             value={config.games_per_court}
-            onChange={(e) => setConfig(prev => ({ ...prev, games_per_court: parseInt(e.target.value) || 1 }))}
+            onChange={(e) => updateConfig({ ...config, games_per_court: parseInt(e.target.value) || 1 })}
             disabled={disabled}
             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-purple-500 focus:border-transparent"
           />
@@ -300,7 +314,7 @@ export default function SchedulingConfigPanel({
             min="0"
             max="4"
             value={config.rest_weeks_between_matches}
-            onChange={(e) => setConfig(prev => ({ ...prev, rest_weeks_between_matches: parseInt(e.target.value) || 0 }))}
+            onChange={(e) => updateConfig({ ...config, rest_weeks_between_matches: parseInt(e.target.value) || 0 })}
             disabled={disabled}
             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white disabled:opacity-50 disabled:cursor-not-allowed focus:ring-2 focus:ring-purple-500 focus:border-transparent"
           />

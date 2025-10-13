@@ -196,9 +196,11 @@ export const LeagueDiscovery: React.FC<LeagueDiscoveryProps> = ({
             playerCount: league.teams?.reduce((total, team) => total + (team.max_players || 11), 0) || 0,
             availableSpots: league.teams?.reduce((total, team) => total + Math.max(0, (team.max_players || 11) - 5), 0) || 0, // Approximate available spots
             isUserMember: false,
-            compatibilityScore: userId ? Math.floor(Math.random() * 30) + 70 : undefined // Mock compatibility score for demo
+            // TODO: Implement real compatibility score calculation based on user preferences, skill level, location, etc.
+            // For now, we don't show compatibility scores - they should come from backend analytics
+            compatibilityScore: undefined
           }));
-          
+
           setLeagues(transformedLeagues);
         }
       } catch (err) {

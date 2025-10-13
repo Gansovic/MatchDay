@@ -9,6 +9,7 @@
 
 import React, { useState, useEffect, use } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
 import { 
   Trophy, 
@@ -36,6 +37,7 @@ import { LeagueRequestService } from '@/lib/services/league-request.service';
 import { useRealtimeLeagueDetail, usePageVisibility } from '@/lib/hooks/use-realtime-leagues';
 import SeasonManagement from '@/components/leagues/season-management';
 import { CreateSeasonModal } from '@/components/seasons/CreateSeasonModal';
+import { LeagueSettingsModal } from '@/components/leagues/LeagueSettingsModal';
 
 interface LeagueDashboardPageProps {
   params: Promise<{
@@ -46,10 +48,12 @@ interface LeagueDashboardPageProps {
 export default function LeagueDashboardPage({ params }: LeagueDashboardPageProps) {
   const { leagueId } = use(params);
   const { user } = useAuth();
+  const router = useRouter();
   const [processingRequest, setProcessingRequest] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showCreateSeasonModal, setShowCreateSeasonModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // Real-time league data with connection status
   const {
@@ -295,7 +299,10 @@ export default function LeagueDashboardPage({ params }: LeagueDashboardPageProps
                 </button>
               )}
 
-              <button className="px-4 py-2 border border-gray-600 text-gray-300 hover:bg-gray-800 rounded-lg transition-colors text-sm">
+              <button
+                onClick={() => setShowSettingsModal(true)}
+                className="px-4 py-2 border border-gray-600 text-gray-300 hover:bg-gray-800 rounded-lg transition-colors text-sm"
+              >
                 <Settings className="w-4 h-4 inline mr-2" />
                 Settings
               </button>
@@ -520,6 +527,26 @@ export default function LeagueDashboardPage({ params }: LeagueDashboardPageProps
             forceRefresh();
           }}
           selectedLeagueId={leagueId}
+        />
+      )}
+
+      {/* League Settings Modal */}
+      {showSettingsModal && (
+        <LeagueSettingsModal
+          isOpen={showSettingsModal}
+          onClose={() => setShowSettingsModal(false)}
+          league={leagueData.league}
+          onSuccess={(updatedLeague) => {
+            setShowSettingsModal(false);
+            setSuccess('League settings updated successfully!');
+            setTimeout(() => setSuccess(null), 5000);
+            forceRefresh();
+          }}
+          onDeleted={() => {
+            // Navigate back to leagues and force refresh
+            router.push('/leagues');
+            router.refresh();
+          }}
         />
       )}
     </div>

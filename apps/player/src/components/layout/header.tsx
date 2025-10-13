@@ -28,7 +28,7 @@ export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
 
   const navItems = [
     { href: '/dashboard', label: 'My Dashboard', icon: '📊' },
-    { href: '/leagues', label: 'Explore Leagues', icon: '🏆' },
+    { href: '/leagues', label: 'Leagues', icon: '🏆' },
     { href: '/teams', label: 'My Teams', icon: '👥' },
     { href: '/matches', label: 'Matches', icon: '⚽' },
     { href: '/profile', label: 'Profile Settings', icon: '⚙️' },

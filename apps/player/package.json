@@ -14,11 +14,11 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@hookform/resolvers": "^3.9.1",
+    "@matchday/auth": "workspace:*",
     "@matchday/database": "workspace:*",
     "@matchday/services": "workspace:*",
-    "@matchday/auth": "workspace:*",
     "@matchday/shared": "workspace:*",
-    "@hookform/resolvers": "^3.9.1",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.56.1",
     "@tanstack/react-query": "^5.61.3",
@@ -34,6 +34,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hook-form": "^7.54.0",
+    "recharts": "^3.2.1",
     "tailwind-merge": "^3.3.1",
     "uuid": "^11.1.0",
     "zod": "^3.23.8"

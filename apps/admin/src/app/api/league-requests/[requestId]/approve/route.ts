@@ -180,7 +180,31 @@ export async function POST(
       );
     }
 
-    // Add team to season_teams table
+    // First, associate team with the league (required by database constraint)
+    const leagueId = joinRequest.season?.league_id;
+    if (!leagueId) {
+      return NextResponse.json(
+        { error: 'Season league information not found' },
+        { status: 500 }
+      );
+    }
+
+    console.log(`📝 Associating team ${joinRequest.team_id} with league ${leagueId}...`);
+    const { error: teamUpdateError } = await (supabase as any)
+      .from('teams')
+      .update({ league_id: leagueId })
+      .eq('id', joinRequest.team_id);
+
+    if (teamUpdateError) {
+      console.error('Error associating team with league:', teamUpdateError);
+      return NextResponse.json(
+        { error: 'Failed to associate team with league', message: teamUpdateError.message },
+        { status: 500 }
+      );
+    }
+    console.log('✅ Team successfully associated with league');
+
+    // Now add team to season_teams table
     const now = new Date().toISOString();
     console.log('📝 Adding team to season_teams...');
 

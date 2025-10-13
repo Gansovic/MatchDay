@@ -15,11 +15,11 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
-import { 
-  Trophy, 
-  Users, 
-  Calendar, 
-  MapPin, 
+import {
+  Trophy,
+  Users,
+  Calendar,
+  MapPin,
   Settings,
   Plus,
   Clock,
@@ -31,15 +31,12 @@ import {
   Filter,
   Globe,
   Star,
-  Upload,
   Wifi,
   WifiOff,
   RefreshCw
 } from 'lucide-react';
 import { AdminDashboardService, type AdminDashboardData } from '@/lib/services/admin-dashboard.service';
 import { LeagueRequestService } from '@/lib/services/league-request.service';
-import { LeagueService, type PublishLeagueData } from '@matchday/services';
-import { supabase } from '@/lib/supabase/client';
 import { RequestActionModal } from '@/components/modals/request-action-modal';
 import { CreateLeagueModal } from '@/components/leagues/CreateLeagueModal';
 import { useRealtimeLeagues, usePageVisibility } from '@/lib/hooks/use-realtime-leagues';
@@ -104,10 +101,6 @@ export default function AdminLeaguesPage() {
   const [requestError, setRequestError] = useState<string | null>(null);
 
   const leagueRequestService = LeagueRequestService.getInstance();
-  const leagueService = LeagueService.getInstance(supabase);
-
-  // Publishing states
-  const [publishingLeague, setPublishingLeague] = useState<string | null>(null);
 
   // Handle approve request
   const handleApproveClick = (request: TeamLeagueRequestWithDetails) => {
@@ -177,46 +170,6 @@ export default function AdminLeaguesPage() {
   const clearMessages = () => {
     setSuccessMessage(null);
     setRequestError(null);
-  };
-
-  // Handle publishing/unpublishing leagues
-  const handlePublishToggle = async (league: League) => {
-    if (!user || publishingLeague) return;
-
-    try {
-      setPublishingLeague(league.id);
-      setRequestError(null);
-
-      const publishData: PublishLeagueData = {
-        leagueId: league.id,
-        isPublic: !league.is_public,
-        autoApproveTeams: league.auto_approve_teams || false,
-        registrationDeadline: league.registration_deadline,
-        maxTeams: league.max_teams,
-        featured: league.featured || false
-      };
-
-      const result = await leagueService.publishLeague(publishData);
-
-      if (result.success && result.data) {
-        // Real-time updates will automatically refresh the leagues data
-        
-        setSuccessMessage(
-          result.data.is_public 
-            ? 'League published successfully! Teams can now join.' 
-            : 'League unpublished successfully.'
-        );
-
-        // Clear success message after 5 seconds
-        setTimeout(() => setSuccessMessage(null), 5000);
-      } else {
-        setRequestError(result.error?.message || 'Failed to update league publication status');
-      }
-    } catch (error) {
-      setRequestError(error instanceof Error ? error.message : 'An unexpected error occurred');
-    } finally {
-      setPublishingLeague(null);
-    }
   };
 
   if (isLoading) {
@@ -456,7 +409,7 @@ export default function AdminLeaguesPage() {
                     </Link>
 
                     <div className="flex gap-2">
-                      <button 
+                      <button
                         onClick={(e) => {
                           e.preventDefault();
                           setSelectedLeague(selectedLeague === league.id ? null : league.id);
@@ -470,30 +423,8 @@ export default function AdminLeaguesPage() {
                         <Eye className="w-4 h-4 inline mr-2" />
                         {selectedLeague === league.id ? 'Hide' : 'View'} Requests
                       </button>
-                      
-                      <button 
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handlePublishToggle(league);
-                        }}
-                        disabled={publishingLeague === league.id}
-                        className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm flex items-center gap-2 ${
-                          league.is_public
-                            ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                            : 'bg-green-600 hover:bg-green-700 text-white'
-                        } ${publishingLeague === league.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        {publishingLeague === league.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : league.is_public ? (
-                          <Globe className="w-4 h-4" />
-                        ) : (
-                          <Upload className="w-4 h-4" />
-                        )}
-                        {publishingLeague === league.id ? 'Publishing...' : league.is_public ? 'Unpublish' : 'Publish'}
-                      </button>
-                      
-                      <button 
+
+                      <button
                         onClick={(e) => e.preventDefault()}
                         className="px-4 py-2 border border-gray-600 text-gray-300 hover:bg-gray-800 rounded-lg transition-colors text-sm"
                       >

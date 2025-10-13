@@ -1,6 +1,9 @@
 'use client';
 
-import { X, Calendar, Clock, MapPin } from 'lucide-react';
+import { useState } from 'react';
+import { X, Calendar, Clock, MapPin, Wand2, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase/client';
+import { SchedulingConfig } from './SchedulingConfigPanel';
 
 interface TimeSlot {
   id: string;
@@ -37,14 +40,68 @@ interface FixturePreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
   previewData: PreviewData | null;
+  seasonId: string;
+  schedulingConfig?: SchedulingConfig;
+  onFixturesGenerated?: () => void;
 }
 
 export default function FixturePreviewModal({
   isOpen,
   onClose,
-  previewData
+  previewData,
+  seasonId,
+  schedulingConfig,
+  onFixturesGenerated
 }: FixturePreviewModalProps) {
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   if (!isOpen || !previewData) return null;
+
+  const handleGenerate = async () => {
+    if (!confirm('Are you sure you want to generate these fixtures? This will create all matches for the season.')) {
+      return;
+    }
+
+    try {
+      setGenerating(true);
+      setError(null);
+
+      // Get current session for authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('You must be logged in');
+      }
+
+      const response = await fetch(`/api/seasons/${seasonId}/fixtures/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          preview: false,
+          schedulingOverride: schedulingConfig
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || result.error || 'Failed to generate fixtures');
+      }
+
+      if (result.success) {
+        onFixturesGenerated?.();
+        onClose();
+      }
+    } catch (err) {
+      console.error('Failed to generate fixtures:', err);
+      setError(err instanceof Error ? err.message : 'Failed to generate fixtures');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   // Group fixtures by matchday
   const fixturesByMatchday: { [key: number]: PreviewFixture[] } = {};
@@ -205,16 +262,43 @@ export default function FixturePreviewModal({
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-700 flex items-center justify-between">
-          <div className="text-sm text-gray-400">
-            This is a preview. No fixtures will be saved until you click "Generate Fixtures".
+        <div className="p-6 border-t border-gray-700">
+          {error && (
+            <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg">
+              <p className="text-sm text-red-300">{error}</p>
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-400">
+              This is a preview. Click "Generate Fixtures" to save these matches to the season.
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={onClose}
+                disabled={generating}
+                className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Close
+              </button>
+              <button
+                onClick={handleGenerate}
+                disabled={generating}
+                className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {generating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-4 h-4" />
+                    Generate Fixtures
+                  </>
+                )}
+              </button>
+            </div>
           </div>
-          <button
-            onClick={onClose}
-            className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
-          >
-            Close Preview
-          </button>
         </div>
       </div>
     </div>

@@ -42,24 +42,73 @@ export async function GET(request: NextRequest) {
       data: dashboardData,
       error: dashboardError,
       hasData: !!dashboardData,
-      hasError: !!dashboardError
+      hasError: !!dashboardError,
+      errorMessage: dashboardError?.message,
+      errorCode: dashboardError?.code
     });
 
-    // If view exists and returns data, use it for optimized performance
-    if (!dashboardError && dashboardData) {
-      const winRate = dashboardData.total_team_games > 0 
-        ? Math.round((dashboardData.total_team_wins / dashboardData.total_team_games) * 100)
-        : 0;
+    // If view exists and returns data, use it BUT recalculate win rate from actual matches
+    // Skip the view if there's an error and go straight to fallback
+    if (!dashboardError && dashboardData && typeof dashboardData === 'object' && !Array.isArray(dashboardData)) {
+      console.log('📊 Dashboard view data:', dashboardData);
+
+      // IMPORTANT: Recalculate win rate from actual completed matches, not from team_stats
+      // team_stats is filtered by current year which may not include all historical matches
+      let actualWinRate = 0;
+      let actualTotalWins = 0;
+      let actualTotalGames = 0;
+
+      try {
+        // Get team IDs for the user
+        const { data: userTeamMemberships } = await supabase
+          .from('team_members')
+          .select('team_id')
+          .eq('user_id', user.id)
+          .eq('is_active', true);
+
+        const teamIds = (userTeamMemberships || []).map(tm => tm.team_id);
+
+        if (teamIds.length > 0) {
+          const { data: completedMatches } = await supabase
+            .from('matches')
+            .select('id, home_team_id, away_team_id, home_score, away_score')
+            .or(`home_team_id.in.(${teamIds.join(',')}),away_team_id.in.(${teamIds.join(',')})`)
+            .eq('status', 'completed')
+            .not('home_score', 'is', null)
+            .not('away_score', 'is', null);
+
+          console.log('📊 Completed matches found:', completedMatches?.length || 0);
+
+          if (completedMatches && completedMatches.length > 0) {
+            completedMatches.forEach(match => {
+              const isHome = teamIds.includes(match.home_team_id);
+              actualTotalGames++;
+              const userScore = isHome ? match.home_score : match.away_score;
+              const oppScore = isHome ? match.away_score : match.home_score;
+              if (userScore! > oppScore!) actualTotalWins++;
+            });
+          }
+        }
+
+        actualWinRate = actualTotalGames > 0
+          ? Math.round((actualTotalWins / actualTotalGames) * 100)
+          : 0;
+
+        console.log('📊 Actual win rate calculation:', { actualTotalWins, actualTotalGames, actualWinRate });
+      } catch (winRateError) {
+        console.error('Error calculating win rate from matches:', winRateError);
+        // Continue with 0 win rate if calculation fails
+      }
 
       const dashboardStats = {
-        matchesPlayed: dashboardData.matches_played || 0,
-        teamsJoined: dashboardData.teams_joined || 0,
-        upcomingMatches: dashboardData.upcoming_matches || 0,
-        winRate,
-        goalsScored: dashboardData.goals_scored || 0,
-        assists: dashboardData.assists || 0,
-        leaguesParticipated: dashboardData.leagues_participated || 0,
-        avgTeamWinRate: Math.round(dashboardData.avg_team_win_rate || 0)
+        matchesPlayed: actualTotalGames || (dashboardData as any).matches_played || 0,
+        teamsJoined: (dashboardData as any).teams_joined || 0,
+        upcomingMatches: (dashboardData as any).upcoming_matches || 0,
+        winRate: actualWinRate, // Use actual win rate from completed matches
+        goalsScored: (dashboardData as any).goals_scored || 0,
+        assists: (dashboardData as any).assists || 0,
+        leaguesParticipated: (dashboardData as any).leagues_participated || 0,
+        avgTeamWinRate: actualWinRate // Use actual win rate here too
       };
 
       // Get detailed team stats for the user using the database function
@@ -87,7 +136,7 @@ export async function GET(request: NextRequest) {
           dashboardData.goals_scored > 3 ? 'Goal Scoring' : null,
           dashboardData.assists > 2 ? 'Playmaking' : null,
           dashboardData.matches_played > 5 ? 'Consistency' : null,
-          winRate > 50 ? 'Winning Mentality' : null,
+          actualWinRate > 50 ? 'Winning Mentality' : null,
           dashboardData.teams_joined > 1 ? 'Team Versatility' : null
         ].filter((s): s is string => s !== null),
         totalGoals: dashboardData.goals_scored,
@@ -192,25 +241,54 @@ export async function GET(request: NextRequest) {
         .filter(Boolean)
     );
     
-    // Calculate win rate from team stats - use 2024 for existing data
+    // Calculate win rate from actual completed matches
     let totalWins = 0;
     let totalGames = 0;
-    const statsYear = 2024; // Use 2024 where our test data exists
-    
-    (teamMemberships as TeamMembership[] || []).forEach(tm => {
-      const teamStats = tm.teams?.team_stats?.find(
-        ts => ts.season_year === statsYear
-      );
-      if (teamStats) {
-        totalWins += teamStats.wins || 0;
-        totalGames += teamStats.games_played || 0;
-      }
-    });
-    
-    const winRate = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0;
-    
-    // Get upcoming matches count
+
+    // Get all matches for user's teams
     const teamIds = (teamMemberships as TeamMembership[] || []).map(tm => tm.team_id).filter(Boolean);
+
+    if (teamIds.length > 0) {
+      console.log('🔍 DEBUG: Fetching matches for teams:', teamIds);
+
+      const { data: matches, error: matchesError } = await supabase
+        .from('matches')
+        .select('id, home_team_id, away_team_id, home_score, away_score, status')
+        .or(`home_team_id.in.(${teamIds.join(',')}),away_team_id.in.(${teamIds.join(',')})`)
+        .eq('status', 'completed')
+        .not('home_score', 'is', null)
+        .not('away_score', 'is', null);
+
+      console.log('🔍 DEBUG: Matches result:', {
+        count: matches?.length || 0,
+        error: matchesError,
+        matches: matches
+      });
+
+      // Calculate wins from completed matches
+      if (matches && matches.length > 0) {
+        matches.forEach(match => {
+          const isHomeTeam = teamIds.includes(match.home_team_id);
+          const isAwayTeam = teamIds.includes(match.away_team_id);
+
+          if (isHomeTeam || isAwayTeam) {
+            totalGames++;
+
+            const userScore = isHomeTeam ? match.home_score : match.away_score;
+            const opponentScore = isHomeTeam ? match.away_score : match.home_score;
+
+            if (userScore! > opponentScore!) {
+              totalWins++;
+            }
+          }
+        });
+      }
+    }
+
+    console.log('🔍 DEBUG: Win rate calculation:', { totalWins, totalGames });
+    const winRate = totalGames > 0 ? Math.round((totalWins / totalGames) * 100) : 0;
+
+    // Get upcoming matches count (teamIds already declared above)
     let upcomingMatches = 0;
     
     if (teamIds.length > 0) {
@@ -218,14 +296,14 @@ export async function GET(request: NextRequest) {
         .from('matches')
         .select('*', { count: 'exact', head: true })
         .or(`home_team_id.in.(${teamIds.join(',')}),away_team_id.in.(${teamIds.join(',')})`)
-        .in('status', ['scheduled', 'upcoming'])
+        .eq('status', 'scheduled')
         .gt('match_date', new Date().toISOString());
       
       upcomingMatches = count || 0;
     }
     
     const dashboardStats = {
-      matchesPlayed: totalMatches,
+      matchesPlayed: totalGames || totalMatches, // Use team match count if available, fallback to player stats
       teamsJoined: teamsCount,
       upcomingMatches,
       winRate,
@@ -235,8 +313,9 @@ export async function GET(request: NextRequest) {
       totalTeamWins: totalWins,
       totalTeamGames: totalGames
     };
-    
+
     console.log('🔍 DEBUG: Final calculated dashboard stats:', dashboardStats);
+    console.log('🔍 DEBUG: Win rate breakdown - Wins:', totalWins, 'Games:', totalGames, 'Percentage:', winRate);
 
     // Calculate performance analysis with team context
     let performance = null;
@@ -258,11 +337,14 @@ export async function GET(request: NextRequest) {
 
     // Get detailed team stats for fallback scenario as well
     const { data: fallbackTeamStats } = await supabase
-      .rpc('get_user_team_stats', { p_user_id: user.id });
+      .rpc('get_user_team_stats', { p_user_id: user?.id });
+
+    // Type-safe team stats array
+    const teamStatsArray = Array.isArray(fallbackTeamStats) ? fallbackTeamStats : [];
 
     const response = NextResponse.json({
       stats: dashboardStats,
-      teamStats: fallbackTeamStats || [],
+      teamStats: teamStatsArray,
       performance,
       teamContext: {
         totalWins,
@@ -272,10 +354,10 @@ export async function GET(request: NextRequest) {
       multiTeamContext: {
         hasMultipleTeams: teamsCount > 1,
         totalTeams: teamsCount,
-        bestPerformingTeam: fallbackTeamStats && fallbackTeamStats.length > 0 
-          ? fallbackTeamStats.reduce((best, current) => 
+        bestPerformingTeam: teamStatsArray.length > 0
+          ? teamStatsArray.reduce((best: any, current: any) =>
               current.win_rate > best.win_rate ? current : best
-            ) 
+            )
           : null
       }
     });
@@ -287,9 +369,14 @@ export async function GET(request: NextRequest) {
       
       return response;
   } catch (error) {
-    console.error('User stats API error:', error);
+    console.error('❌ User stats API error:', error);
+    console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error');
+    console.error('❌ Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.json(
-      { error: 'Failed to fetch user stats' },
+      {
+        error: 'Failed to fetch user stats',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }

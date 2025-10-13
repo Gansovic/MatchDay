@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Wand2, AlertCircle, Trash2, Eye } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
+import { SchedulingConfig } from './SchedulingConfigPanel';
 
 interface FixtureGenerationPanelProps {
   seasonId: string;
@@ -11,6 +12,7 @@ interface FixtureGenerationPanelProps {
   fixturesCount: number;
   onFixturesGenerated: () => void;
   onPreview: (previewData: any) => void;
+  schedulingConfig?: SchedulingConfig;
 }
 
 export default function FixtureGenerationPanel({
@@ -19,9 +21,9 @@ export default function FixtureGenerationPanel({
   hasExistingFixtures,
   fixturesCount,
   onFixturesGenerated,
-  onPreview
+  onPreview,
+  schedulingConfig
 }: FixtureGenerationPanelProps) {
-  const [generating, setGenerating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +47,10 @@ export default function FixtureGenerationPanel({
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         },
-        body: JSON.stringify({ preview: true })
+        body: JSON.stringify({
+          preview: true,
+          schedulingOverride: schedulingConfig
+        })
       });
 
       const result = await response.json();
@@ -62,63 +67,6 @@ export default function FixtureGenerationPanel({
       setError(err instanceof Error ? err.message : 'Failed to generate preview');
     } finally {
       setPreviewing(false);
-    }
-  };
-
-  const handleGenerate = async () => {
-    if (!confirm('Are you sure you want to generate fixtures? This will create all matches for the season.')) {
-      return;
-    }
-
-    try {
-      setGenerating(true);
-      setError(null);
-      setSuccess(null);
-
-      // Get current session for authentication
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('You must be logged in');
-      }
-
-      const response = await fetch(`/api/seasons/${seasonId}/fixtures/generate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({ preview: false })
-      });
-
-      console.log('Response status:', response.status, response.statusText);
-
-      let result;
-      try {
-        result = await response.json();
-        console.log('Generate fixtures response:', result);
-      } catch (parseError) {
-        console.error('Failed to parse JSON response:', parseError);
-        const text = await response.text();
-        console.error('Raw response:', text);
-        throw new Error(`Server error (${response.status}): Unable to parse response`);
-      }
-
-      if (!response.ok) {
-        const errorMsg = result.message || result.error || 'Failed to generate fixtures';
-        console.error('Generate fixtures failed:', errorMsg, result);
-        throw new Error(errorMsg);
-      }
-
-      if (result.success) {
-        setSuccess(result.message || 'Fixtures generated successfully!');
-        setTimeout(() => setSuccess(null), 5000);
-        onFixturesGenerated();
-      }
-    } catch (err) {
-      console.error('Failed to generate fixtures:', err);
-      setError(err instanceof Error ? err.message : 'Failed to generate fixtures');
-    } finally {
-      setGenerating(false);
     }
   };
 
@@ -204,38 +152,29 @@ export default function FixtureGenerationPanel({
       {/* Description */}
       <p className="text-sm text-gray-400 mb-6">
         {hasExistingFixtures
-          ? 'You can preview or regenerate fixtures. To regenerate, you must first delete the existing fixtures.'
-          : 'Generate all fixtures for this season based on the scheduling configuration. You can preview the fixtures before generating them.'}
+          ? 'You can preview fixtures or delete existing ones to regenerate them.'
+          : 'Preview fixtures to see the complete schedule before generating them. You can adjust scheduling settings and preview again until you\'re satisfied.'}
       </p>
 
       {/* Actions */}
       <div className="flex gap-3">
         <button
           onClick={handleGeneratePreview}
-          disabled={previewing || generating || deleting}
+          disabled={previewing || deleting}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Eye className="w-4 h-4" />
           {previewing ? 'Generating Preview...' : 'Preview Fixtures'}
         </button>
 
-        {hasExistingFixtures ? (
+        {hasExistingFixtures && (
           <button
             onClick={handleDelete}
-            disabled={previewing || generating || deleting}
+            disabled={previewing || deleting}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Trash2 className="w-4 h-4" />
             {deleting ? 'Deleting...' : 'Delete All Fixtures'}
-          </button>
-        ) : (
-          <button
-            onClick={handleGenerate}
-            disabled={previewing || generating || deleting}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Wand2 className="w-4 h-4" />
-            {generating ? 'Generating...' : 'Generate Fixtures'}
           </button>
         )}
       </div>

@@ -105,12 +105,18 @@ export function useUserStats(userId: string | null) {
 
         // Use new API endpoint for user stats
         const response = await fetch('/api/user/stats');
-        
+
         if (!response.ok) {
-          throw new Error(`Failed to fetch user stats: ${response.status}`);
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+          console.error('❌ API Error Status:', response.status);
+          console.error('❌ API Error Data:', errorData);
+          throw new Error(`Failed to fetch user stats: ${response.status} - ${errorData.details || errorData.error || 'Unknown error'}`);
         }
 
         const data = await response.json();
+        console.log('📊 Client received stats data:', data);
+        console.log('📊 Win Rate from API:', data.stats?.winRate);
+        console.log('📊 Team Context:', data.teamContext);
         setStats(data.stats);
         setTeamStats(data.teamStats || []);
         setMultiTeamContext(data.multiTeamContext || null);
@@ -329,4 +335,212 @@ export function useUserPerformance(userId: string | null) {
   }, [userId]);
 
   return { performance, loading, error, refetch: () => setLoading(true) };
+}
+
+/**
+ * Hook for fetching user's matches with filtering options
+ */
+export function useUserMatches(userId: string | null) {
+  const [matches, setMatches] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userId) {
+      setMatches([]);
+      setLoading(false);
+      return;
+    }
+
+    async function fetchUserMatches() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Fetch matches from API
+        const response = await fetch('/api/matches');
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch matches: ${response.status}`);
+        }
+
+        const result = await response.json();
+        const matchesData = result.data || [];
+
+        // Transform matches to match our MatchCard interface
+        const transformedMatches = matchesData.map((match: any) => ({
+          id: match.id,
+          match_number: match.match_number,
+          homeTeam: {
+            id: match.home_team_id || match.homeTeamId,
+            name: match.home_team?.name || match.homeTeamName || 'Unknown Team',
+            color: match.home_team?.team_color || match.homeTeamColor || '#3B82F6'
+          },
+          awayTeam: {
+            id: match.away_team_id || match.awayTeamId,
+            name: match.away_team?.name || match.awayTeamName || 'Unknown Team',
+            color: match.away_team?.team_color || match.awayTeamColor || '#DC2626'
+          },
+          status: match.status,
+          matchDate: match.match_date || match.scheduled_date,
+          venue: match.venue || 'TBD',
+          homeScore: match.home_score,
+          awayScore: match.away_score,
+          leagueName: match.league?.name || match.leagueName
+        }));
+
+        setMatches(transformedMatches);
+      } catch (err) {
+        console.error('Error fetching user matches:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch matches');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchUserMatches();
+  }, [userId]);
+
+  return { matches, loading, error, refetch: () => setLoading(true) };
+}
+
+/**
+ * Hook for calculating player level/rating from stats
+ */
+export function usePlayerLevel(stats: DashboardStats | null, teamStats: TeamStats[]) {
+  const [playerLevel, setPlayerLevel] = useState(5.0); // Default beginner level
+  const [reliabilityPercentage, setReliabilityPercentage] = useState(0);
+
+  useEffect(() => {
+    if (!stats) {
+      setPlayerLevel(5.0);
+      setReliabilityPercentage(0);
+      return;
+    }
+
+    // Calculate player level based on various factors
+    // Algorithm inspired by Playtomic's level system
+    let calculatedLevel = 5.0; // Base level
+
+    // Win rate factor (0-2.5 points)
+    const winRateFactor = (stats.winRate / 100) * 2.5;
+    calculatedLevel += winRateFactor;
+
+    // Experience factor based on matches played (0-1.5 points)
+    const experienceFactor = Math.min((stats.matchesPlayed / 50) * 1.5, 1.5);
+    calculatedLevel += experienceFactor;
+
+    // Goals/assists factor (0-1 point)
+    const avgGoalsPerMatch = stats.matchesPlayed > 0 ? stats.goalsScored / stats.matchesPlayed : 0;
+    const avgAssistsPerMatch = stats.matchesPlayed > 0 ? stats.assists / stats.matchesPlayed : 0;
+    const scoringFactor = Math.min((avgGoalsPerMatch + avgAssistsPerMatch * 0.5) * 0.5, 1.0);
+    calculatedLevel += scoringFactor;
+
+    // Team performance factor (0-0.5 points) - average team win rates
+    if (teamStats && teamStats.length > 0) {
+      const avgTeamWinRate = teamStats.reduce((sum, team) => sum + team.win_rate, 0) / teamStats.length;
+      const teamFactor = (avgTeamWinRate / 100) * 0.5;
+      calculatedLevel += teamFactor;
+    }
+
+    // Cap at 10.0 max level
+    calculatedLevel = Math.min(calculatedLevel, 10.0);
+
+    // Calculate reliability percentage (attendance rate)
+    // For now, assume perfect attendance if they have matches
+    // In a real system, this would track scheduled vs attended matches
+    const reliability = stats.matchesPlayed > 0 ? Math.min(95 + (stats.matchesPlayed / 10), 100) : 0;
+
+    setPlayerLevel(Number(calculatedLevel.toFixed(1)));
+    setReliabilityPercentage(Math.round(reliability));
+  }, [stats, teamStats]);
+
+  return { playerLevel, reliabilityPercentage };
+}
+
+/**
+ * Hook for generating performance chart data from match history
+ */
+export function usePerformanceData(matches: any[], stats: DashboardStats | null) {
+  const [performanceData, setPerformanceData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchPerformanceData() {
+      if (!matches || matches.length === 0 || !stats) {
+        setPerformanceData([]);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Generate performance data points from completed matches
+        const completedMatches = matches
+          .filter(m => m.status === 'completed' && m.homeScore !== undefined && m.awayScore !== undefined)
+          .sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
+
+        if (completedMatches.length === 0) {
+          setPerformanceData([]);
+          setLoading(false);
+          return;
+        }
+
+        // Fetch player stats for each match to get actual goals per match
+        const { data: playerStats } = await supabase
+          .from('player_stats')
+          .select('match_id, goals, assists')
+          .in('match_id', completedMatches.map(m => m.id));
+
+        // Create a map of match_id to goals
+        const goalsPerMatch = new Map();
+        (playerStats || []).forEach(stat => {
+          goalsPerMatch.set(stat.match_id, stat.goals || 0);
+        });
+
+        const dataPoints = [];
+        let cumulativeWins = 0;
+        let cumulativeMatches = 0;
+
+        for (let i = 0; i < completedMatches.length; i++) {
+          const match = completedMatches[i];
+          cumulativeMatches++;
+
+          // Get actual goals for this match (whole number)
+          const goalsInMatch = goalsPerMatch.get(match.id) || 0;
+
+          // Determine if user won by checking which team they're on
+          const userScore = match.homeScore;
+          const opponentScore = match.awayScore;
+          if (userScore > opponentScore) cumulativeWins++;
+
+          // Calculate rolling stats
+          const winRate = (cumulativeWins / cumulativeMatches) * 100;
+          const rating = 5.0 + (winRate / 100) * 5.0; // Simplified rating calculation
+
+          const date = new Date(match.matchDate);
+          const label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+          dataPoints.push({
+            date: match.matchDate,
+            matchDate: date,
+            winRate: Number(winRate.toFixed(1)),
+            goals: goalsInMatch, // Actual goals scored in this match (whole number)
+            rating: Number(rating.toFixed(1)),
+            label
+          });
+        }
+
+        setPerformanceData(dataPoints);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching performance data:', error);
+        setPerformanceData([]);
+        setLoading(false);
+      }
+    }
+
+    fetchPerformanceData();
+  }, [matches, stats]);
+
+  return { performanceData, loading };
 }

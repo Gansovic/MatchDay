@@ -183,6 +183,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const { leagueId } = await params;
     const body = await request.json();
 
+    // Use admin client with service role permissions to bypass RLS
+    const adminClient = createAdminClient();
+
     // Check if it's a name or UUID
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     const isUuid = uuidRegex.test(leagueId);
@@ -190,6 +193,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const {
       name,
       description,
+      logo_url,
       sport_type,
       league_type,
       location,
@@ -202,12 +206,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       season
     } = body;
 
-    // Using the shared supabase client
-
     // First get the league to find its ID if name was provided
     let actualLeagueId = leagueId;
     if (!isUuid) {
-      const { data: leagueData } = await supabase
+      const { data: leagueData } = await adminClient
         .from('leagues')
         .select('id')
         .ilike('name', leagueId)
@@ -222,6 +224,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const updateData: Record<string, string | number | boolean | Date> = {};
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
+    if (logo_url !== undefined) updateData.logo_url = logo_url;
     if (sport_type !== undefined) updateData.sport_type = sport_type;
     if (league_type !== undefined) updateData.league_type = league_type;
     if (location !== undefined) updateData.location = location;
@@ -235,7 +238,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     
     updateData.updated_at = new Date().toISOString();
 
-    const { data: league, error } = await supabase
+    const { data: league, error } = await adminClient
       .from('leagues')
       .update(updateData)
       .eq('id', actualLeagueId)
@@ -279,86 +282,179 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 }
 
 /**
+ * PATCH /api/leagues/[leagueId]
+ * Partially update league information (admin only)
+ * Uses the same logic as PUT but follows REST conventions
+ */
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
+  return PUT(request, { params });
+}
+
+/**
  * DELETE /api/leagues/[leagueId]
- * Delete a league (admin only)
+ * Delete a league and all associated data (admin only)
+ * Deletes: player_stats → matches → season_join_requests → season_teams → seasons → league
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { leagueId } = await params;
 
+    if (!leagueId) {
+      return NextResponse.json(
+        { success: false, error: 'League ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Use admin client with service role permissions to bypass RLS
+    const adminClient = createAdminClient();
+
     // Check if it's a name or UUID
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     const isUuid = uuidRegex.test(leagueId);
 
-    // Using the shared supabase client
-
     // First get the league to find its ID if name was provided
     let actualLeagueId = leagueId;
     if (!isUuid) {
-      const { data: leagueData } = await supabase
+      const { data: leagueData } = await adminClient
         .from('leagues')
         .select('id')
         .ilike('name', leagueId)
         .single();
-      
+
       if (leagueData) {
         actualLeagueId = leagueData.id;
-      }
-    }
-
-    // First, check if any teams are registered in any season of this league
-    const { data: seasons } = await supabase
-      .from('seasons')
-      .select('id')
-      .eq('league_id', actualLeagueId);
-
-    if (seasons && seasons.length > 0) {
-      const seasonIds = seasons.map(s => s.id);
-      const { data: seasonTeams, error: teamsError } = await supabase
-        .from('season_teams')
-        .select('id')
-        .in('season_id', seasonIds)
-        .in('status', ['registered', 'confirmed']);
-
-      if (teamsError) {
-        console.error('Error checking league teams:', teamsError);
-        return NextResponse.json(
-          { success: false, error: 'Database error', message: teamsError.message },
-          { status: 500 }
-        );
-      }
-
-      if (seasonTeams && seasonTeams.length > 0) {
-        return NextResponse.json(
-          { success: false, error: 'Cannot delete league with active teams', message: 'Remove all teams from the league seasons before deletion' },
-          { status: 409 }
-        );
-      }
-    }
-
-    // Delete the league
-    const { error } = await supabase
-      .from('leagues')
-      .delete()
-      .eq('id', actualLeagueId);
-
-    if (error) {
-      if (error.code === 'PGRST116') {
+      } else {
         return NextResponse.json(
           { success: false, error: 'League not found' },
           { status: 404 }
         );
       }
-      console.error('Supabase error:', error);
+    }
+
+    // Get all seasons for this league
+    const { data: seasons, error: seasonsError } = await adminClient
+      .from('seasons')
+      .select('id')
+      .eq('league_id', actualLeagueId);
+
+    if (seasonsError) {
+      console.error('Error fetching seasons:', seasonsError);
       return NextResponse.json(
-        { success: false, error: 'Database error', message: error.message },
+        { success: false, error: 'Database error', message: seasonsError.message },
         { status: 500 }
       );
     }
 
+    if (seasons && seasons.length > 0) {
+      const seasonIds = seasons.map(s => s.id);
+
+      // Get all matches for these seasons
+      const { data: matches } = await adminClient
+        .from('matches')
+        .select('id')
+        .in('season_id', seasonIds);
+
+      if (matches && matches.length > 0) {
+        const matchIds = matches.map(m => m.id);
+
+        // Step 1: Delete player_stats for these matches
+        const { error: playerStatsError } = await adminClient
+          .from('player_stats')
+          .delete()
+          .in('match_id', matchIds);
+
+        if (playerStatsError) {
+          console.error('Error deleting player_stats:', playerStatsError);
+          return NextResponse.json(
+            { success: false, error: 'Failed to delete player statistics', message: playerStatsError.message },
+            { status: 500 }
+          );
+        }
+
+        // Step 2: Delete matches
+        const { error: matchesError } = await adminClient
+          .from('matches')
+          .delete()
+          .in('id', matchIds);
+
+        if (matchesError) {
+          console.error('Error deleting matches:', matchesError);
+          return NextResponse.json(
+            { success: false, error: 'Failed to delete matches', message: matchesError.message },
+            { status: 500 }
+          );
+        }
+      }
+
+      // Step 3: Delete season_join_requests
+      const { error: seasonJoinRequestsError } = await adminClient
+        .from('season_join_requests')
+        .delete()
+        .in('season_id', seasonIds);
+
+      if (seasonJoinRequestsError) {
+        console.error('Error deleting season_join_requests:', seasonJoinRequestsError);
+        return NextResponse.json(
+          { success: false, error: 'Failed to delete season join requests', message: seasonJoinRequestsError.message },
+          { status: 500 }
+        );
+      }
+
+      // Step 4: Delete season_teams (team registrations)
+      const { error: seasonTeamsError } = await adminClient
+        .from('season_teams')
+        .delete()
+        .in('season_id', seasonIds);
+
+      if (seasonTeamsError) {
+        console.error('Error deleting season_teams:', seasonTeamsError);
+        return NextResponse.json(
+          { success: false, error: 'Failed to delete team registrations', message: seasonTeamsError.message },
+          { status: 500 }
+        );
+      }
+
+      // Step 5: Delete seasons
+      const { error: deleteSeasonsError } = await adminClient
+        .from('seasons')
+        .delete()
+        .in('id', seasonIds);
+
+      if (deleteSeasonsError) {
+        console.error('Error deleting seasons:', deleteSeasonsError);
+        return NextResponse.json(
+          { success: false, error: 'Failed to delete seasons', message: deleteSeasonsError.message },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Step 6: Delete the league
+    const { error: leagueError } = await adminClient
+      .from('leagues')
+      .delete()
+      .eq('id', actualLeagueId);
+
+    if (leagueError) {
+      if (leagueError.code === 'PGRST116') {
+        return NextResponse.json(
+          { success: false, error: 'League not found' },
+          { status: 404 }
+        );
+      }
+      console.error('Error deleting league:', leagueError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to delete league', message: leagueError.message },
+        { status: 500 }
+      );
+    }
+
+    console.log(`[League Deletion] Successfully deleted league ${actualLeagueId} and all associated data`);
+
     const jsonResponse = NextResponse.json({
       success: true,
-      message: 'League deleted successfully'
+      message: 'League and all associated data deleted successfully'
     });
 
     // Add CORS headers

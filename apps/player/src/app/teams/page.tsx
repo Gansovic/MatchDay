@@ -189,8 +189,8 @@ export default function TeamsPage() {
             draws: teamData.stats.draws || 0,
             losses: teamData.stats.losses || 0,
             goals: teamData.stats.goals_for || 0,
-            position: 1, // TODO: Calculate from league standings
-            totalTeams: teamData.stats.games_played || 0
+            position: teamData.stats.league_position || 1,
+            totalTeams: teamData.stats.total_teams_in_league || 0
           } : {
             wins: 0,
             draws: 0,
@@ -200,12 +200,20 @@ export default function TeamsPage() {
             totalTeams: 0
           };
 
+          // Determine user's role in the team
+          // Check if current user is the captain
+          const isCaptain = teamData.captain_id === session?.user?.id;
+
+          // Get user's position/role from member data if available
+          const userMember = teamData.members?.find((m: any) => m.player_id === session?.user?.id);
+          const userPosition = userMember?.position || 'Member';
+
           return {
             id: teamData.id,
             name: teamData.name,
             league: teamData.league?.name || 'Independent',
-            position: 'Captain', // Default to Captain for now
-            isCaptain: true,     // Default to true for now
+            position: userPosition,
+            isCaptain: isCaptain,
             memberCount: teamData.current_members || teamData.memberCount || 0,
             maxMembers: teamData.max_players || 22,
             location: teamData.location || 'TBD',
