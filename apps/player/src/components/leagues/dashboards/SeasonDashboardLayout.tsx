@@ -10,7 +10,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { 
+import {
   ArrowLeft,
   Trophy,
   Calendar,
@@ -18,7 +18,8 @@ import {
   Target,
   Info,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Image
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { LeagueService } from '@matchday/services';
@@ -27,7 +28,7 @@ import { Season } from '@/components/leagues/season-selector';
 
 interface SeasonDashboardLayoutProps {
   children: React.ReactNode;
-  activeTab?: 'standings' | 'matches' | 'stats' | 'info' | 'management' | 'registration';
+  activeTab?: 'standings' | 'matches' | 'stats' | 'info' | 'management' | 'registration' | 'media';
   onTabChange?: (tab: string) => void;
   availableTabs?: string[];
   title?: string;
@@ -187,7 +188,8 @@ export default function SeasonDashboardLayout({
     stats: { icon: Target, label: 'Statistics' },
     info: { icon: Info, label: 'Season Info' },
     management: { icon: Users, label: 'Management' },
-    registration: { icon: Users, label: 'Registration' }
+    registration: { icon: Users, label: 'Registration' },
+    media: { icon: Image, label: 'Media' }
   };
 
   // Loading states check

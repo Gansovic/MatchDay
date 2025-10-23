@@ -1,6 +1,7 @@
 'use client';
 
 import { Calendar, Clock, MapPin } from 'lucide-react';
+import { TeamLogo } from '@/components/common/team-logo';
 
 interface Match {
   id: string;
@@ -17,11 +18,13 @@ interface Match {
     id: string;
     name: string;
     team_color?: string;
+    logo_url?: string;
   };
   away_team?: {
     id: string;
     name: string;
     team_color?: string;
+    logo_url?: string;
   };
 }
 
@@ -138,16 +141,12 @@ export default function FixturesCalendar({ matches, userTeamIds = [], showOnlyUp
                       {/* Teams */}
                       <div className="flex items-center gap-3 flex-1">
                         <div className="flex items-center gap-2 flex-1">
-                          <div
-                            className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0"
-                            style={{
-                              backgroundColor: match.home_team?.team_color || '#374151'
-                            }}
-                          >
-                            <span className="text-white text-sm font-bold">
-                              {match.home_team?.name?.charAt(0).toUpperCase() || '?'}
-                            </span>
-                          </div>
+                          <TeamLogo
+                            name={match.home_team?.name || 'Home Team'}
+                            logoUrl={match.home_team?.logo_url}
+                            color={match.home_team?.team_color}
+                            size="md"
+                          />
                           <span className="text-gray-900 dark:text-white font-medium text-sm truncate">
                             {match.home_team?.name || 'Home Team'}
                           </span>
@@ -168,16 +167,12 @@ export default function FixturesCalendar({ matches, userTeamIds = [], showOnlyUp
                               {match.away_score}
                             </span>
                           )}
-                          <div
-                            className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0"
-                            style={{
-                              backgroundColor: match.away_team?.team_color || '#374151'
-                            }}
-                          >
-                            <span className="text-white text-sm font-bold">
-                              {match.away_team?.name?.charAt(0).toUpperCase() || '?'}
-                            </span>
-                          </div>
+                          <TeamLogo
+                            name={match.away_team?.name || 'Away Team'}
+                            logoUrl={match.away_team?.logo_url}
+                            color={match.away_team?.team_color}
+                            size="md"
+                          />
                           <span className="text-gray-900 dark:text-white font-medium text-sm truncate">
                             {match.away_team?.name || 'Away Team'}
                           </span>

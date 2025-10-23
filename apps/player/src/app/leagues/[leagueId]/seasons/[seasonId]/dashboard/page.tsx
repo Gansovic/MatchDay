@@ -25,12 +25,15 @@ import SeasonDashboardLayout from '@/components/leagues/dashboards/SeasonDashboa
 import { TeamJoinRequestModal } from '@/components/seasons/TeamJoinRequestModal';
 import FixturesCalendar from '@/components/seasons/FixturesCalendar';
 import StandingsTable from '@/components/seasons/StandingsTable';
+import { SeasonMediaTab } from '@/components/media/season-media-tab';
+import { TeamLogo } from '@/components/common/team-logo';
 import { supabase } from '@/lib/supabase/client';
 
 interface TeamRegistration {
   id: string;
   name: string;
   team_color?: string;
+  logo_url?: string;
   members: number;
   status: 'approved' | 'pending' | 'rejected';
   registrationDate: string;
@@ -41,7 +44,7 @@ export default function PlayerSeasonDashboard() {
   const leagueId = params.leagueId as string;
   const seasonId = params.seasonId as string;
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'fixtures' | 'standings' | 'teams'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'fixtures' | 'standings' | 'teams' | 'media'>('overview');
   const [loading, setLoading] = useState(true);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [seasonData, setSeasonData] = useState<any>(null);
@@ -119,6 +122,7 @@ export default function PlayerSeasonDashboard() {
               id: teamReg.team_id,
               name: teamReg.team?.name || 'Unknown Team',
               team_color: teamReg.team?.team_color,
+              logo_url: teamReg.team?.logo_url,
               members: teamReg.team?.currentPlayers?.[0]?.count || 0,
               status: teamReg.status === 'registered' || teamReg.status === 'confirmed' ? 'approved' : 'pending',
               registrationDate: teamReg.registration_date || teamReg.created_at
@@ -251,10 +255,10 @@ export default function PlayerSeasonDashboard() {
     if (!seasonData) return ['overview'];
 
     if (seasonData.status === 'draft' || seasonData.status === 'registration') {
-      return ['overview', 'teams'];
+      return ['overview', 'teams', 'media'];
     }
 
-    return ['overview', 'fixtures', 'standings', 'teams'];
+    return ['overview', 'fixtures', 'standings', 'teams', 'media'];
   };
 
   if (loading) {
@@ -542,14 +546,12 @@ export default function PlayerSeasonDashboard() {
                 }`}
               >
                 <div className="flex items-center gap-3 mb-3">
-                  <div
-                    className="w-10 h-10 rounded flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: team.team_color || '#374151' }}
-                  >
-                    <span className="text-white text-lg font-bold">
-                      {team.name?.charAt(0).toUpperCase() || '?'}
-                    </span>
-                  </div>
+                  <TeamLogo
+                    name={team.name}
+                    logoUrl={team.logo_url}
+                    color={team.team_color}
+                    size="lg"
+                  />
                   <div className="flex-1">
                     <h4 className="font-medium text-gray-900 dark:text-white">
                       {team.name}
@@ -582,6 +584,16 @@ export default function PlayerSeasonDashboard() {
     );
   };
 
+  const renderMedia = () => {
+    return (
+      <SeasonMediaTab
+        seasonId={seasonId}
+        seasonName={seasonData?.display_name || seasonData?.name || 'Season'}
+        canUpload={false}
+      />
+    );
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'overview':
@@ -592,6 +604,8 @@ export default function PlayerSeasonDashboard() {
         return renderStandings();
       case 'teams':
         return renderTeams();
+      case 'media':
+        return renderMedia();
       default:
         return null;
     }

@@ -24,13 +24,10 @@ export interface AuthValidationResult {
  */
 export async function validateAuthenticationState(): Promise<AuthValidationResult> {
   try {
-    console.log('🔍 Validating authentication state...');
-    
     // Step 1: Check if we have a session
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    
+
     if (sessionError) {
-      console.log('🔍 Session error:', sessionError.message);
       
       if (isInvalidJWTError(sessionError)) {
         return {
@@ -56,9 +53,8 @@ export async function validateAuthenticationState(): Promise<AuthValidationResul
         action: 'retry'
       };
     }
-    
+
     if (!session) {
-      console.log('🔍 No session found');
       return {
         isValid: false,
         status: 'no_session',
@@ -75,7 +71,6 @@ export async function validateAuthenticationState(): Promise<AuthValidationResul
     const expiresAt = session.expires_at || 0;
     
     if (expiresAt <= now) {
-      console.log('🔍 Token expired');
       return {
         isValid: false,
         status: 'expired',
@@ -106,8 +101,7 @@ export async function validateAuthenticationState(): Promise<AuthValidationResul
       
       if (!healthResponse.ok) {
         const healthData = await healthResponse.json();
-        console.log('🔍 Health check failed:', healthData.status);
-        
+
         return {
           isValid: false,
           status: healthData.status === 'INVALID_TOKEN' ? 'invalid_token' : 'validation_failed',
@@ -119,10 +113,9 @@ export async function validateAuthenticationState(): Promise<AuthValidationResul
           action: healthData.action === 'CLEAR_COOKIES_AND_REAUTH' ? 'clear_cookies' : 'retry'
         };
       }
-      
+
       const healthData = await healthResponse.json();
-      console.log('🔍 Authentication state is healthy');
-      
+
       return {
         isValid: true,
         status: 'healthy',

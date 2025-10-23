@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase/client';
 import SchedulingConfigPanel, { SchedulingConfig } from '@/components/SchedulingConfigPanel';
 import FixtureGenerationPanel from '@/components/FixtureGenerationPanel';
 import FixturePreviewModal from '@/components/FixturePreviewModal';
+import { SeasonMediaTab } from '@/components/media/season-media-tab';
 
 export default function AdminSeasonDashboard() {
   const params = useParams();
@@ -22,6 +23,8 @@ export default function AdminSeasonDashboard() {
   const [previewData, setPreviewData] = useState<any>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [schedulingConfig, setSchedulingConfig] = useState<SchedulingConfig | undefined>();
+  const [isLeagueOwner, setIsLeagueOwner] = useState(false);
+  const [checkingPermissions, setCheckingPermissions] = useState(true);
 
   const loadSeasonData = async () => {
     try {
@@ -65,9 +68,44 @@ export default function AdminSeasonDashboard() {
     }
   };
 
+  const checkLeagueOwnership = async () => {
+    try {
+      setCheckingPermissions(true);
+
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setIsLeagueOwner(false);
+        return;
+      }
+
+      // Fetch league data with created_by field
+      const { data: league, error } = await supabase
+        .from('leagues')
+        .select('created_by')
+        .eq('id', leagueId)
+        .single();
+
+      if (error) {
+        console.error('Failed to check league ownership:', error);
+        setIsLeagueOwner(false);
+        return;
+      }
+
+      // Check if current user is the league owner
+      setIsLeagueOwner(league?.created_by === user.id);
+    } catch (err) {
+      console.error('Error checking league ownership:', err);
+      setIsLeagueOwner(false);
+    } finally {
+      setCheckingPermissions(false);
+    }
+  };
+
   useEffect(() => {
     loadSeasonData();
     loadFixturesData();
+    checkLeagueOwnership();
   }, [leagueId, seasonId]);
 
   const handleFixturesGenerated = () => {
@@ -328,7 +366,7 @@ export default function AdminSeasonDashboard() {
         )}
 
         {/* Teams Section */}
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
+        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 mb-8">
           <h2 className="text-xl font-semibold text-white mb-4">Registered Teams</h2>
           {seasonData.teams && seasonData.teams.length > 0 ? (
             <div className="space-y-3">
@@ -367,6 +405,22 @@ export default function AdminSeasonDashboard() {
             <div className="text-center py-8 text-gray-400">
               <Users className="w-12 h-12 mx-auto mb-3 text-gray-600" />
               <p>No teams registered yet</p>
+            </div>
+          )}
+        </div>
+
+        {/* Media Section */}
+        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
+          <SeasonMediaTab
+            seasonId={seasonId}
+            seasonName={seasonData?.display_name || seasonData?.name || 'Season'}
+            canUpload={isLeagueOwner}
+          />
+          {!checkingPermissions && !isLeagueOwner && (
+            <div className="mt-4 p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
+              <p className="text-sm text-yellow-300">
+                Only the league owner can upload season media.
+              </p>
             </div>
           )}
         </div>

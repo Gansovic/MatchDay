@@ -1,19 +1,30 @@
 /**
  * User Service for MatchDay
- * 
+ *
  * Handles user profile operations with Supabase integration.
  * Provides CRUD operations for user profiles and related data.
  */
 
-import { supabase } from '@/lib/supabase/client';
+import { SupabaseClient } from '@supabase/supabase-js';
 import type { UserProfile, UpdateUserProfile, ServiceResponse } from '@matchday/database';
 
 export class UserService {
   private static instance: UserService;
-  
-  static getInstance(): UserService {
+  private supabase: SupabaseClient;
+
+  private constructor(supabaseClient: SupabaseClient) {
+    this.supabase = supabaseClient;
+  }
+
+  static getInstance(supabaseClient?: SupabaseClient): UserService {
     if (!UserService.instance) {
-      UserService.instance = new UserService();
+      if (!supabaseClient) {
+        throw new Error('SupabaseClient required for first initialization');
+      }
+      UserService.instance = new UserService(supabaseClient);
+    } else if (supabaseClient) {
+      // Update client for fresh auth context
+      UserService.instance.supabase = supabaseClient;
     }
     return UserService.instance;
   }
@@ -32,8 +43,8 @@ export class UserService {
         setTimeout(() => reject(new Error('getUserProfile request timed out after 10 seconds')), 10000)
       );
       
-      const queryPromise = supabase
-        .from('users')
+      const queryPromise = this.supabase
+        .from('user_profiles')
         .select('*')
         .eq('id', userId)
         .single();
@@ -83,9 +94,17 @@ export class UserService {
    * Update user profile
    */
   async updateUserProfile(userId: string, updates: UpdateUserProfile): Promise<ServiceResponse<UserProfile>> {
+    console.log('🔄 UserService.updateUserProfile called:', {
+      userId,
+      updates,
+      hasAvatarUrl: !!updates.avatar_url,
+      hasAvatarMediaId: !!updates.avatar_media_id
+    });
+
     try {
-      const { data, error } = await supabase
-        .from('users')
+      console.log('🔄 UserService - Executing update query on user_profiles table...');
+      const { data, error } = await this.supabase
+        .from('user_profiles')
         .update({
           ...updates,
           updated_at: new Date().toISOString()
@@ -94,18 +113,31 @@ export class UserService {
         .select('*')
         .single();
 
+      console.log('🔄 UserService - Update query response:', {
+        hasData: !!data,
+        error: error?.message,
+        errorCode: error?.code,
+        errorDetails: error?.details,
+        errorHint: error?.hint,
+        fullError: error,
+        updatedAvatarUrl: data?.avatar_url
+      });
+
       if (error) {
+        console.error('❌ UserService - Update failed. Full error object:', JSON.stringify(error, null, 2));
         return {
           data: null,
           error: {
-            code: 'UPDATE_FAILED',
-            message: error.message,
+            code: error.code || 'UPDATE_FAILED',
+            message: error.message || error.hint || 'Failed to update user profile',
+            details: error.details,
             timestamp: new Date().toISOString()
           },
           success: false
         };
       }
 
+      console.log('✅ UserService - Profile updated successfully');
       return {
         data: data,
         error: null,
@@ -113,6 +145,7 @@ export class UserService {
         message: 'Profile updated successfully'
       };
     } catch (error) {
+      console.error('❌ UserService - Unexpected error:', error);
       return {
         data: null,
         error: {
@@ -134,35 +167,57 @@ export class UserService {
     location?: string;
     bio?: string;
     date_of_birth?: string;
+    avatar_url?: string;
+    avatar_media_id?: string;
   }): Promise<ServiceResponse<UserProfile>> {
+    console.log('🆕 UserService.createUserProfile called:', {
+      userId,
+      hasAvatarUrl: !!profileData.avatar_url,
+      hasAvatarMediaId: !!profileData.avatar_media_id
+    });
+
     try {
-      const { data, error } = await supabase
-        .from('users')
+      const { data, error } = await this.supabase
+        .from('user_profiles')
         .insert({
           id: userId,
           display_name: profileData.display_name,
-          preferred_position: profileData.preferred_position,
-          location: profileData.location,
-          bio: profileData.bio,
-          date_of_birth: profileData.date_of_birth,
+          preferred_position: profileData.preferred_position || null,
+          location: profileData.location || null,
+          bio: profileData.bio || null,
+          date_of_birth: profileData.date_of_birth || null,
+          avatar_url: profileData.avatar_url || null,
+          avatar_media_id: profileData.avatar_media_id || null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
         .select('*')
         .single();
 
+      console.log('🆕 UserService - Insert response:', {
+        hasData: !!data,
+        error: error?.message,
+        errorCode: error?.code,
+        errorDetails: error?.details,
+        errorHint: error?.hint,
+        fullError: error
+      });
+
       if (error) {
+        console.error('❌ UserService - Profile creation failed. Full error:', JSON.stringify(error, null, 2));
         return {
           data: null,
           error: {
-            code: 'CREATE_FAILED',
-            message: error.message,
+            code: error.code || 'CREATE_FAILED',
+            message: error.message || error.hint || 'Failed to create profile',
+            details: error.details,
             timestamp: new Date().toISOString()
           },
           success: false
         };
       }
 
+      console.log('✅ UserService - Profile created successfully with avatar');
       return {
         data: data,
         error: null,
@@ -187,8 +242,8 @@ export class UserService {
    */
   async profileExists(userId: string): Promise<ServiceResponse<boolean>> {
     try {
-      const { data, error } = await supabase
-        .from('users')
+      const { data, error } = await this.supabase
+        .from('user_profiles')
         .select('id')
         .eq('id', userId)
         .maybeSingle();

@@ -22,7 +22,7 @@ export class UserService {
             // Add timeout handling
             const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('getUserProfile request timed out after 10 seconds')), 10000));
             const queryPromise = supabase
-                .from('users')
+                .from('user_profiles')
                 .select('*')
                 .eq('id', userId)
                 .single();
@@ -68,9 +68,16 @@ export class UserService {
      * Update user profile
      */
     async updateUserProfile(userId, updates) {
+        console.log('🔄 UserService.updateUserProfile called:', {
+            userId,
+            updates,
+            hasAvatarUrl: !!updates.avatar_url,
+            hasAvatarMediaId: !!updates.avatar_media_id
+        });
         try {
+            console.log('🔄 UserService - Executing update query on user_profiles table...');
             const { data, error } = await supabase
-                .from('users')
+                .from('user_profiles')
                 .update({
                 ...updates,
                 updated_at: new Date().toISOString()
@@ -78,17 +85,29 @@ export class UserService {
                 .eq('id', userId)
                 .select('*')
                 .single();
+            console.log('🔄 UserService - Update query response:', {
+                hasData: !!data,
+                error: error?.message,
+                errorCode: error?.code,
+                errorDetails: error?.details,
+                errorHint: error?.hint,
+                fullError: error,
+                updatedAvatarUrl: data?.avatar_url
+            });
             if (error) {
+                console.error('❌ UserService - Update failed. Full error object:', JSON.stringify(error, null, 2));
                 return {
                     data: null,
                     error: {
-                        code: 'UPDATE_FAILED',
-                        message: error.message,
+                        code: error.code || 'UPDATE_FAILED',
+                        message: error.message || error.hint || 'Failed to update user profile',
+                        details: error.details,
                         timestamp: new Date().toISOString()
                     },
                     success: false
                 };
             }
+            console.log('✅ UserService - Profile updated successfully');
             return {
                 data: data,
                 error: null,
@@ -97,6 +116,7 @@ export class UserService {
             };
         }
         catch (error) {
+            console.error('❌ UserService - Unexpected error:', error);
             return {
                 data: null,
                 error: {
@@ -112,32 +132,50 @@ export class UserService {
      * Create user profile (typically called during signup)
      */
     async createUserProfile(userId, profileData) {
+        console.log('🆕 UserService.createUserProfile called:', {
+            userId,
+            hasAvatarUrl: !!profileData.avatar_url,
+            hasAvatarMediaId: !!profileData.avatar_media_id
+        });
         try {
             const { data, error } = await supabase
-                .from('users')
+                .from('user_profiles')
                 .insert({
                 id: userId,
                 display_name: profileData.display_name,
-                preferred_position: profileData.preferred_position,
-                location: profileData.location,
-                bio: profileData.bio,
-                date_of_birth: profileData.date_of_birth,
+                preferred_position: profileData.preferred_position || null,
+                location: profileData.location || null,
+                bio: profileData.bio || null,
+                date_of_birth: profileData.date_of_birth || null,
+                avatar_url: profileData.avatar_url || null,
+                avatar_media_id: profileData.avatar_media_id || null,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             })
                 .select('*')
                 .single();
+            console.log('🆕 UserService - Insert response:', {
+                hasData: !!data,
+                error: error?.message,
+                errorCode: error?.code,
+                errorDetails: error?.details,
+                errorHint: error?.hint,
+                fullError: error
+            });
             if (error) {
+                console.error('❌ UserService - Profile creation failed. Full error:', JSON.stringify(error, null, 2));
                 return {
                     data: null,
                     error: {
-                        code: 'CREATE_FAILED',
-                        message: error.message,
+                        code: error.code || 'CREATE_FAILED',
+                        message: error.message || error.hint || 'Failed to create profile',
+                        details: error.details,
                         timestamp: new Date().toISOString()
                     },
                     success: false
                 };
             }
+            console.log('✅ UserService - Profile created successfully with avatar');
             return {
                 data: data,
                 error: null,
@@ -163,7 +201,7 @@ export class UserService {
     async profileExists(userId) {
         try {
             const { data, error } = await supabase
-                .from('users')
+                .from('user_profiles')
                 .select('id')
                 .eq('id', userId)
                 .maybeSingle();

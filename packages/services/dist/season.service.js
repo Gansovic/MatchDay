@@ -310,72 +310,66 @@ export class SeasonService {
         let gamesOnCurrentMatchday = 0;
         for (let i = 0; i < fixtures.length; i++) {
             const fixture = fixtures[i];
-            // Check if we need to move to next matchday
-            let needNewMatchday = gamesOnCurrentMatchday >= gamesPerMatchday;
-            // CRITICAL: Check if either team is already playing today
-            // This prevents teams from playing multiple matches on the same day
-            if (!needNewMatchday && (teamsPlayingToday.has(fixture.home_team_id) || teamsPlayingToday.has(fixture.away_team_id))) {
-                needNewMatchday = true;
-            }
-            // Check rest period if configured
-            if (!needNewMatchday && restWeeks > 0) {
-                const homeLastMatchday = teamLastMatchday.get(fixture.home_team_id) || 0;
-                const awayLastMatchday = teamLastMatchday.get(fixture.away_team_id) || 0;
-                const weeksSinceHome = matchdayNumber - homeLastMatchday;
-                const weeksSinceAway = matchdayNumber - awayLastMatchday;
-                if (weeksSinceHome < restWeeks || weeksSinceAway < restWeeks) {
-                    needNewMatchday = true;
-                }
-            }
-            // Move to next matchday if needed
-            if (needNewMatchday) {
-                matchdayNumber++;
+            // Check if either team is already playing on the current date
+            // OR if we've exceeded court capacity for this date
+            // If so, move to the next available date
+            while (teamsPlayingToday.has(fixture.home_team_id) ||
+                teamsPlayingToday.has(fixture.away_team_id) ||
+                gamesOnCurrentMatchday >= gamesPerMatchday) {
+                // Move to next matchday/date
                 dateIndex++;
-                courtNumber = 1;
+                matchdayNumber++;
                 gamesOnCurrentMatchday = 0;
-                // Clear teams playing today since we're starting a new matchday
                 teamsPlayingToday.clear();
                 if (dateIndex >= availableDates.length) {
-                    throw new Error(`Not enough ${matchDay}s to schedule all fixtures with rest period of ${restWeeks} weeks. ` +
-                        `Try extending the season, reducing rest weeks, or increasing courts/games per court.`);
+                    throw new Error(`Not enough ${matchDay}s in season to schedule all fixtures. ` +
+                        `Need more dates between ${season.start_date} and ${season.end_date}. ` +
+                        `Try extending the season or increasing courts/games per court.`);
                 }
-                // Re-check rest period for this fixture on new matchday
+                // Check rest period if configured
                 if (restWeeks > 0) {
                     const homeLastMatchday = teamLastMatchday.get(fixture.home_team_id) || 0;
                     const awayLastMatchday = teamLastMatchday.get(fixture.away_team_id) || 0;
                     const weeksSinceHome = matchdayNumber - homeLastMatchday;
                     const weeksSinceAway = matchdayNumber - awayLastMatchday;
+                    // If rest period not satisfied, skip ahead
                     if (weeksSinceHome < restWeeks || weeksSinceAway < restWeeks) {
-                        // Skip ahead until both teams have rested enough
                         const minMatchdayForHome = homeLastMatchday + restWeeks;
                         const minMatchdayForAway = awayLastMatchday + restWeeks;
                         const minMatchday = Math.max(minMatchdayForHome, minMatchdayForAway);
                         const matchdaysToSkip = minMatchday - matchdayNumber;
-                        dateIndex += matchdaysToSkip;
-                        matchdayNumber = minMatchday;
-                        if (dateIndex >= availableDates.length) {
-                            throw new Error(`Cannot schedule match: Team(s) cannot play their matches with ${restWeeks} weeks rest. ` +
-                                `Try extending the season or reducing rest weeks.`);
+                        if (matchdaysToSkip > 0) {
+                            dateIndex += matchdaysToSkip - 1; // -1 because loop will increment
+                            matchdayNumber = minMatchday - 1; // -1 because loop will increment
                         }
                     }
                 }
             }
             const matchDate = availableDates[dateIndex];
-            // Update team last played matchday
-            teamLastMatchday.set(fixture.home_team_id, matchdayNumber);
-            teamLastMatchday.set(fixture.away_team_id, matchdayNumber);
-            // Add teams to today's playing set
-            teamsPlayingToday.add(fixture.home_team_id);
-            teamsPlayingToday.add(fixture.away_team_id);
             // Calculate court number (cycle through available courts)
-            courtNumber = (gamesOnCurrentMatchday % courtsAvailable) + 1;
+            const courtNumber = (gamesOnCurrentMatchday % courtsAvailable) + 1;
+            // Calculate time slot based on which game this is on the court
+            // Games are sequential on the same court
+            // Example: If games_per_court = 2 and match starts at 19:00
+            //   - Games 0,1: Court 1&2 at 19:00 (first time slot)
+            //   - Games 2,3: Court 1&2 at 20:00 (second time slot)
+            const gameSlotOnCourt = Math.floor(gamesOnCurrentMatchday / courtsAvailable);
+            const [hours, minutes, seconds] = matchTime.split(':').map(Number);
+            const startTime = new Date();
+            startTime.setHours(hours + gameSlotOnCourt, minutes, seconds || 0);
+            const calculatedMatchTime = startTime.toTimeString().split(' ')[0]; // HH:MM:SS format
             fixturesWithDates.push({
                 ...fixture,
                 match_date: matchDate.toISOString().split('T')[0],
-                match_time: matchTime,
+                match_time: calculatedMatchTime,
                 court_number: courtNumber,
                 matchday_number: matchdayNumber
             });
+            // Update tracking
+            teamLastMatchday.set(fixture.home_team_id, matchdayNumber);
+            teamLastMatchday.set(fixture.away_team_id, matchdayNumber);
+            teamsPlayingToday.add(fixture.home_team_id);
+            teamsPlayingToday.add(fixture.away_team_id);
             gamesOnCurrentMatchday++;
         }
         return fixturesWithDates;
@@ -581,7 +575,9 @@ export class SeasonService {
     /**
      * Validate fixture constraints:
      * 1. No team plays more than once on the same matchday
-     * 2. All teams face each other exactly once per round
+     *
+     * Note: Courts can have multiple games on the same day at different times
+     * (e.g., games_per_court = 2 means 2 sequential time slots on same court)
      */
     validateFixtureConstraints(fixtures) {
         // Group fixtures by matchday
@@ -597,7 +593,8 @@ export class SeasonService {
             });
         }
         // Validate each matchday
-        for (const [matchdayNumber, matches] of matchdayMap.entries()) {
+        const matchdays = Array.from(matchdayMap.entries());
+        for (const [matchdayNumber, matches] of matchdays) {
             const teamsPlayingToday = new Set();
             for (const match of matches) {
                 // Check home team

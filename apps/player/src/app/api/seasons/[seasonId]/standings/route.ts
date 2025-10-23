@@ -16,6 +16,7 @@ interface TeamStats {
   team_id: string;
   team_name: string;
   team_color?: string;
+  logo_url?: string;
   played: number;
   won: number;
   drawn: number;
@@ -66,12 +67,14 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         home_team:teams!matches_home_team_id_fkey (
           id,
           name,
-          team_color
+          team_color,
+          logo_url
         ),
         away_team:teams!matches_away_team_id_fkey (
           id,
           name,
-          team_color
+          team_color,
+          logo_url
         )
       `)
       .eq('season_id', seasonId)
@@ -94,7 +97,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         team:teams (
           id,
           name,
-          team_color
+          team_color,
+          logo_url
         )
       `)
       .eq('season_id', seasonId)
@@ -117,6 +121,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
           team_id: st.team_id,
           team_name: st.team.name,
           team_color: st.team.team_color,
+          logo_url: st.team.logo_url,
           played: 0,
           won: 0,
           drawn: 0,

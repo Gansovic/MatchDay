@@ -13,6 +13,15 @@ const nextConfig: NextConfig = {
     "@matchday/auth",
     "@matchday/shared",
   ],
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'twkipeacdamypppxmmhe.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+    ],
+  },
 };
 
 export default nextConfig;

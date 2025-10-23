@@ -84,11 +84,13 @@ export interface Match {
     id: string;
     name: string;
     team_color?: string;
+    logo_url?: string;
   };
   away_team?: {
     id: string;
     name: string;
     team_color?: string;
+    logo_url?: string;
   };
 }
 
@@ -638,12 +640,14 @@ export class SeasonService {
           home_team:teams!matches_home_team_id_fkey (
             id,
             name,
-            team_color
+            team_color,
+            logo_url
           ),
           away_team:teams!matches_away_team_id_fkey (
             id,
             name,
-            team_color
+            team_color,
+            logo_url
           )
         `);
 
@@ -698,12 +702,14 @@ export class SeasonService {
           home_team:teams!matches_home_team_id_fkey (
             id,
             name,
-            team_color
+            team_color,
+            logo_url
           ),
           away_team:teams!matches_away_team_id_fkey (
             id,
             name,
-            team_color
+            team_color,
+            logo_url
           )
         `)
         .eq('season_id', seasonId)

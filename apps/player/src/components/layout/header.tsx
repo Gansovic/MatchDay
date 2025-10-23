@@ -22,10 +22,6 @@ export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
   const router = useRouter();
   const { user, isLoading, signOut, forceSignOut } = useAuth();
 
-  // Debug logging for auth state
-  console.log('🎨 Header render - Loading:', isLoading, 'User:', user?.email || 'null', 'Will show:', 
-    isLoading ? 'loading' : user ? 'logout button' : 'login button');
-
   const navItems = [
     { href: '/dashboard', label: 'My Dashboard', icon: '📊' },
     { href: '/leagues', label: 'Leagues', icon: '🏆' },
@@ -47,11 +43,9 @@ export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
 
   const handleLogout = async () => {
     try {
-      console.log('🎨 Header: Starting logout...');
       const result = await signOut();
-      
+
       if (result.success) {
-        console.log('🎨 Header: Logout succeeded, redirecting...');
         // Only redirect if logout actually succeeded
         if (typeof window !== 'undefined') {
           window.location.href = '/';
@@ -60,19 +54,17 @@ export const Header: React.FC<HeaderProps> = ({ className = '' }) => {
         }
       } else {
         console.error('🎨 Header: Logout failed:', result.error);
-        
+
         // If logout failed due to network issues, offer force logout
         if (result.canForceLogout) {
           const forceLogout = confirm(
             `${result.error}\n\nWould you like to force logout? This will clear your local session but the server session may remain active.`
           );
-          
+
           if (forceLogout) {
-            console.log('🎨 Header: User chose force logout');
             const forceResult = await forceSignOut();
-            
+
             if (forceResult.success) {
-              console.log('🎨 Header: Force logout succeeded');
               if (forceResult.error) {
                 // Show warning about potential server session
                 alert(`Force logout completed. ${forceResult.error}`);

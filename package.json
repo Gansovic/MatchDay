@@ -12,8 +12,14 @@
     "build:admin": "pnpm --filter \"@matchday/admin\" build",
     "lint": "pnpm --filter \"@matchday/player\" --filter \"@matchday/admin\" lint",
     "type-check": "pnpm --filter \"@matchday/player\" --filter \"@matchday/admin\" type-check",
-    "test": "pnpm --filter \"@matchday/player\" test",
-    "clean": "pnpm --recursive exec rm -rf node_modules .next dist build",
+    "test": "jest",
+    "test:unit": "jest tests/unit",
+    "test:integration": "jest tests/integration",
+    "test:coverage": "jest --coverage",
+    "test:coverage:view": "jest --coverage && open coverage/lcov-report/index.html",
+    "test:watch": "jest --watch",
+    "test:ci": "jest --ci --coverage --maxWorkers=2",
+    "clean": "pnpm --recursive exec rm -rf node_modules .next dist build coverage",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\""
   },
   "devDependencies": {

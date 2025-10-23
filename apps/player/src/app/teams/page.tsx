@@ -13,6 +13,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { useAuth } from '@/components/auth/supabase-auth-provider';
 import DevAuthHelper from './dev-auth-helper';
 import { supabase, clearAuthCookies } from '@/lib/supabase/client';
@@ -33,6 +34,7 @@ import {
   Check,
   Palette
 } from 'lucide-react';
+import { TeamLogo } from '@/components/common/team-logo';
 
 interface Team {
   id: string;
@@ -130,26 +132,10 @@ export default function TeamsPage() {
   useEffect(() => {
     const loadTeams = async () => {
       try {
-        console.log('🚀 Starting loadTeams function...');
-        console.log('🧪 Current user:', user);
-        console.log('🧪 Is loading:', isLoading);
-        
-        // Check if user is authenticated
-        console.log('🔍 Session result:', { 
-          hasSession: !!session, 
-          hasAccessToken: !!session?.access_token,
-          hasUser: !!session?.user,
-          userEmail: session?.user?.email 
-        });
-        
         if (!session?.access_token) {
-          console.log('❌ No authentication session found');
           setMyTeams([]);
           return;
         }
-        
-        console.log('🔑 Found session, loading teams for user:', session.user?.email);
-        console.log('🔑 Access token preview:', session.access_token?.substring(0, 50) + '...');
 
         const response = await fetch('/api/teams', {
           credentials: 'include', // Include cookies
@@ -164,7 +150,6 @@ export default function TeamsPage() {
           
           // Handle authentication errors specifically
           if (response.status === 401) {
-            console.log('🚨 Authentication failed - setting auth error state');
             setAuthError('Authentication failed. Please sign in again.');
             setMyTeams([]);
             return;
@@ -174,15 +159,9 @@ export default function TeamsPage() {
         }
 
         const result = await response.json();
-        console.log('✅ API call succeeded with auth:', result);
-        console.log('🔍 Authenticated API result.data type:', typeof result.data);
-        console.log('🔍 Authenticated API result.data length:', result.data?.length);
-        console.log('🔍 Authenticated API result.data contents:', JSON.stringify(result.data, null, 2));
-        
+
         // Convert API response to local Team format (if any teams exist)
         const teams: Team[] = (result.data || []).map((teamData: any) => {
-          console.log('🔍 Processing authenticated team data:', JSON.stringify(teamData, null, 2));
-
           // Transform team_stats from database format to UI format
           const stats = teamData.stats ? {
             wins: teamData.stats.wins || 0,
@@ -212,6 +191,7 @@ export default function TeamsPage() {
             id: teamData.id,
             name: teamData.name,
             league: teamData.league?.name || 'Independent',
+            logo: teamData.logo_url,
             position: userPosition,
             isCaptain: isCaptain,
             memberCount: teamData.current_members || teamData.memberCount || 0,
@@ -219,15 +199,11 @@ export default function TeamsPage() {
             location: teamData.location || 'TBD',
             description: teamData.description || '',
             stats,
-            color: teamData.color || '#2563eb'
+            color: teamData.team_color || '#2563eb'
           };
         });
 
-        console.log('🎯 Final authenticated mapped teams array:', JSON.stringify(teams, null, 2));
-        console.log('🎯 Final authenticated teams array length:', teams.length);
-
         setMyTeams(teams);
-        console.log('🎯 Authenticated setMyTeams called with:', teams.length, 'teams');
         
         // Clear auth error and retry count on successful load
         setAuthError(null);
@@ -255,14 +231,6 @@ export default function TeamsPage() {
       setRetryCount(0);
     }
   }, [user, session, authError, retryCount]);
-
-  // Debug: Log whenever myTeams state changes
-  useEffect(() => {
-    console.log('🔄 myTeams state changed:', {
-      length: myTeams.length,
-      teams: myTeams.map(t => ({ id: t.id, name: t.name }))
-    });
-  }, [myTeams]);
 
   // Authentication redirect effect
   useEffect(() => {
@@ -372,20 +340,8 @@ export default function TeamsPage() {
 
   // Load discover teams when discover tab is active
   useEffect(() => {
-    console.log('🔄🔍 DISCOVER TEAMS USEEFFECT TRIGGERED:', { 
-      activeTab, 
-      hasSession: !!session?.access_token,
-      hasLoadFunction: !!loadDiscoverTeams 
-    });
-    
     if (activeTab === 'discover' && session?.access_token) {
-      console.log('✅🔍 CONDITIONS MET - CALLING loadDiscoverTeams');
       loadDiscoverTeams();
-    } else {
-      console.log('❌🔍 CONDITIONS NOT MET for loadDiscoverTeams:', {
-        isDiscoverTab: activeTab === 'discover',
-        hasAccessToken: !!session?.access_token
-      });
     }
   }, [activeTab, session?.access_token, loadDiscoverTeams]);
 
@@ -772,12 +728,13 @@ export default function TeamsPage() {
                     {/* Team Header */}
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center gap-3">
-                        <div 
-                          className={`w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-lg ${getColorDisplay(team.color).className}`}
-                          style={getColorDisplay(team.color).style}
-                        >
-                          {team.name.charAt(0)}
-                        </div>
+                        <TeamLogo
+                          name={team.name}
+                          logoUrl={team.logo}
+                          color={team.color}
+                          size="lg"
+                          className="w-12 h-12 rounded-lg"
+                        />
                         <div>
                           <h3 className="font-bold text-gray-900 dark:text-white text-lg">
                             {team.name}
@@ -910,12 +867,13 @@ export default function TeamsPage() {
                   <div key={team.id} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-lg transition-shadow">
                     {/* Team Header */}
                     <div className="flex items-center gap-3 mb-4">
-                      <div 
-                        className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold ${getColorDisplay(team.team_color).className}`}
-                        style={getColorDisplay(team.team_color).style}
-                      >
-                        {team.name.charAt(0)}
-                      </div>
+                      <TeamLogo
+                        name={team.name}
+                        logoUrl={team.logo_url}
+                        color={team.team_color}
+                        size="lg"
+                        className="w-10 h-10 rounded-lg"
+                      />
                       <div>
                         <h3 className="font-bold text-gray-900 dark:text-white">
                           {team.name}

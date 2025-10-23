@@ -9,10 +9,10 @@
  * - Database schema validation
  */
 
-import { 
-  createTestClient, 
-  createTestUser, 
-  createTestLeague, 
+import {
+  createTestClient,
+  createTestUser,
+  createTestLeague,
   createTestTeam,
   addTeamMember,
   cleanupTestData,
@@ -22,9 +22,9 @@ import {
   TestUser,
   TestLeague,
   TestTeam
-} from '@tests/utils/database-test-utils';
+} from '../utils/database-test-utils';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Database } from '@/lib/types/database.types';
+import { Database } from '../../apps/player/src/lib/types/database.types';
 
 describe('Database Integrity Integration Tests', () => {
   let supabase: SupabaseClient<Database>;

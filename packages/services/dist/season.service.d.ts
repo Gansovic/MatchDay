@@ -151,7 +151,9 @@ export declare class SeasonService {
     /**
      * Validate fixture constraints:
      * 1. No team plays more than once on the same matchday
-     * 2. All teams face each other exactly once per round
+     *
+     * Note: Courts can have multiple games on the same day at different times
+     * (e.g., games_per_court = 2 means 2 sequential time slots on same court)
      */
     private validateFixtureConstraints;
     /**

@@ -38,6 +38,7 @@ import { useRealtimeLeagueDetail, usePageVisibility } from '@/lib/hooks/use-real
 import SeasonManagement from '@/components/leagues/season-management';
 import { CreateSeasonModal } from '@/components/seasons/CreateSeasonModal';
 import { LeagueSettingsModal } from '@/components/leagues/LeagueSettingsModal';
+import { CreateTeamModal } from '@/components/teams/CreateTeamModal';
 
 interface LeagueDashboardPageProps {
   params: Promise<{
@@ -53,6 +54,7 @@ export default function LeagueDashboardPage({ params }: LeagueDashboardPageProps
   const [success, setSuccess] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showCreateSeasonModal, setShowCreateSeasonModal] = useState(false);
+  const [showCreateTeamModal, setShowCreateTeamModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   // Real-time league data with connection status
@@ -360,7 +362,10 @@ export default function LeagueDashboardPage({ params }: LeagueDashboardPageProps
               <h2 className="text-xl font-semibold text-white">
                 Teams ({leagueData.teams.length})
               </h2>
-              <button className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors">
+              <button
+                onClick={() => setShowCreateTeamModal(true)}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors"
+              >
                 <Plus className="w-4 h-4 inline mr-2" />
                 Add Team
               </button>
@@ -527,6 +532,22 @@ export default function LeagueDashboardPage({ params }: LeagueDashboardPageProps
             forceRefresh();
           }}
           selectedLeagueId={leagueId}
+        />
+      )}
+
+      {/* Create Team Modal */}
+      {showCreateTeamModal && (
+        <CreateTeamModal
+          isOpen={showCreateTeamModal}
+          onClose={() => setShowCreateTeamModal(false)}
+          onTeamCreated={() => {
+            setShowCreateTeamModal(false);
+            setSuccess('Team created successfully!');
+            setTimeout(() => setSuccess(null), 5000);
+            forceRefresh();
+          }}
+          leagueId={leagueId}
+          leagueName={leagueData.league.name}
         />
       )}
 

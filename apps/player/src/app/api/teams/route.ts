@@ -129,17 +129,19 @@ export async function GET(request: NextRequest) {
     const teams = result.data.map(team => ({
       id: team.id,
       name: team.name,
-      league: { 
-        name: team.league?.name || 'Independent', 
-        id: team.league?.id || null 
+      league: {
+        name: team.league?.name || 'Independent',
+        id: team.league?.id || null
       },
       sport: 'football',
-      max_players: team.maxPlayers || 22,
+      max_players: team.max_players || 22,
       current_members: team.memberCount || 0,
-      team_color: team.teamColor,
-      team_bio: team.teamBio,
-      created_at: team.createdAt,
-      captain_id: team.captainId,
+      team_color: team.team_color,
+      team_bio: team.team_bio,
+      logo_url: team.logo_url,
+      logo_media_id: team.logo_media_id,
+      created_at: team.created_at,
+      captain_id: team.captain_id,
       memberCount: team.memberCount || 0,
       stats: team.stats || null
     }));

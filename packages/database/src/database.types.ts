@@ -48,6 +48,7 @@ export interface Database {
           full_name: string | null;
           display_name: string | null;
           avatar_url: string | null;
+          avatar_media_id: string | null;
           bio: string | null;
           phone: string | null;
           date_of_birth: string | null;
@@ -62,6 +63,7 @@ export interface Database {
           full_name?: string | null;
           display_name?: string | null;
           avatar_url?: string | null;
+          avatar_media_id?: string | null;
           bio?: string | null;
           phone?: string | null;
           date_of_birth?: string | null;
@@ -76,6 +78,7 @@ export interface Database {
           full_name?: string | null;
           display_name?: string | null;
           avatar_url?: string | null;
+          avatar_media_id?: string | null;
           bio?: string | null;
           phone?: string | null;
           date_of_birth?: string | null;
@@ -149,13 +152,14 @@ export interface Database {
       teams: {
         Row: {
           id: string;
-          /** 
+          /**
            * Direct reference to the league this team belongs to.
            * Required - each team must belong to exactly one league.
            */
           league_id: string;
           name: string;
           logo_url: string | null;
+          logo_media_id: string | null;
           team_color: string | null;
           captain_id: string | null;
           max_players: number | null;
@@ -173,6 +177,7 @@ export interface Database {
           league_id: string;
           name: string;
           logo_url?: string | null;
+          logo_media_id?: string | null;
           team_color?: string | null;
           captain_id?: string | null;
           max_players?: number | null;
@@ -190,6 +195,7 @@ export interface Database {
           league_id?: string;
           name?: string;
           logo_url?: string | null;
+          logo_media_id?: string | null;
           team_color?: string | null;
           captain_id?: string | null;
           max_players?: number | null;
@@ -538,6 +544,68 @@ export interface Database {
           updated_by?: string | null;
         };
       };
+      media: {
+        Row: {
+          id: string;
+          filename: string;
+          original_filename: string;
+          file_size: number;
+          mime_type: string;
+          storage_path: string;
+          media_type: 'image' | 'video';
+          context_type: 'team_logo' | 'user_profile' | 'league_sponsor' | 'team_media' | 'season_media';
+          uploaded_by: string | null;
+          team_id: string | null;
+          league_id: string | null;
+          season_id: string | null;
+          is_public: boolean;
+          tags: string[];
+          description: string | null;
+          metadata: Record<string, any>;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          filename: string;
+          original_filename: string;
+          file_size: number;
+          mime_type: string;
+          storage_path: string;
+          media_type: 'image' | 'video';
+          context_type: 'team_logo' | 'user_profile' | 'league_sponsor' | 'team_media' | 'season_media';
+          uploaded_by?: string | null;
+          team_id?: string | null;
+          league_id?: string | null;
+          season_id?: string | null;
+          is_public?: boolean;
+          tags?: string[];
+          description?: string | null;
+          metadata?: Record<string, any>;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          filename?: string;
+          original_filename?: string;
+          file_size?: number;
+          mime_type?: string;
+          storage_path?: string;
+          media_type?: 'image' | 'video';
+          context_type?: 'team_logo' | 'user_profile' | 'league_sponsor' | 'team_media' | 'season_media';
+          uploaded_by?: string | null;
+          team_id?: string | null;
+          league_id?: string | null;
+          season_id?: string | null;
+          is_public?: boolean;
+          tags?: string[];
+          description?: string | null;
+          metadata?: Record<string, any>;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {
       league_standings: {
@@ -658,11 +726,13 @@ export type Achievement = Database['public']['Tables']['achievements']['Row'];
 export type UserAchievement = Database['public']['Tables']['user_achievements']['Row'];
 export type TeamJoinRequest = Database['public']['Tables']['team_join_requests']['Row'];
 export type AppConfiguration = Database['public']['Tables']['app_configurations']['Row'];
+export type Media = Database['public']['Tables']['media']['Row'];
 
 // Insert types
 export type InsertLeague = Database['public']['Tables']['leagues']['Insert'];
 export type InsertTeam = Database['public']['Tables']['teams']['Insert'];
 export type InsertMatch = Database['public']['Tables']['matches']['Insert'];
+export type InsertMedia = Database['public']['Tables']['media']['Insert'];
 
 // Update types
 export type UpdateLeague = Database['public']['Tables']['leagues']['Update'];
@@ -670,6 +740,7 @@ export type UpdateTeam = Database['public']['Tables']['teams']['Update'];
 export type UpdateMatch = Database['public']['Tables']['matches']['Update'];
 export type UpdateUserProfile = Database['public']['Tables']['user_profiles']['Update'];
 export type UpdatePlayerStats = Database['public']['Tables']['player_stats']['Update'];
+export type UpdateMedia = Database['public']['Tables']['media']['Update'];
 
 // View types
 export type LeagueStanding = Database['public']['Views']['league_standings']['Row'];
@@ -1403,4 +1474,54 @@ export interface FixtureGenerationLog {
   duration_seconds?: number;
   triggered_by?: string;
   metadata: Record<string, any>;
+}
+// ===================================================================
+// MEDIA MANAGEMENT TYPES
+// ===================================================================
+
+export type MediaType = 'image' | 'video';
+export type MediaContextType = 'team_logo' | 'user_profile' | 'league_sponsor' | 'team_media' | 'season_media';
+
+/**
+ * Media with public URL included (for displaying in UI)
+ */
+export interface MediaWithUrl extends Media {
+  url: string;
+  thumbnail_url?: string;
+}
+
+/**
+ * Options for uploading media
+ */
+export interface MediaUploadOptions {
+  context_type: MediaContextType;
+  team_id?: string;
+  league_id?: string;
+  season_id?: string;
+  is_public?: boolean;
+  tags?: string[];
+  description?: string;
+}
+
+/**
+ * Filters for querying media
+ */
+export interface MediaFilters {
+  team_id?: string;
+  league_id?: string;
+  season_id?: string;
+  context_type?: MediaContextType;
+  media_type?: MediaType;
+  tags?: string[];
+  is_public?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
+/**
+ * Result of media upload operation
+ */
+export interface MediaUploadResult {
+  media: MediaWithUrl;
+  storageUrl: string;
 }

@@ -8,8 +8,6 @@
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
-    "test": "jest",
-    "test:watch": "jest --watch",
     "lint:fix": "next lint --fix",
     "format": "prettier --write ."
   },
@@ -33,6 +31,7 @@
     "pg": "^8.16.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-easy-crop": "^5.5.3",
     "react-hook-form": "^7.54.0",
     "recharts": "^3.2.1",
     "tailwind-merge": "^3.3.1",

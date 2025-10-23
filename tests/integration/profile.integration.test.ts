@@ -10,16 +10,16 @@
  */
 
 import { NextRequest } from 'next/server';
-import { GET, PUT, PATCH } from '../../src/app/api/profile/route';
-import { 
-  createTestClient, 
-  createTestUser, 
+import { GET, PUT, PATCH } from '../../apps/player/src/app/api/profile/route';
+import {
+  createTestClient,
+  createTestUser,
   cleanupTestData,
   generateTestName,
   TestUser
-} from '@tests/utils/database-test-utils';
+} from '../utils/database-test-utils';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Database } from '@/lib/types/database.types';
+import { Database } from '../../apps/player/src/lib/types/database.types';
 
 describe('Profile API Integration Tests', () => {
   let supabase: SupabaseClient<Database>;

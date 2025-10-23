@@ -10,20 +10,20 @@
  */
 
 import { NextRequest } from 'next/server';
-import { POST, GET } from '../../src/app/api/teams/route';
-import { 
-  createTestClient, 
-  createTestUser, 
-  createTestLeague, 
+import { POST, GET } from '../../apps/player/src/app/api/teams/route';
+import {
+  createTestClient,
+  createTestUser,
+  createTestLeague,
   cleanupTestData,
   generateTestName,
   verifyTeamExists,
   verifyTeamMemberExists,
   TestUser,
   TestLeague
-} from '@tests/utils/database-test-utils';
+} from '../utils/database-test-utils';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Database } from '@/lib/types/database.types';
+import { Database } from '../../apps/player/src/lib/types/database.types';
 
 describe('Teams API Integration Tests', () => {
   let supabase: SupabaseClient<Database>;

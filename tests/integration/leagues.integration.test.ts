@@ -8,7 +8,7 @@
  */
 
 import { NextRequest } from 'next/server';
-import { GET } from '../../src/app/api/leagues/route';
+import { GET } from '../../apps/player/src/app/api/leagues/route';
 
 describe('Leagues API Integration Tests', () => {
   describe('GET /api/leagues - League Retrieval', () => {

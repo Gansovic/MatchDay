@@ -85,9 +85,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Atomic state update function
   const updateAuthState = useCallback(async (validation: AuthValidationResult) => {
     if (!mounted.current) return
-    
-    console.log('🔄 Updating auth state:', validation.status)
-    
+
     setAuthState({
       user: validation.user,
       session: validation.session,
@@ -135,18 +133,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     mounted.current = true
     
     const initializeAuth = async () => {
-      console.log('🚀 Initializing robust authentication...')
       await validateAuth()
     }
-    
+
     initializeAuth()
-    
+
     // Listen for auth state changes from Supabase
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted.current) return
-      
-      console.log('🔑 Auth event:', event, !!session)
-      
+
       // Re-validate after any auth state change
       setTimeout(() => validateAuth(), 100)
     })

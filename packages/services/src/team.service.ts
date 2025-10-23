@@ -510,8 +510,6 @@ export class TeamService {
         return { data: cached, error: null, success: true };
       }
 
-      console.log('🔍 TeamService.getUserTeams - Querying for user:', userId);
-
       let memberQuery = this.supabase
         .from('team_members')
         .select(`
@@ -527,23 +525,13 @@ export class TeamService {
         memberQuery = memberQuery.eq('is_active', true);
       }
 
-      console.log('🔍 TeamService.getUserTeams - Executing query...');
       const { data: memberships, error: memberError } = await memberQuery
         .order('joined_at', { ascending: false })
         .limit(options.limit || 50);
 
-      console.log('🔍 TeamService.getUserTeams - Query result:', {
-        membershipsCount: memberships?.length || 0,
-        error: memberError?.message || null,
-        memberships: memberships
-      });
-
       if (memberError) throw memberError;
 
       // PERFORMANCE OPTIMIZATION: Use embedded team data directly instead of expensive getTeamDetails calls
-      console.log('🔍 TeamService.getUserTeams - Processing', memberships?.length || 0, 'memberships');
-      console.log('🚀 OPTIMIZATION: Using embedded team data to eliminate N+1 query problem');
-
       // Batch fetch team stats for all teams (single query)
       const teamIds = (memberships || [])
         .filter(m => m.team)
@@ -579,16 +567,8 @@ export class TeamService {
         }
       }
 
-      const teams = (memberships || []).map((membership, index) => {
-        console.log(`🔍 TeamService.getUserTeams - Processing membership ${index + 1}:`, {
-          teamId: membership.team_id,
-          position: membership.position,
-          hasEmbeddedTeam: !!membership.team,
-          teamName: membership.team?.name
-        });
-
+      const teams = (memberships || []).map((membership) => {
         if (!membership.team) {
-          console.warn(`⚠️ No embedded team data for membership ${membership.team_id}`);
           return null;
         }
 
@@ -602,8 +582,10 @@ export class TeamService {
           name: membership.team.name,
           description: membership.team.description || '',
           team_color: membership.team.team_color,
-          max_players: membership.team.max_players || 22,
           team_bio: membership.team.team_bio || '',
+          max_players: membership.team.max_players || 22,
+          logo_url: membership.team.logo_url,
+          logo_media_id: membership.team.logo_media_id,
           captain_id: membership.team.captain_id,
           league_id: membership.team.league_id,
           is_active: membership.team.is_active ?? true,
@@ -627,25 +609,13 @@ export class TeamService {
           joinRequests: undefined
         };
 
-        console.log(`✅ Created optimized team data for ${membership.team.name} (batch stats fetched)`);
         return teamWithDetails;
       });
-      console.log('🔍 TeamService.getUserTeams - Team processing results:', {
-        totalTeams: teams.length,
-        validTeams: teams.filter(t => t !== null).length,
-        nullTeams: teams.filter(t => t === null).length
-      });
-      
+
       const validTeams = teams.filter((team): team is TeamWithDetails => team !== null);
 
       // Cache for 5 minutes
       this.setCache(cacheKey, validTeams, 300);
-
-      console.log('🎯 TeamService.getUserTeams - Final result:', {
-        success: true,
-        teamsCount: validTeams.length,
-        teamNames: validTeams.map(t => t.name)
-      });
 
       return { data: validTeams, error: null, success: true };
 

@@ -13,12 +13,13 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useParams } from 'next/navigation';
-import { 
+import {
   ArrowLeft,
-  Users, 
-  Calendar, 
-  MapPin, 
+  Users,
+  Calendar,
+  MapPin,
   Settings,
   Crown,
   Target,
@@ -31,13 +32,16 @@ import {
   MoreVertical,
   AlertCircle,
   Loader2,
-  Send
+  Send,
+  Camera
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/supabase-auth-provider';
 import { TeamMemberManagement } from '@/components/teams/team-member-management';
 import { EnhancedTeamInviteModal } from '@/components/teams/EnhancedTeamInviteModal';
 import { TeamStatsOverview } from '@/components/teams/team-stats-overview';
 import { TeamMatchesOverview } from '@/components/teams/team-matches-overview';
+import { TeamSettingsModal } from '@/components/teams/TeamSettingsModal';
+import { TeamMediaTab } from '@/components/teams/team-media-tab';
 import { Database } from '@matchday/database';
 
 interface Match {
@@ -129,8 +133,9 @@ const getLeagueId = (leagueName: string): string => {
 export default function TeamDashboard() {
   const params = useParams();
   const teamId = params.teamId as string;
-  const [activeTab, setActiveTab] = useState<'overview' | 'roster' | 'matches'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'roster' | 'matches' | 'media'>('overview');
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const { user, isLoading: authLoading } = useAuth();
   
   // State for real data
@@ -152,6 +157,12 @@ export default function TeamDashboard() {
         }
         const teamData = await teamResponse.json();
         const apiTeam = teamData.data;
+        console.log('🏆 Team API Response:', {
+          hasLogoUrl: !!apiTeam.logo_url,
+          logoUrl: apiTeam.logo_url,
+          teamColor: apiTeam.team_color,
+          teamBio: apiTeam.team_bio
+        });
 
         // Fetch team members data
         const membersResponse = await fetch(`/api/teams/${teamId}/members`);
@@ -179,8 +190,9 @@ export default function TeamDashboard() {
           name: apiTeam.name,
           league: apiTeam.league?.name || 'Independent',
           leagues: apiTeam.leagues || [],
-          color: apiTeam.color,
-          description: apiTeam.description || 'A competitive football team focused on teamwork and excellence.',
+          logo: apiTeam.logo_url,
+          color: apiTeam.team_color || '#3b82f6',
+          description: apiTeam.team_bio || 'A competitive football team focused on teamwork and excellence.',
           founded: apiTeam.founded,
           location: apiTeam.location,
           memberCount: apiTeam.memberCount,
@@ -193,6 +205,13 @@ export default function TeamDashboard() {
           recentMatches: apiTeam.recentMatches || [],
           upcomingMatches: apiTeam.upcomingMatches || []
         };
+
+        console.log('🏆 Display Team Object:', {
+          teamName: displayTeam.name,
+          hasLogo: !!displayTeam.logo,
+          logoUrl: displayTeam.logo,
+          logoLength: displayTeam.logo?.length
+        });
 
         setTeam(displayTeam);
       } catch (err) {
@@ -306,8 +325,18 @@ export default function TeamDashboard() {
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-8">
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center gap-4">
-              <div className={`w-16 h-16 ${team.color} rounded-lg flex items-center justify-center text-white font-bold text-2xl`}>
-                {team.name.charAt(0)}
+              <div className={`w-16 h-16 rounded-lg ${!team.logo ? team.color : 'bg-white dark:bg-gray-700'} flex items-center justify-center overflow-hidden border-2 border-gray-200 dark:border-gray-600`}>
+                {team.logo ? (
+                  <Image
+                    src={team.logo}
+                    alt={`${team.name} logo`}
+                    width={64}
+                    height={64}
+                    className="object-contain p-1"
+                  />
+                ) : (
+                  <span className="text-white font-bold text-2xl">{team.name.charAt(0)}</span>
+                )}
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
@@ -349,7 +378,11 @@ export default function TeamDashboard() {
                       <Send className="w-4 h-4" />
                       Invite Player
                     </button>
-                    <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    <button
+                      onClick={() => setShowSettingsModal(true)}
+                      className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                      title="Team Settings"
+                    >
                       <Settings className="w-5 h-5" />
                     </button>
                   </>
@@ -430,6 +463,19 @@ export default function TeamDashboard() {
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4" />
                     Matches
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveTab('media')}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    activeTab === 'media'
+                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Camera className="w-4 h-4" />
+                    Media
                   </div>
                 </button>
               </nav>
@@ -556,6 +602,14 @@ export default function TeamDashboard() {
           <TeamMatchesOverview teamId={teamId} teamName={team.name} />
         )}
 
+        {activeTab === 'media' && (
+          <TeamMediaTab
+            teamId={teamId}
+            teamName={team.name}
+            canUpload={team.isUserCaptain}
+          />
+        )}
+
         {/* Team Invite Modal */}
         <EnhancedTeamInviteModal
           isOpen={showInviteModal}
@@ -567,6 +621,28 @@ export default function TeamDashboard() {
             setShowInviteModal(false);
           }}
         />
+
+        {/* Team Settings Modal */}
+        {showSettingsModal && (
+          <TeamSettingsModal
+            isOpen={showSettingsModal}
+            onClose={() => setShowSettingsModal(false)}
+            team={{
+              id: team.id,
+              name: team.name,
+              logo_url: team.logo,
+              team_color: team.color,
+              team_bio: team.description,
+              max_players: team.maxMembers
+            }}
+            onSuccess={(updatedTeam) => {
+              console.log('Team updated:', updatedTeam);
+              setShowSettingsModal(false);
+              // Reload team data
+              window.location.reload();
+            }}
+          />
+        )}
       </div>
     </div>
   );

@@ -52,7 +52,7 @@ export default function DashboardPage() {
     if (user?.id) {
       const fetchUserProfile = async () => {
         const { data } = await supabase
-          .from('users')
+          .from('user_profiles')
           .select('display_name, preferred_position, location, avatar_url')
           .eq('id', user.id)
           .single();
@@ -63,6 +63,19 @@ export default function DashboardPage() {
       };
 
       fetchUserProfile();
+
+      // Refetch profile when page becomes visible
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          fetchUserProfile();
+        }
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
     }
   }, [user?.id]);
 

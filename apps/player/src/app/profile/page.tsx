@@ -24,6 +24,7 @@ import {
 import { useAuth } from '@/components/auth/supabase-auth-provider';
 import { UserService } from '@matchday/services';
 import type { UserProfile } from '@matchday/database';
+import { ProfilePhotoUpload } from '@/components/media/profile-photo-upload';
 
 interface ProfileFormData {
   display_name: string;
@@ -136,26 +137,18 @@ export default function ProfileSettingsPage() {
       hasUser: !!user,
       userId: user?.id,
       userEmail: user?.email,
-      isLoading,
       timestamp: new Date().toISOString()
     });
 
-    if (!authLoading && user?.id && !isLoading) {
+    if (!authLoading && user?.id) {
       console.log('✅ Profile - calling loadUserProfile for user:', user.id);
       loadUserProfile();
     } else if (!authLoading && !user) {
       console.log('❌ Profile - no user found, setting error state');
       setError('Please sign in to view your profile');
       setIsLoading(false);
-    } else {
-      console.log('⏳ Profile - still loading auth state or profile already loading:', { 
-        authLoading, 
-        hasUser: !!user, 
-        userId: user?.id,
-        profileIsLoading: isLoading 
-      });
     }
-  }, [user?.id, authLoading, loadUserProfile, isLoading]);
+  }, [user?.id, authLoading, loadUserProfile]);
 
   const [notifications, setNotifications] = useState<NotificationSettings>({
     matchReminders: true,
@@ -218,6 +211,68 @@ export default function ProfileSettingsPage() {
     }
     setIsEditing(false);
     setError(null);
+  };
+
+  const handlePhotoUploadComplete = async (url: string, mediaId: string) => {
+    console.log('👤 Profile - handlePhotoUploadComplete called:', { url, mediaId, userId: user?.id });
+
+    // Update the profile state with the new avatar URL
+    setProfile(prev => ({ ...prev, avatar_url: url }));
+    console.log('👤 Profile - Local profile state updated with avatar_url');
+
+    // Save the avatar URL to the user profile
+    if (user) {
+      try {
+        const userService = UserService.getInstance();
+
+        // First, check if profile exists
+        console.log('👤 Profile - Checking if profile exists...');
+        const profileExists = await userService.profileExists(user.id);
+        console.log('👤 Profile - Profile exists:', profileExists.data);
+
+        let result;
+
+        if (!profileExists.data) {
+          // Profile doesn't exist, create it with the avatar
+          console.log('👤 Profile - Creating new profile with avatar...');
+          result = await userService.createUserProfile(user.id, {
+            display_name: profile.display_name || user.email?.split('@')[0] || 'User',
+            avatar_url: url,
+            avatar_media_id: mediaId,
+            preferred_position: profile.preferred_position || undefined,
+            location: profile.location || undefined,
+            bio: profile.bio || undefined,
+            date_of_birth: profile.date_of_birth || undefined
+          });
+        } else {
+          // Profile exists, update it
+          console.log('👤 Profile - Updating existing profile with avatar...');
+          result = await userService.updateUserProfile(user.id, {
+            avatar_url: url,
+            avatar_media_id: mediaId
+          });
+        }
+
+        console.log('👤 Profile - Save result:', {
+          success: result.success,
+          error: result.error?.message
+        });
+
+        if (result.success) {
+          setSaveMessage('Profile photo updated successfully!');
+          setTimeout(() => setSaveMessage(null), 3000);
+          console.log('👤 Profile - Avatar URL successfully saved to database');
+        } else {
+          console.error('👤 Profile - Failed to save avatar URL:', result.error);
+          setError(result.error?.message || 'Failed to update profile photo');
+        }
+      } catch (err) {
+        console.error('👤 Profile - Error updating avatar:', err);
+        setError('Failed to update profile photo');
+      }
+    } else {
+      console.warn('👤 Profile - No user found, cannot save avatar URL');
+    }
   };
 
   const handleNotificationChange = (key: keyof NotificationSettings) => {
@@ -336,29 +391,13 @@ export default function ProfileSettingsPage() {
                     </div>
                   )}
 
-                  {/* Profile Photo */}
-                  <div className="flex items-center gap-6 mb-8">
-                    <div className="relative">
-                      <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-3xl font-bold">
-                        {profile.display_name.charAt(0) || 'U'}
-                      </div>
-                      {isEditing && (
-                        <button className="absolute -bottom-2 -right-2 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center hover:bg-blue-700 transition-colors">
-                          <Camera className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                        {profile.display_name || 'User'}
-                      </h3>
-                      <p className="text-gray-600 dark:text-gray-400">
-                        {profile.preferred_position || 'No position set'}
-                      </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-500">
-                        {user.email}
-                      </p>
-                    </div>
+                  {/* Profile Photo Upload */}
+                  <div className="mb-8">
+                    <ProfilePhotoUpload
+                      currentAvatarUrl={profile.avatar_url}
+                      userId={user.id}
+                      onUploadComplete={handlePhotoUploadComplete}
+                    />
                   </div>
 
                   {/* Profile Form */}

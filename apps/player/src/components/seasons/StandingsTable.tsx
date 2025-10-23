@@ -1,12 +1,14 @@
 'use client';
 
 import { Trophy, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { TeamLogo } from '@/components/common/team-logo';
 
 interface TeamStanding {
   position: number;
   team_id: string;
   team_name: string;
   team_color?: string;
+  logo_url?: string;
   played: number;
   won: number;
   drawn: number;
@@ -137,14 +139,12 @@ export default function StandingsTable({ standings, highlightTeamIds = [] }: Sta
                   {/* Team */}
                   <td className="px-4 py-4 whitespace-nowrap">
                     <div className="flex items-center gap-3">
-                      <div
-                        className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: team.team_color || '#374151' }}
-                      >
-                        <span className="text-white text-sm font-bold">
-                          {team.team_name?.charAt(0).toUpperCase() || '?'}
-                        </span>
-                      </div>
+                      <TeamLogo
+                        name={team.team_name}
+                        logoUrl={team.logo_url}
+                        color={team.team_color}
+                        size="md"
+                      />
                       <span className={`text-sm font-medium ${
                         isHighlighted
                           ? 'text-blue-900 dark:text-blue-100'

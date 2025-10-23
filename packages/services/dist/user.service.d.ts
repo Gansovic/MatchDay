@@ -25,6 +25,8 @@ export declare class UserService {
         location?: string;
         bio?: string;
         date_of_birth?: string;
+        avatar_url?: string;
+        avatar_media_id?: string;
     }): Promise<ServiceResponse<UserProfile>>;
     /**
      * Check if user profile exists

@@ -14,4 +14,5 @@ export * from './analytics.service';
 export * from './achievement.service';
 export * from './edge-functions.service';
 export * from './config.service';
+export * from './media.service';
 //# sourceMappingURL=index.js.map
