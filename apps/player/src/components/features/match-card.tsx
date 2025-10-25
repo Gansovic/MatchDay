@@ -17,7 +17,7 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { ProfessionalCard } from '@/components/ui/professional-card';
+import { ProfessionalCard } from '@matchday/ui';
 import { DateFormatters, NumberFormatters, StatusFormatters } from '@/lib/utils/formatters';
 
 interface MatchCardProps {

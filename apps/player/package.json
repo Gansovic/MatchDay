@@ -17,6 +17,7 @@
     "@matchday/database": "workspace:*",
     "@matchday/services": "workspace:*",
     "@matchday/shared": "workspace:*",
+    "@matchday/ui": "workspace:*",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.56.1",
     "@tanstack/react-query": "^5.61.3",

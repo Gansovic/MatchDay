@@ -12,7 +12,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { MatchCard } from './match-card';
-import { StatsDisplay } from '@/components/ui/stats-display';
+import { StatsDisplay } from '@matchday/ui';
 import { useRealtimeMatch } from '@/lib/hooks/use-realtime-matches';
 import { DateFormatters, NumberFormatters } from '@/lib/utils/formatters';
 

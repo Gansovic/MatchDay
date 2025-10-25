@@ -17,8 +17,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ProfessionalCard } from '@/components/ui/professional-card';
-import { StatsDisplay } from '@/components/ui/stats-display';
+import { ProfessionalCard, StatsDisplay } from '@matchday/ui';
 import { NumberFormatters } from '@/lib/utils/formatters';
 import { AnalyticsService } from '@matchday/services';
 import Image from 'next/image';

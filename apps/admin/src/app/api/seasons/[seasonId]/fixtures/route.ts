@@ -66,13 +66,8 @@ export async function GET(
       );
     }
 
-    // Check if user has permission (must be league creator)
-    if (season.leagues?.created_by !== user.id) {
-      return NextResponse.json(
-        { error: 'You do not have permission to view fixtures for this season' },
-        { status: 403 }
-      );
-    }
+    // Note: Fixtures are viewable by everyone (players, admins, public)
+    // Only match result entry and fixture generation/deletion are restricted to league owners
 
     // Fetch fixtures with team information
     const { data: fixtures, error: fixturesError } = await (supabase as any)

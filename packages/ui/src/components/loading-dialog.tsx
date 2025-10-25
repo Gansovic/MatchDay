@@ -1,9 +1,11 @@
+'use client';
+
 /**
  * Loading Dialog Component for MatchDay
- * 
+ *
  * Adapted from TravelBuddies LEVER principles for professional loading states.
  * Provides consistent loading experience across the application.
- * 
+ *
  * @example
  * ```typescript
  * await LoadingDialog.show({
@@ -12,7 +14,7 @@
  *   operation: () => EdgeFunctionsService.getInstance().createLeague(data),
  * });
  * ```
- * 
+ *
  * This component should be used for ALL loading states.
  */
 
@@ -72,7 +74,7 @@ const LoadingDialogComponent: React.FC<LoadingDialogProps> = ({
             <div className="w-16 h-16 border-4 border-blue-200 dark:border-blue-800 rounded-full animate-pulse"></div>
             <div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-t-blue-600 dark:border-t-blue-400 rounded-full animate-spin"></div>
           </div>
-          
+
           <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
             {title}
           </h3>
@@ -133,7 +135,7 @@ class LoadingDialogService {
       // Create dialog container
       this.currentDialog = document.createElement('div');
       document.body.appendChild(this.currentDialog);
-      
+
       this.currentRoot = createRoot(this.currentDialog);
 
       let cancelled = false;

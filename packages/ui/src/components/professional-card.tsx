@@ -1,9 +1,11 @@
+'use client';
+
 /**
  * Professional Card Component
- * 
+ *
  * A reusable card component that gives amateur players a professional appearance.
  * Follows LEVER principles by being highly reusable and customizable.
- * 
+ *
  * @example
  * ```typescript
  * <ProfessionalCard
@@ -67,7 +69,7 @@ export const ProfessionalCard = React.memo<ProfessionalCardProps>(({
   };
 
   return (
-    <div 
+    <div
       className={`${baseClasses} ${variantClasses[variant]} ${className}`}
       onClick={onClick}
     >
@@ -83,7 +85,7 @@ export const ProfessionalCard = React.memo<ProfessionalCardProps>(({
             />
           </div>
         )}
-        
+
         <div className="flex-1 min-w-0">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
             {title}
@@ -93,7 +95,7 @@ export const ProfessionalCard = React.memo<ProfessionalCardProps>(({
               {subtitle}
             </p>
           )}
-          
+
           {/* Badges */}
           {badges.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
@@ -116,8 +118,8 @@ export const ProfessionalCard = React.memo<ProfessionalCardProps>(({
           {stats.map((stat, index) => (
             <div key={index} className="text-center">
               <div className={`text-2xl font-bold ${
-                stat.highlight 
-                  ? 'text-blue-600 dark:text-blue-400' 
+                stat.highlight
+                  ? 'text-blue-600 dark:text-blue-400'
                   : 'text-gray-900 dark:text-white'
               }`}>
                 {stat.value}

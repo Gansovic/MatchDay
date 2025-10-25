@@ -15,6 +15,10 @@ import { useAuth } from '@/components/auth/auth-provider';
 import { AdminDashboardService, type AdminDashboardData } from '@/lib/services/admin-dashboard.service';
 import { LeagueRequestService, type TeamLeagueRequestWithDetails } from '@/lib/services/league-request.service';
 import { RequestActionModal } from '@/components/modals/request-action-modal';
+import { AdminStatsCard } from '@/components/dashboard/AdminStatsCard';
+import { PendingRequestsPanel } from '@/components/dashboard/PendingRequestsPanel';
+import { LeagueOverviewGrid } from '@/components/dashboard/LeagueOverviewGrid';
+import { RecentActivityFeed } from '@/components/dashboard/RecentActivityFeed';
 
 export default function AdminDashboard() {
   const { user, isLoading: authLoading } = useAuth();
@@ -276,8 +280,8 @@ export default function AdminDashboard() {
         )}
 
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">
+        <div className="mb-8 animate-fade-in">
+          <h1 className="text-3xl font-bold text-white mb-2 admin-gradient bg-clip-text text-transparent">
             Welcome back, {adminInfo.displayName || 'Admin'}
           </h1>
           <p className="text-gray-400">
@@ -287,238 +291,90 @@ export default function AdminDashboard() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Total Leagues</p>
-                <p className="text-2xl font-bold text-orange-400">{stats.totalLeagues}</p>
-              </div>
-              <Trophy className="w-8 h-8 text-orange-500" />
-            </div>
-          </div>
-
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Teams I Manage</p>
-                <p className="text-2xl font-bold text-blue-400">{stats.totalTeams}</p>
-              </div>
-              <Users className="w-8 h-8 text-blue-500" />
-            </div>
-          </div>
-
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Total Players</p>
-                <p className="text-2xl font-bold text-green-400">{stats.totalPlayers}</p>
-              </div>
-              <Shield className="w-8 h-8 text-green-500" />
-            </div>
-          </div>
-
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Pending Requests</p>
-                <p className="text-2xl font-bold text-red-400">{stats.pendingRequests}</p>
-              </div>
-              <AlertCircle className="w-8 h-8 text-red-500" />
-            </div>
-          </div>
-
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Active Matches</p>
-                <p className="text-2xl font-bold text-purple-400">{stats.activeMatches}</p>
-              </div>
-              <Calendar className="w-8 h-8 text-purple-500" />
-            </div>
-          </div>
-
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-400 text-sm">Monthly Growth</p>
-                <p className="text-2xl font-bold text-teal-400">{stats.monthlyGrowth >= 0 ? '+' : ''}{stats.monthlyGrowth}%</p>
-              </div>
-              <TrendingUp className="w-8 h-8 text-teal-500" />
-            </div>
-          </div>
+          <AdminStatsCard
+            label="Total Leagues"
+            value={stats.totalLeagues}
+            icon={Trophy}
+            iconColor="text-orange-500"
+            valueColor="text-orange-400"
+          />
+          <AdminStatsCard
+            label="Teams I Manage"
+            value={stats.totalTeams}
+            icon={Users}
+            iconColor="text-blue-500"
+            valueColor="text-blue-400"
+          />
+          <AdminStatsCard
+            label="Total Players"
+            value={stats.totalPlayers}
+            icon={Shield}
+            iconColor="text-green-500"
+            valueColor="text-green-400"
+          />
+          <AdminStatsCard
+            label="Pending Requests"
+            value={stats.pendingRequests}
+            icon={AlertCircle}
+            iconColor="text-red-500"
+            valueColor="text-red-400"
+          />
+          <AdminStatsCard
+            label="Active Matches"
+            value={stats.activeMatches}
+            icon={Calendar}
+            iconColor="text-purple-500"
+            valueColor="text-purple-400"
+          />
+          <AdminStatsCard
+            label="Monthly Growth"
+            value={`${stats.monthlyGrowth >= 0 ? '+' : ''}${stats.monthlyGrowth}%`}
+            icon={TrendingUp}
+            iconColor="text-teal-500"
+            valueColor="text-teal-400"
+          />
         </div>
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 card-hover">
             <h2 className="text-xl font-semibold text-white mb-4">Quick Actions</h2>
             <div className="space-y-3">
               <Link
                 href="/leagues/create"
-                className="block w-full p-3 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors text-center font-medium"
+                className="block w-full p-3 admin-gradient text-white rounded-lg transition-all text-center font-medium hover:shadow-lg hover:scale-105"
               >
                 Create New League
               </Link>
               <Link
                 href="/teams"
-                className="block w-full p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-center font-medium"
+                className="block w-full p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all text-center font-medium hover:shadow-lg hover:scale-105"
               >
                 Review Team Requests
               </Link>
               <Link
                 href="/matches/create"
-                className="block w-full p-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-center font-medium"
+                className="block w-full p-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all text-center font-medium hover:shadow-lg hover:scale-105"
               >
                 Schedule Match
               </Link>
             </div>
           </div>
 
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-white mb-4">
-              Pending Approvals ({stats.pendingRequests})
-            </h2>
-            <div className="space-y-3">
-              {loadingRequests && (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="w-6 h-6 animate-spin text-orange-500 mr-2" />
-                  <span className="text-gray-400">Loading request details...</span>
-                </div>
-              )}
-              {!loadingRequests && detailedRequests.length > 0 ? (
-                <>
-                  {detailedRequests.slice(0, 3).map((request) => (
-                    <div
-                      key={request.id}
-                      className="bg-gray-800 border border-gray-600 rounded-lg p-4"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-medium text-white">{request.team.name}</h3>
-                        <span className="text-xs text-gray-400">
-                          {new Date(request.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-300 mb-2">
-                        Requesting to join <span className="text-orange-400">{request.league.name}</span>
-                      </p>
-                      <p className="text-xs text-gray-400 mb-3">
-                        Requested by: {request.requested_by_user.display_name || request.requested_by_user.full_name || request.requested_by_user.email}
-                      </p>
-                      {request.message && (
-                        <p className="text-xs text-gray-300 mb-3 p-2 bg-gray-700 rounded italic">
-                          &quot;{request.message}&quot;
-                        </p>
-                      )}
-                      <div className="flex space-x-2">
-                        <button 
-                          onClick={() => handleApproveClick(request)}
-                          disabled={processingRequest}
-                          className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-sm rounded transition-colors flex items-center justify-center gap-1"
-                        >
-                          <CheckCircle className="w-3 h-3" />
-                          Approve
-                        </button>
-                        <button 
-                          onClick={() => handleRejectClick(request)}
-                          disabled={processingRequest}
-                          className="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm rounded transition-colors flex items-center justify-center gap-1"
-                        >
-                          <XCircle className="w-3 h-3" />
-                          Reject
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {detailedRequests.length > 3 && (
-                    <Link
-                      href="/teams"
-                      className="block text-center text-orange-400 hover:text-orange-300 text-sm transition-colors"
-                    >
-                      View all {detailedRequests.length} requests →
-                    </Link>
-                  )}
-                </>
-              ) : (
-                <div className="text-center py-8">
-                  <AlertCircle className="w-8 h-8 text-gray-500 mx-auto mb-2" />
-                  <p className="text-gray-500">No pending requests</p>
-                </div>
-              )}
-            </div>
-          </div>
+          <PendingRequestsPanel
+            requests={detailedRequests}
+            isLoading={loadingRequests}
+            totalCount={stats.pendingRequests}
+            onApprove={handleApproveClick}
+            onReject={handleRejectClick}
+            isProcessing={processingRequest}
+          />
         </div>
 
         {/* Managed Leagues & Recent Activity */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Managed Leagues */}
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-white mb-4">Your Leagues</h2>
-            <div className="space-y-3">
-              {leagues.length > 0 ? (
-                leagues.map((league) => (
-                  <div key={league.id} className="bg-gray-800 border border-gray-600 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-medium text-white">{league.name}</h3>
-                      <span className={`px-2 py-1 text-xs rounded ${
-                        league.isActive 
-                          ? 'bg-green-800 text-green-200' 
-                          : 'bg-gray-700 text-gray-300'
-                      }`}>
-                        {league.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-400 mb-2">
-                      {league.sport_type} • {league.league_type}
-                    </p>
-                    <div className="flex justify-between text-sm text-gray-300">
-                      <span>{league.teamCount} teams</span>
-                      <span>{league.playerCount} players</span>
-                    </div>
-                    {league.location && (
-                      <p className="text-xs text-gray-500 mt-1">{league.location}</p>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-8">
-                  <Trophy className="w-8 h-8 text-gray-500 mx-auto mb-2" />
-                  <p className="text-gray-500">No leagues assigned</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Recent Activity */}
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-white mb-4">Recent Activity</h2>
-            <div className="space-y-3">
-              {recentActivity.length > 0 ? (
-                recentActivity.slice(0, 5).map((activity) => {
-                  const activityColor = {
-                    team_joined: 'bg-green-500',
-                    match_scheduled: 'bg-blue-500',
-                    league_created: 'bg-orange-500',
-                    player_registered: 'bg-purple-500'
-                  }[activity.type] || 'bg-gray-500';
-
-                  return (
-                    <div key={activity.id} className="flex items-center space-x-3 p-3 bg-gray-800 rounded-lg">
-                      <div className={`w-2 h-2 ${activityColor} rounded-full`}></div>
-                      <span className="text-gray-300 flex-1">{activity.description}</span>
-                      <span className="text-xs text-gray-500">
-                        {new Date(activity.timestamp).toLocaleDateString()}
-                      </span>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="text-center py-8">
-                  <Calendar className="w-8 h-8 text-gray-500 mx-auto mb-2" />
-                  <p className="text-gray-500">No recent activity</p>
-                </div>
-              )}
-            </div>
-          </div>
+          <LeagueOverviewGrid leagues={leagues} />
+          <RecentActivityFeed activities={recentActivity} />
         </div>
       </div>
 

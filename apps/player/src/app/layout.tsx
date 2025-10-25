@@ -4,7 +4,7 @@ import "./globals.css";
 import { Header } from "@/components/layout/header";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { AuthProvider } from "@/components/auth/supabase-auth-provider";
-import { ToastProvider } from "@/components/ui/toast";
+import { ToastProvider } from "@matchday/ui";
 import { validateEnv, warnIfProductionInDev } from "@matchday/shared";
 
 // Validate environment variables on app startup

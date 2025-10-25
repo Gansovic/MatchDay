@@ -2,12 +2,15 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Users, Calendar, Settings, Clock } from 'lucide-react';
+import { ArrowLeft, Users, Calendar, Settings, Clock, Image, Trophy, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import SchedulingConfigPanel, { SchedulingConfig } from '@/components/SchedulingConfigPanel';
 import FixtureGenerationPanel from '@/components/FixtureGenerationPanel';
 import FixturePreviewModal from '@/components/FixturePreviewModal';
+import MatchResultsModal from '@/components/MatchResultsModal';
 import { SeasonMediaTab } from '@/components/media/season-media-tab';
+import { AdminStatsCard } from '@/components/dashboard/AdminStatsCard';
+import { StatusBadge } from '@matchday/ui';
 
 export default function AdminSeasonDashboard() {
   const params = useParams();
@@ -25,6 +28,9 @@ export default function AdminSeasonDashboard() {
   const [schedulingConfig, setSchedulingConfig] = useState<SchedulingConfig | undefined>();
   const [isLeagueOwner, setIsLeagueOwner] = useState(false);
   const [checkingPermissions, setCheckingPermissions] = useState(true);
+  const [showResultsModal, setShowResultsModal] = useState(false);
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'fixtures' | 'standings' | 'teams' | 'media'>('overview');
 
   const loadSeasonData = async () => {
     try {
@@ -74,7 +80,9 @@ export default function AdminSeasonDashboard() {
 
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
+      console.log('👤 Current user:', user?.id);
       if (!user) {
+        console.log('❌ No user logged in');
         setIsLeagueOwner(false);
         return;
       }
@@ -86,6 +94,8 @@ export default function AdminSeasonDashboard() {
         .eq('id', leagueId)
         .single();
 
+      console.log('🏆 League data:', { leagueId, created_by: league?.created_by, error });
+
       if (error) {
         console.error('Failed to check league ownership:', error);
         setIsLeagueOwner(false);
@@ -93,7 +103,14 @@ export default function AdminSeasonDashboard() {
       }
 
       // Check if current user is the league owner
-      setIsLeagueOwner(league?.created_by === user.id);
+      const isOwner = league?.created_by === user.id;
+      console.log('🔐 Ownership check:', {
+        userId: user.id,
+        createdBy: league?.created_by,
+        isOwner,
+        match: league?.created_by === user.id
+      });
+      setIsLeagueOwner(isOwner);
     } catch (err) {
       console.error('Error checking league ownership:', err);
       setIsLeagueOwner(false);
@@ -108,13 +125,49 @@ export default function AdminSeasonDashboard() {
     checkLeagueOwnership();
   }, [leagueId, seasonId]);
 
+  // Auto-switch to fixtures tab when fixtures are loaded
+  useEffect(() => {
+    if (fixturesCount > 0 && activeTab === 'overview') {
+      setActiveTab('fixtures');
+    }
+  }, [fixturesCount]);
+
   const handleFixturesGenerated = () => {
     loadFixturesData();
+    // Switch to fixtures tab after generation
+    setActiveTab('fixtures');
   };
 
   const handlePreview = (data: any) => {
     setPreviewData(data);
     setShowPreviewModal(true);
+  };
+
+  const handleEnterResults = (matchId: string) => {
+    console.log('📊 Enter Results clicked', { matchId, isLeagueOwner });
+    setSelectedMatchId(matchId);
+    setShowResultsModal(true);
+  };
+
+  const handleResultsSaved = () => {
+    loadFixturesData();
+  };
+
+  // Determine which tabs to show based on fixtures
+  const getAvailableTabs = () => {
+    if (fixturesCount === 0) {
+      return ['overview', 'teams', 'media'];
+    }
+    return ['overview', 'fixtures', 'teams', 'media'];
+  };
+
+  // Tab configuration
+  const tabConfig = {
+    overview: { icon: Settings, label: 'Overview' },
+    fixtures: { icon: Calendar, label: 'Fixtures' },
+    standings: { icon: Trophy, label: 'Standings' },
+    teams: { icon: Users, label: 'Teams' },
+    media: { icon: Image, label: 'Media' }
   };
 
   if (loading) {
@@ -147,111 +200,257 @@ export default function AdminSeasonDashboard() {
     );
   }
 
+  // Calculate stats
+  const totalMatches = fixturesData?.totalMatches || 0;
+  const totalMatchdays = fixturesData?.totalMatchdays || 0;
+  const registeredTeams = seasonData.registered_teams_count || 0;
+  const maxTeams = seasonData.max_teams || 0;
+
+  // Calculate season progress
+  const startDate = new Date(seasonData.start_date);
+  const endDate = new Date(seasonData.end_date);
+  const today = new Date();
+  const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  const elapsedDays = Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  const daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+  const progressPercent = totalDays > 0 ? Math.min(100, Math.max(0, (elapsedDays / totalDays) * 100)) : 0;
+
   return (
     <div className="min-h-screen bg-gray-950 p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
+        {/* Breadcrumb Navigation */}
+        <div className="mb-4 flex items-center gap-2 text-sm animate-fade-in">
+          <button
+            onClick={() => router.push('/leagues')}
+            className="text-gray-400 hover:text-orange-400 transition-colors"
+          >
+            Leagues
+          </button>
+          <span className="text-gray-600">/</span>
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-2 text-gray-400 hover:text-white mb-4"
+            className="text-gray-400 hover:text-orange-400 transition-colors"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Back to League
+            League
           </button>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-white mb-2">
-                {seasonData.display_name || seasonData.name}
-              </h1>
-              <p className="text-gray-400">{seasonData.season_year}</p>
+          <span className="text-gray-600">/</span>
+          <span className="text-white font-medium">Season Dashboard</span>
+        </div>
+
+        {/* Gradient Hero Header */}
+        <div className="admin-gradient rounded-2xl p-8 text-white mb-8 animate-fade-in">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-3">
+                <h1 className="text-4xl font-bold">
+                  {seasonData.display_name || seasonData.name}
+                </h1>
+                <StatusBadge
+                  status={seasonData.status.charAt(0).toUpperCase() + seasonData.status.slice(1)}
+                  variant={
+                    seasonData.status === 'active' ? 'success' :
+                    seasonData.status === 'draft' ? 'warning' :
+                    seasonData.status === 'registration' ? 'info' :
+                    'default'
+                  }
+                />
+              </div>
+              <p className="text-white/90 text-lg mb-4">{seasonData.season_year}</p>
+              <div className="flex flex-wrap gap-6 text-white/90">
+                <span className="flex items-center gap-2">
+                  <Users className="w-5 h-5" />
+                  {registeredTeams} Team{registeredTeams !== 1 ? 's' : ''}
+                  {maxTeams > 0 && ` / ${maxTeams}`}
+                </span>
+                <span className="flex items-center gap-2">
+                  <Calendar className="w-5 h-5" />
+                  {totalMatches} Match{totalMatches !== 1 ? 'es' : ''}
+                </span>
+                <span className="flex items-center gap-2">
+                  <Settings className="w-5 h-5" />
+                  {seasonData.tournament_format}
+                </span>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                seasonData.status === 'active' ? 'bg-green-900/30 text-green-300' :
-                seasonData.status === 'draft' ? 'bg-yellow-900/30 text-yellow-300' :
-                seasonData.status === 'registration' ? 'bg-blue-900/30 text-blue-300' :
-                'bg-gray-700 text-gray-300'
-              }`}>
-                {seasonData.status.charAt(0).toUpperCase() + seasonData.status.slice(1)}
-              </span>
+
+            <div className="text-right">
+              <div className="text-5xl font-bold mb-2">{daysRemaining}</div>
+              <div className="text-white/90">Days Remaining</div>
+              {progressPercent > 0 && (
+                <div className="mt-3 bg-white/20 rounded-full h-2 w-32 ml-auto overflow-hidden">
+                  <div
+                    className="bg-white h-full rounded-full transition-all duration-500"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Season Info Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <Users className="w-5 h-5 text-blue-400" />
-              <h3 className="font-semibold text-white">Teams</h3>
-            </div>
-            <p className="text-3xl font-bold text-white">
-              {seasonData.registered_teams_count || 0}
-              {seasonData.max_teams && <span className="text-lg text-gray-400"> / {seasonData.max_teams}</span>}
-            </p>
-          </div>
-
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <Calendar className="w-5 h-5 text-green-400" />
-              <h3 className="font-semibold text-white">Duration</h3>
-            </div>
-            <p className="text-sm text-gray-400">
-              {new Date(seasonData.start_date).toLocaleDateString()} - {new Date(seasonData.end_date).toLocaleDateString()}
-            </p>
-          </div>
-
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <Settings className="w-5 h-5 text-purple-400" />
-              <h3 className="font-semibold text-white">Format</h3>
-            </div>
-            <p className="text-sm text-gray-400 capitalize">{seasonData.tournament_format}</p>
-          </div>
-        </div>
-
-        {/* Scheduling Configuration Section */}
+        {/* Tab Navigation */}
         <div className="mb-8">
-          <SchedulingConfigPanel
-            seasonId={seasonId}
-            leagueId={leagueId}
-            disabled={seasonData.status === 'active' || seasonData.status === 'completed'}
-            onConfigChange={setSchedulingConfig}
+          <div className="border-b border-gray-700">
+            <nav className="-mb-px flex space-x-8">
+              {getAvailableTabs().map((tab) => {
+                const TabIcon = tabConfig[tab]?.icon;
+                const label = tabConfig[tab]?.label || tab;
+
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab as any)}
+                    className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors flex items-center gap-2 ${
+                      activeTab === tab
+                        ? 'border-orange-500 text-orange-400'
+                        : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-600'
+                    }`}
+                  >
+                    {TabIcon && <TabIcon className="w-4 h-4" />}
+                    {label}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+        </div>
+
+        {/* Overview Tab */}
+        {activeTab === 'overview' && (
+          <>
+            {/* Enhanced Stats Overview */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Teams Registration Progress */}
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 card-hover animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-gray-400 text-sm mb-1">Registered Teams</p>
+                <p className="text-3xl font-bold text-blue-400">
+                  {registeredTeams}
+                  {maxTeams > 0 && <span className="text-lg text-gray-500"> / {maxTeams}</span>}
+                </p>
+              </div>
+              <Users className="w-10 h-10 text-blue-500" />
+            </div>
+            {maxTeams > 0 && (
+              <div className="mt-2">
+                <div className="bg-gray-800 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-blue-500 h-full rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, (registeredTeams / maxTeams) * 100)}%` }}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {Math.min(100, Math.round((registeredTeams / maxTeams) * 100))}% capacity
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Total Fixtures */}
+          <AdminStatsCard
+            label="Total Matches"
+            value={totalMatches}
+            icon={Calendar}
+            iconColor="text-green-500"
+            valueColor="text-green-400"
+            change={totalMatchdays > 0 ? `${totalMatchdays} matchdays` : undefined}
+          />
+
+          {/* Season Progress */}
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 card-hover animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-gray-400 text-sm mb-1">Season Progress</p>
+                <p className="text-3xl font-bold text-orange-400">{Math.round(progressPercent)}%</p>
+              </div>
+              <Clock className="w-10 h-10 text-orange-500" />
+            </div>
+            <div className="mt-2">
+              <div className="bg-gray-800 rounded-full h-2 overflow-hidden">
+                <div
+                  className="admin-gradient h-full rounded-full transition-all duration-500"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {elapsedDays} of {totalDays} days elapsed
+              </p>
+            </div>
+          </div>
+
+          {/* Tournament Format */}
+          <AdminStatsCard
+            label="Tournament Format"
+            value={seasonData.tournament_format}
+            icon={Settings}
+            iconColor="text-purple-500"
+            valueColor="text-white"
           />
         </div>
 
-        {/* Fixture Generation Section */}
-        <div className="mb-8">
-          <FixtureGenerationPanel
-            seasonId={seasonId}
-            leagueId={leagueId}
-            hasExistingFixtures={fixturesCount > 0}
-            fixturesCount={fixturesCount}
-            onFixturesGenerated={handleFixturesGenerated}
-            onPreview={handlePreview}
-            schedulingConfig={schedulingConfig}
-          />
-        </div>
+        {/* Scheduling & Fixture Management */}
+        {fixturesCount === 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {/* Scheduling Configuration */}
+            <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 card-hover animate-fade-in">
+              <div className="flex items-center gap-3 mb-4">
+                <Clock className="w-6 h-6 text-orange-500" />
+                <h2 className="text-xl font-semibold text-white">Scheduling Configuration</h2>
+              </div>
+              <SchedulingConfigPanel
+                seasonId={seasonId}
+                leagueId={leagueId}
+                disabled={seasonData.status === 'active' || seasonData.status === 'completed'}
+                onConfigChange={setSchedulingConfig}
+              />
+            </div>
 
-        {/* Fixtures Display Section */}
-        {fixturesCount > 0 && (
-          <div className="mb-8 bg-gray-900 border border-gray-700 rounded-lg p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <Calendar className="w-5 h-5 text-green-400" />
-              <h2 className="text-xl font-semibold text-white">Season Fixtures</h2>
-              <span className="text-sm text-gray-400">
-                ({fixturesData?.totalMatches || 0} matches across {fixturesData?.totalMatchdays || 0} matchdays)
-              </span>
+            {/* Fixture Generation */}
+            <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 card-hover animate-fade-in">
+              <div className="flex items-center gap-3 mb-4">
+                <Calendar className="w-6 h-6 text-green-500" />
+                <h2 className="text-xl font-semibold text-white">Fixture Management</h2>
+              </div>
+              <FixtureGenerationPanel
+                seasonId={seasonId}
+                leagueId={leagueId}
+                hasExistingFixtures={fixturesCount > 0}
+                fixturesCount={fixturesCount}
+                onFixturesGenerated={handleFixturesGenerated}
+                onPreview={handlePreview}
+                schedulingConfig={schedulingConfig}
+              />
+            </div>
+          </div>
+        )}
+          </>
+        )}
+
+        {/* Fixtures Tab */}
+        {activeTab === 'fixtures' && fixturesCount > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-green-500/20 p-2 rounded-lg">
+                  <Calendar className="w-6 h-6 text-green-400" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-white">Season Fixtures</h2>
+                  <p className="text-sm text-gray-400">
+                    {fixturesData?.totalMatches || 0} matches across {fixturesData?.totalMatchdays || 0} matchdays
+                  </p>
+                </div>
+              </div>
             </div>
 
             {loadingFixtures ? (
               <div className="animate-pulse space-y-4">
-                <div className="h-32 bg-gray-800 rounded"></div>
-                <div className="h-32 bg-gray-800 rounded"></div>
+                <div className="h-32 bg-gray-900 border border-gray-700 rounded-xl"></div>
+                <div className="h-32 bg-gray-900 border border-gray-700 rounded-xl"></div>
               </div>
             ) : fixturesData?.fixturesByMatchday ? (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {Object.keys(fixturesData.fixturesByMatchday)
                   .map(Number)
                   .sort((a, b) => a - b)
@@ -260,37 +459,52 @@ export default function AdminSeasonDashboard() {
                     const matchDate = matchdayFixtures[0]?.match_date;
 
                     return (
-                      <div key={matchdayNum} className="bg-gray-800/50 border border-gray-700/50 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-lg font-semibold text-white">
-                            Matchday {matchdayNum}
-                          </h3>
-                          {matchDate && (
-                            <div className="flex items-center gap-2 text-sm text-gray-400">
-                              <Calendar className="w-4 h-4" />
-                              <span>
-                                {new Date(matchDate).toLocaleDateString('en-US', {
-                                  weekday: 'short',
-                                  month: 'short',
-                                  day: 'numeric'
-                                })}
-                              </span>
+                      <div key={matchdayNum} className="bg-gray-900 border border-gray-700 rounded-xl p-6 card-hover animate-fade-in">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="flex items-center gap-3">
+                            <div className="bg-orange-500/20 px-4 py-2 rounded-lg">
+                              <span className="text-2xl font-bold text-orange-400">MD {matchdayNum}</span>
                             </div>
-                          )}
+                            <div>
+                              <h3 className="text-lg font-semibold text-white">
+                                Matchday {matchdayNum}
+                              </h3>
+                              {matchDate && (
+                                <p className="text-sm text-gray-400">
+                                  {new Date(matchDate).toLocaleDateString('en-US', {
+                                    weekday: 'long',
+                                    month: 'long',
+                                    day: 'numeric'
+                                  })}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-sm text-gray-400">
+                            {matchdayFixtures.length} match{matchdayFixtures.length !== 1 ? 'es' : ''}
+                          </div>
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           {matchdayFixtures.map((fixture: any, idx: number) => (
                             <div
                               key={fixture.id || idx}
-                              className="bg-gray-900 border border-gray-700 rounded-lg p-3"
+                              onClick={() => {
+                                console.log('🎯 Fixture clicked', { isLeagueOwner, fixtureId: fixture.id });
+                                if (isLeagueOwner && fixture.id) {
+                                  handleEnterResults(fixture.id);
+                                } else {
+                                  console.log('❌ Click blocked:', { isLeagueOwner, fixtureId: fixture.id });
+                                }
+                              }}
+                              className={`bg-gray-800 border border-gray-700 rounded-lg p-4 hover:border-orange-500/50 hover:bg-gray-800/80 transition-all duration-200 ${isLeagueOwner && fixture.id ? 'cursor-pointer' : ''}`}
                             >
-                              <div className="flex items-center justify-between">
+                              <div className="flex items-center justify-between gap-4">
                                 {/* Court Badge */}
                                 {fixture.court_number && (
-                                  <div className="flex-shrink-0 mr-3">
-                                    <div className="bg-purple-900/30 border border-purple-700/50 rounded px-2 py-1">
-                                      <span className="text-xs font-semibold text-purple-300">
+                                  <div className="flex-shrink-0">
+                                    <div className="bg-purple-500/20 border border-purple-500/50 rounded-lg px-3 py-1.5">
+                                      <span className="text-sm font-semibold text-purple-300">
                                         Court {fixture.court_number}
                                       </span>
                                     </div>
@@ -298,55 +512,72 @@ export default function AdminSeasonDashboard() {
                                 )}
 
                                 {/* Teams */}
-                                <div className="flex items-center gap-3 flex-1">
-                                  <div className="flex items-center gap-2 flex-1">
+                                <div className="flex items-center gap-4 flex-1">
+                                  {/* Home Team */}
+                                  <div className="flex items-center gap-3 flex-1 min-w-0">
                                     <div
-                                      className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0"
+                                      className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 shadow-lg"
                                       style={{
                                         backgroundColor: fixture.home_team?.team_color || '#374151'
                                       }}
                                     >
-                                      <span className="text-white text-sm font-bold">
+                                      <span className="text-white text-base font-bold">
                                         {fixture.home_team?.name?.charAt(0).toUpperCase() || '?'}
                                       </span>
                                     </div>
-                                    <span className="text-white font-medium text-sm truncate">
+                                    <span className="text-white font-semibold truncate">
                                       {fixture.home_team?.name || 'Home Team'}
                                     </span>
                                   </div>
 
-                                  <span className="text-gray-500 text-sm font-medium px-2">vs</span>
+                                  {/* VS Badge or Score */}
+                                  <div className="flex-shrink-0">
+                                    {fixture.home_score !== undefined && fixture.home_score !== null && fixture.away_score !== undefined && fixture.away_score !== null ? (
+                                      <div className="bg-green-500/20 border border-green-500/50 rounded-lg px-4 py-1">
+                                        <span className="text-green-300 text-sm font-bold">
+                                          {fixture.home_score} - {fixture.away_score}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <div className="bg-gray-700 rounded-lg px-3 py-1">
+                                        <span className="text-gray-300 text-sm font-bold">VS</span>
+                                      </div>
+                                    )}
+                                  </div>
 
-                                  <div className="flex items-center gap-2 flex-1">
+                                  {/* Away Team */}
+                                  <div className="flex items-center gap-3 flex-1 min-w-0 justify-end">
+                                    <span className="text-white font-semibold truncate text-right">
+                                      {fixture.away_team?.name || 'Away Team'}
+                                    </span>
                                     <div
-                                      className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0"
+                                      className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 shadow-lg"
                                       style={{
                                         backgroundColor: fixture.away_team?.team_color || '#374151'
                                       }}
                                     >
-                                      <span className="text-white text-sm font-bold">
+                                      <span className="text-white text-base font-bold">
                                         {fixture.away_team?.name?.charAt(0).toUpperCase() || '?'}
                                       </span>
                                     </div>
-                                    <span className="text-white font-medium text-sm truncate">
-                                      {fixture.away_team?.name || 'Away Team'}
-                                    </span>
                                   </div>
                                 </div>
 
-                                {/* Time */}
+                                {/* Time Badge */}
                                 {fixture.match_time && (
-                                  <div className="flex items-center gap-1 text-xs text-gray-400 ml-4">
-                                    <Clock className="w-3 h-3" />
-                                    <span>
-                                      {(() => {
-                                        const [hours, minutes] = fixture.match_time.split(':');
-                                        const hour = parseInt(hours);
-                                        const ampm = hour >= 12 ? 'PM' : 'AM';
-                                        const displayHour = hour % 12 || 12;
-                                        return `${displayHour}:${minutes} ${ampm}`;
-                                      })()}
-                                    </span>
+                                  <div className="flex-shrink-0">
+                                    <div className="bg-orange-500/20 border border-orange-500/50 rounded-lg px-3 py-1.5 flex items-center gap-2">
+                                      <Clock className="w-4 h-4 text-orange-400" />
+                                      <span className="text-sm font-semibold text-orange-300">
+                                        {(() => {
+                                          const [hours, minutes] = fixture.match_time.split(':');
+                                          const hour = parseInt(hours);
+                                          const ampm = hour >= 12 ? 'PM' : 'AM';
+                                          const displayHour = hour % 12 || 12;
+                                          return `${displayHour}:${minutes} ${ampm}`;
+                                        })()}
+                                      </span>
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -365,65 +596,114 @@ export default function AdminSeasonDashboard() {
           </div>
         )}
 
-        {/* Teams Section */}
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 mb-8">
-          <h2 className="text-xl font-semibold text-white mb-4">Registered Teams</h2>
+        {/* Teams Tab */}
+        {activeTab === 'teams' && (
+          <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-500/20 p-2 rounded-lg">
+                <Users className="w-6 h-6 text-blue-400" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-white">Registered Teams</h2>
+                <p className="text-sm text-gray-400">
+                  {seasonData.teams?.length || 0} team{seasonData.teams?.length !== 1 ? 's' : ''} registered
+                </p>
+              </div>
+            </div>
+          </div>
+
           {seasonData.teams && seasonData.teams.length > 0 ? (
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {seasonData.teams.map((teamReg: any) => (
                 <div
                   key={teamReg.team_id}
-                  className="border border-gray-700 rounded-lg p-4 flex items-center justify-between"
+                  className="bg-gray-900 border border-gray-700 rounded-xl p-5 card-hover animate-fade-in group"
                 >
-                  <div className="flex items-center gap-4">
-                    <div
-                      className="w-12 h-12 rounded-lg flex items-center justify-center"
-                      style={{ backgroundColor: teamReg.team?.team_color || '#374151' }}
-                    >
-                      <span className="text-white font-bold text-lg">
-                        {teamReg.team?.name?.charAt(0).toUpperCase() || '?'}
-                      </span>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <div
+                        className="w-14 h-14 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform"
+                        style={{ backgroundColor: teamReg.team?.team_color || '#374151' }}
+                      >
+                        <span className="text-white font-bold text-xl">
+                          {teamReg.team?.name?.charAt(0).toUpperCase() || '?'}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-white text-lg truncate">{teamReg.team?.name || 'Unknown Team'}</h3>
+                        <p className="text-sm text-gray-400">
+                          {new Date(teamReg.registration_date || teamReg.created_at).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-white">{teamReg.team?.name || 'Unknown Team'}</h3>
-                      <p className="text-sm text-gray-400">
-                        Registered: {new Date(teamReg.registration_date || teamReg.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
+                    <StatusBadge
+                      status={teamReg.status}
+                      variant={
+                        teamReg.status === 'registered' || teamReg.status === 'confirmed' ? 'success' : 'default'
+                      }
+                      size="sm"
+                    />
                   </div>
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    teamReg.status === 'registered' || teamReg.status === 'confirmed'
-                      ? 'bg-green-900/30 text-green-300'
-                      : 'bg-gray-700 text-gray-300'
-                  }`}>
-                    {teamReg.status}
-                  </span>
+
+                  {/* Additional team info if available */}
+                  <div className="flex items-center gap-4 text-sm text-gray-400 pt-3 border-t border-gray-800">
+                    <span>ID: {teamReg.team_id.slice(0, 8)}...</span>
+                  </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-400">
-              <Users className="w-12 h-12 mx-auto mb-3 text-gray-600" />
-              <p>No teams registered yet</p>
+            <div className="bg-gray-900 border border-gray-700 rounded-xl p-12 text-center">
+              <div className="bg-gray-800 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Users className="w-8 h-8 text-gray-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-2">No Teams Registered</h3>
+              <p className="text-gray-400">Teams will appear here once they register for this season</p>
             </div>
           )}
         </div>
+        )}
 
-        {/* Media Section */}
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-          <SeasonMediaTab
-            seasonId={seasonId}
-            seasonName={seasonData?.display_name || seasonData?.name || 'Season'}
-            canUpload={isLeagueOwner}
-          />
-          {!checkingPermissions && !isLeagueOwner && (
-            <div className="mt-4 p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
-              <p className="text-sm text-yellow-300">
-                Only the league owner can upload season media.
-              </p>
+        {/* Media Tab */}
+        {activeTab === 'media' && (
+          <div className="mb-8">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="bg-purple-500/20 p-2 rounded-lg">
+                <Image className="w-6 h-6 text-purple-400" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-white">Season Media</h2>
+                <p className="text-sm text-gray-400">Photos and videos from this season</p>
+              </div>
             </div>
-          )}
+          </div>
+
+          <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 card-hover animate-fade-in">
+            <SeasonMediaTab
+              seasonId={seasonId}
+              seasonName={seasonData?.display_name || seasonData?.name || 'Season'}
+              canUpload={isLeagueOwner}
+            />
+            {!checkingPermissions && !isLeagueOwner && (
+              <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-sm font-semibold text-yellow-300 mb-1">Upload Restricted</h4>
+                  <p className="text-sm text-yellow-200/80">
+                    Only the league owner can upload season media.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+        )}
       </div>
 
       {/* Fixture Preview Modal */}
@@ -435,6 +715,19 @@ export default function AdminSeasonDashboard() {
         schedulingConfig={schedulingConfig}
         onFixturesGenerated={handleFixturesGenerated}
       />
+
+      {/* Match Results Modal */}
+      {selectedMatchId && (
+        <MatchResultsModal
+          isOpen={showResultsModal}
+          onClose={() => {
+            setShowResultsModal(false);
+            setSelectedMatchId(null);
+          }}
+          matchId={selectedMatchId}
+          onSaved={handleResultsSaved}
+        />
+      )}
     </div>
   );
 }

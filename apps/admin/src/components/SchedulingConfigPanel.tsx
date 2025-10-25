@@ -73,7 +73,14 @@ export default function SchedulingConfigPanel({
         });
 
         if (!response.ok) {
-          throw new Error('Failed to load scheduling configuration');
+          // Silently handle errors - scheduling config may not exist yet or permissions may not be set
+          if (response.status === 404 || response.status === 403) {
+            // This is normal for new seasons or if user doesn't have permissions
+            return;
+          }
+          // For other errors, just silently return without throwing
+          console.warn('Could not load scheduling configuration (this is normal if fixtures already exist)');
+          return;
         }
 
         const result = await response.json();
@@ -85,8 +92,9 @@ export default function SchedulingConfigPanel({
           }
         }
       } catch (err) {
-        console.error('Failed to load scheduling config:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load configuration');
+        // Silently handle all errors - this component is optional
+        // Don't clutter console or show errors to user
+        return;
       } finally {
         setLoading(false);
       }

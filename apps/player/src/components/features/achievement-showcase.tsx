@@ -12,7 +12,7 @@
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ProfessionalCard } from '@/components/ui/professional-card';
+import { ProfessionalCard } from '@matchday/ui';
 import { AchievementService, AchievementProgress, AchievementCategory } from '@matchday/services';
 import { NumberFormatters } from '@/lib/utils/formatters';
 

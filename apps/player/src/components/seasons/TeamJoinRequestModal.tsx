@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, UserPlus, Loader2, AlertCircle, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
-import { useToast } from '@/components/ui/toast';
+import { useToast } from '@matchday/ui';
 
 interface TeamJoinRequestModalProps {
   isOpen: boolean;

@@ -1216,6 +1216,345 @@ export class MatchService {
   }
 
   /**
+   * Record match event (goal, card, substitution, penalty)
+   */
+  async recordMatchEvent(data: {
+    matchId: string;
+    teamId: string;
+    playerId?: string;
+    eventType: EventType;
+    eventTime?: number;
+    description?: string;
+    assistPlayerId?: string;
+  }): Promise<ServiceResponse<MatchEvent>> {
+    try {
+      console.log('⚽ MatchService.recordMatchEvent:', data);
+
+      // Validate match exists
+      const { data: match, error: matchError } = await this.supabase
+        .from('matches')
+        .select('id, status')
+        .eq('id', data.matchId)
+        .single();
+
+      if (matchError) throw matchError;
+      if (!match) {
+        return {
+          data: null,
+          error: { code: 'MATCH_NOT_FOUND', message: 'Match not found', timestamp: new Date().toISOString() },
+          success: false
+        };
+      }
+
+      // Insert the event
+      const { data: event, error: eventError } = await this.supabase
+        .from('match_events')
+        .insert({
+          match_id: data.matchId,
+          team_id: data.teamId,
+          player_id: data.playerId || null,
+          event_type: data.eventType,
+          event_time: data.eventTime || null,
+          description: data.description || null
+        })
+        .select()
+        .single();
+
+      if (eventError) throw eventError;
+
+      // If it's a goal and there's an assist, record the assist event
+      if (data.eventType === 'goal' && data.assistPlayerId) {
+        await this.supabase
+          .from('match_events')
+          .insert({
+            match_id: data.matchId,
+            team_id: data.teamId,
+            player_id: data.assistPlayerId,
+            event_type: 'assist',
+            event_time: data.eventTime || null,
+            description: `Assist for goal by player ${data.playerId}`
+          });
+      }
+
+      // If it's a goal, auto-update match score
+      if (data.eventType === 'goal') {
+        const { data: currentMatch } = await this.supabase
+          .from('matches')
+          .select('home_team_id, away_team_id, home_score, away_score')
+          .eq('id', data.matchId)
+          .single();
+
+        if (currentMatch) {
+          const isHomeTeam = currentMatch.home_team_id === data.teamId;
+          const homeScore = (currentMatch.home_score || 0) + (isHomeTeam ? 1 : 0);
+          const awayScore = (currentMatch.away_score || 0) + (isHomeTeam ? 0 : 1);
+
+          await this.supabase
+            .from('matches')
+            .update({
+              home_score: homeScore,
+              away_score: awayScore,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', data.matchId);
+        }
+      }
+
+      // Clear cache
+      this.clearCache('getMatchDetails');
+      this.clearCache('getLiveMatchData');
+
+      return { data: event, error: null, success: true };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'recordMatchEvent'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Update match with final result including man of the match and lineups
+   */
+  async updateMatchResult(data: {
+    matchId: string;
+    homeScore: number;
+    awayScore: number;
+    manOfMatchId?: string;
+    homeLineup?: any;
+    awayLineup?: any;
+    status?: MatchStatus;
+  }): Promise<ServiceResponse<Match>> {
+    try {
+      console.log('🏆 MatchService.updateMatchResult:', data);
+
+      const updateData: any = {
+        home_score: data.homeScore,
+        away_score: data.awayScore,
+        updated_at: new Date().toISOString()
+      };
+
+      if (data.manOfMatchId) {
+        updateData.man_of_match_id = data.manOfMatchId;
+      }
+
+      if (data.homeLineup) {
+        updateData.home_lineup = data.homeLineup;
+      }
+
+      if (data.awayLineup) {
+        updateData.away_lineup = data.awayLineup;
+      }
+
+      if (data.status) {
+        updateData.status = data.status;
+      } else {
+        updateData.status = 'completed';
+      }
+
+      const { data: match, error: updateError } = await this.supabase
+        .from('matches')
+        .update(updateData)
+        .eq('id', data.matchId)
+        .select(`
+          *,
+          home_team:teams!matches_home_team_id_fkey(*),
+          away_team:teams!matches_away_team_id_fkey(*),
+          league:leagues(*),
+          man_of_match:user_profiles!matches_man_of_match_id_fkey(*)
+        `)
+        .single();
+
+      if (updateError) throw updateError;
+
+      // Clear cache
+      this.clearCache('getPlayerMatches');
+      this.clearCache('getMatchDetails');
+      this.clearCache('getActiveMatches');
+
+      return { data: match, error: null, success: true };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'updateMatchResult'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Get team players for match (for populating dropdowns)
+   */
+  async getTeamPlayersForMatch(matchId: string): Promise<ServiceResponse<{
+    homeTeamPlayers: any[];
+    awayTeamPlayers: any[];
+  }>> {
+    try {
+      console.log('👥 MatchService.getTeamPlayersForMatch:', matchId);
+
+      // Get match details
+      const { data: match, error: matchError } = await this.supabase
+        .from('matches')
+        .select(`
+          id,
+          home_team_id,
+          away_team_id,
+          home_team:teams!matches_home_team_id_fkey(id, name),
+          away_team:teams!matches_away_team_id_fkey(id, name)
+        `)
+        .eq('id', matchId)
+        .single();
+
+      if (matchError) throw matchError;
+      if (!match) {
+        return {
+          data: null,
+          error: { code: 'MATCH_NOT_FOUND', message: 'Match not found', timestamp: new Date().toISOString() },
+          success: false
+        };
+      }
+
+      // Get home team players
+      const { data: homeTeamMembers } = await this.supabase
+        .from('team_members')
+        .select(`
+          id,
+          user_id,
+          position,
+          jersey_number,
+          users!inner(id, full_name, email)
+        `)
+        .eq('team_id', match.home_team_id)
+        .eq('is_active', true);
+
+      // Get away team players
+      const { data: awayTeamMembers } = await this.supabase
+        .from('team_members')
+        .select(`
+          id,
+          user_id,
+          position,
+          jersey_number,
+          users!inner(id, full_name, email)
+        `)
+        .eq('team_id', match.away_team_id)
+        .eq('is_active', true);
+
+      return {
+        data: {
+          homeTeamPlayers: homeTeamMembers || [],
+          awayTeamPlayers: awayTeamMembers || []
+        },
+        error: null,
+        success: true
+      };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'getTeamPlayersForMatch'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Get match events for display
+   */
+  async getMatchEvents(matchId: string): Promise<ServiceResponse<MatchEvent[]>> {
+    try {
+      console.log('📋 MatchService.getMatchEvents:', matchId);
+
+      const { data: events, error } = await this.supabase
+        .from('match_events')
+        .select(`
+          *,
+          player:users!match_events_player_id_fkey(id, full_name, email),
+          team:teams(id, name, team_color)
+        `)
+        .eq('match_id', matchId)
+        .order('event_time', { ascending: true });
+
+      console.log('📋 Events query result:', { count: events?.length, error, data: events });
+
+      if (error) throw error;
+
+      return { data: events || [], error: null, success: true };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'getMatchEvents'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Delete match event
+   */
+  async deleteMatchEvent(eventId: string): Promise<ServiceResponse<void>> {
+    try {
+      console.log('🗑️ MatchService.deleteMatchEvent:', eventId);
+
+      // Get event details before deleting (to potentially adjust score)
+      const { data: event } = await this.supabase
+        .from('match_events')
+        .select('match_id, event_type, team_id')
+        .eq('id', eventId)
+        .single();
+
+      // Delete the event
+      const { error } = await this.supabase
+        .from('match_events')
+        .delete()
+        .eq('id', eventId);
+
+      if (error) throw error;
+
+      // If it was a goal, adjust the match score
+      if (event && event.event_type === 'goal') {
+        const { data: currentMatch } = await this.supabase
+          .from('matches')
+          .select('home_team_id, away_team_id, home_score, away_score')
+          .eq('id', event.match_id)
+          .single();
+
+        if (currentMatch) {
+          const isHomeTeam = currentMatch.home_team_id === event.team_id;
+          const homeScore = Math.max(0, (currentMatch.home_score || 0) - (isHomeTeam ? 1 : 0));
+          const awayScore = Math.max(0, (currentMatch.away_score || 0) - (isHomeTeam ? 0 : 1));
+
+          await this.supabase
+            .from('matches')
+            .update({
+              home_score: homeScore,
+              away_score: awayScore,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', event.match_id);
+        }
+      }
+
+      // Clear cache
+      this.clearCache('getMatchDetails');
+      this.clearCache('getMatchEvents');
+
+      return { data: null, error: null, success: true };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'deleteMatchEvent'),
+        success: false
+      };
+    }
+  }
+
+  /**
    * Clear cache
    */
   clearCache(pattern?: string): void {

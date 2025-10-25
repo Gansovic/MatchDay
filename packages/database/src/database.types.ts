@@ -249,6 +249,9 @@ export interface Database {
           status: string | null;
           home_score: number | null;
           away_score: number | null;
+          man_of_match_id: string | null;
+          home_lineup: any | null;
+          away_lineup: any | null;
           created_at: string;
           updated_at: string;
         };
@@ -263,6 +266,9 @@ export interface Database {
           status?: string | null;
           home_score?: number | null;
           away_score?: number | null;
+          man_of_match_id?: string | null;
+          home_lineup?: any | null;
+          away_lineup?: any | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -277,6 +283,9 @@ export interface Database {
           status?: string | null;
           home_score?: number | null;
           away_score?: number | null;
+          man_of_match_id?: string | null;
+          home_lineup?: any | null;
+          away_lineup?: any | null;
           created_at?: string;
           updated_at?: string;
         };

@@ -5,5 +5,6 @@
  */
 
 export * from './utils';
+export * from './utils/formatters';
 export * from './environment/validation';
 export * from './environment/env-validator';

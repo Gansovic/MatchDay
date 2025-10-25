@@ -1,9 +1,9 @@
 /**
  * Professional Stats Display Component
- * 
+ *
  * Creates professional-looking statistics displays that make amateur players
  * feel like pros. Supports various layouts and highlight states.
- * 
+ *
  * @example
  * ```typescript
  * <StatsDisplay
@@ -19,7 +19,7 @@
  */
 
 import React from 'react';
-import { NumberFormatters } from '@/lib/utils/formatters';
+import { NumberFormatters } from '@matchday/shared';
 
 interface StatItem {
   label: string;
@@ -73,11 +73,11 @@ export const StatsDisplay = React.memo<StatsDisplayProps>(({
     if (stat.formatter) {
       return stat.formatter(stat.value);
     }
-    
+
     if (typeof stat.value === 'number') {
       return stat.value.toLocaleString();
     }
-    
+
     return stat.value.toString();
   };
 
@@ -109,36 +109,36 @@ export const StatsDisplay = React.memo<StatsDisplayProps>(({
           </h3>
         </div>
       )}
-      
+
       <div className={getLayoutClasses()}>
         {stats.map((stat, index) => (
-          <div 
+          <div
             key={index}
             className={`text-center p-3 rounded-lg ${
-              stat.highlight 
-                ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800' 
+              stat.highlight
+                ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
                 : 'bg-gray-50 dark:bg-gray-700/50'
             }`}
           >
             <div className="flex items-center justify-center gap-1 mb-1">
               <div className={`text-2xl font-bold ${
-                stat.highlight 
-                  ? 'text-blue-600 dark:text-blue-400' 
+                stat.highlight
+                  ? 'text-blue-600 dark:text-blue-400'
                   : 'text-gray-900 dark:text-white'
               }`}>
                 {formatValue(stat)}
               </div>
               {getTrendIcon(stat.trend)}
             </div>
-            
+
             <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-medium">
               {stat.label}
             </div>
-            
+
             {stat.subValue && (
               <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                {typeof stat.subValue === 'number' 
-                  ? stat.subValue.toLocaleString() 
+                {typeof stat.subValue === 'number'
+                  ? stat.subValue.toLocaleString()
                   : stat.subValue
                 }
               </div>
@@ -172,7 +172,7 @@ export const PlayerStatsDisplay = React.memo<{
       highlight: true
     },
     {
-      label: 'Assists', 
+      label: 'Assists',
       value: stats.assists,
       formatter: NumberFormatters.formatAssists
     },
@@ -191,7 +191,7 @@ export const PlayerStatsDisplay = React.memo<{
   }
 
   return (
-    <StatsDisplay 
+    <StatsDisplay
       title="Player Statistics"
       stats={statItems}
       variant={compact ? 'compact' : 'default'}
@@ -213,7 +213,7 @@ export const TeamStatsDisplay = React.memo<{
   position?: number;
 }>(({ stats, position }) => {
   const totalGames = stats.wins + stats.draws + stats.losses;
-  
+
   const statItems: StatItem[] = [
     {
       label: 'Points',
@@ -242,7 +242,7 @@ export const TeamStatsDisplay = React.memo<{
   }
 
   return (
-    <StatsDisplay 
+    <StatsDisplay
       title="Team Performance"
       stats={statItems}
     />
