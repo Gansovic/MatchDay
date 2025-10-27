@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Users, Calendar, Settings, Clock, Image, Trophy, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Users, Calendar, Settings, Clock, Image, Trophy, AlertCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import SchedulingConfigPanel, { SchedulingConfig } from '@/components/SchedulingConfigPanel';
 import FixtureGenerationPanel from '@/components/FixtureGenerationPanel';
@@ -31,6 +31,8 @@ export default function AdminSeasonDashboard() {
   const [showResultsModal, setShowResultsModal] = useState(false);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'fixtures' | 'standings' | 'teams' | 'media'>('overview');
+  const [recalculatingStats, setRecalculatingStats] = useState(false);
+  const [statsRecalcResult, setStatsRecalcResult] = useState<any>(null);
 
   const loadSeasonData = async () => {
     try {
@@ -151,6 +153,55 @@ export default function AdminSeasonDashboard() {
 
   const handleResultsSaved = () => {
     loadFixturesData();
+  };
+
+  const handleRecalculateStats = async () => {
+    if (!confirm('Recalculate all player and team statistics for this season from match events? This will overwrite existing stats.')) {
+      return;
+    }
+
+    try {
+      setRecalculatingStats(true);
+      setStatsRecalcResult(null);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        alert('Not authenticated');
+        return;
+      }
+
+      console.log('🔄 Recalculating stats for season:', seasonId);
+
+      const response = await fetch(`/api/seasons/${seasonId}/recalculate-stats`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to recalculate stats');
+      }
+
+      console.log('✅ Stats recalculated:', result.data);
+      setStatsRecalcResult(result.data);
+
+      // Show success message
+      alert(`✅ Statistics recalculated successfully!\n\n` +
+        `Matches processed: ${result.data.stats.matches_processed}\n` +
+        `Players updated: ${result.data.stats.players_updated}\n` +
+        `Teams updated: ${result.data.stats.teams_updated}`
+      );
+
+    } catch (error) {
+      console.error('Failed to recalculate stats:', error);
+      alert('❌ Failed to recalculate statistics: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    } finally {
+      setRecalculatingStats(false);
+    }
   };
 
   // Determine which tabs to show based on fixtures
@@ -388,6 +439,43 @@ export default function AdminSeasonDashboard() {
             valueColor="text-white"
           />
         </div>
+
+        {/* Stats Management */}
+        {fixturesCount > 0 && (
+          <div className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-gray-700 rounded-lg p-6 mb-8 card-hover animate-fade-in">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <Trophy className="w-6 h-6 text-yellow-500" />
+                  <h2 className="text-xl font-semibold text-white">Statistics Management</h2>
+                </div>
+                <p className="text-gray-400 text-sm mb-4">
+                  Player and team statistics are automatically calculated from match events when matches are completed.
+                  Use the button below to manually recalculate all statistics for this season.
+                </p>
+                {statsRecalcResult && (
+                  <div className="bg-green-900/30 border border-green-700 rounded-lg p-3 mb-4">
+                    <p className="text-green-300 text-sm">
+                      ✅ Last recalculation: {statsRecalcResult.stats.matches_processed} matches,{' '}
+                      {statsRecalcResult.stats.players_updated} players,{' '}
+                      {statsRecalcResult.stats.teams_updated} teams updated
+                    </p>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={handleRecalculateStats}
+                disabled={recalculatingStats || !isLeagueOwner}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700
+                  disabled:opacity-50 disabled:cursor-not-allowed transition-colors
+                  flex items-center gap-2 font-medium whitespace-nowrap"
+              >
+                <RefreshCw className={`w-5 h-5 ${recalculatingStats ? 'animate-spin' : ''}`} />
+                {recalculatingStats ? 'Recalculating...' : 'Recalculate Stats'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Scheduling & Fixture Management */}
         {fixturesCount === 0 && (

@@ -386,7 +386,8 @@ export function useUserMatches(userId: string | null) {
           venue: match.venue || 'TBD',
           homeScore: match.home_score,
           awayScore: match.away_score,
-          leagueName: match.league?.name || match.leagueName
+          leagueName: match.league?.name || match.leagueName,
+          userTeamId: match.user_team_id || match.userTeamId
         }));
 
         setMatches(transformedMatches);

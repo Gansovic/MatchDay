@@ -108,7 +108,7 @@ export const PlayerStatsBar: React.FC<PlayerStatsBarProps> = ({
         </div>
         <div className="flex gap-1 mb-2">
           {recentForm.length > 0 ? (
-            recentForm.slice(-5).map((result, index) => (
+            recentForm.map((result, index) => (
               <div
                 key={index}
                 className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold ${getFormBadgeColor(result)}`}

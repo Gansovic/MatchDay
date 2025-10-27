@@ -1,6 +1,11 @@
+/**
+ * Match Event Delete API Route (Admin)
+ *
+ * DELETE /api/matches/[matchId]/events/[eventId] - Delete a specific match event
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/client';
-import { MatchService } from '@matchday/services';
 
 export async function OPTIONS() {
   const response = new NextResponse(null, { status: 200 });
@@ -11,18 +16,19 @@ export async function OPTIONS() {
 }
 
 /**
- * DELETE /api/matches/[matchId]/events/[eventId]
- * Delete a match event
+ * DELETE - Delete a match event
  */
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ matchId: string; eventId: string }> }
 ) {
   try {
-    const { eventId } = await params;
+    const { matchId, eventId } = await params;
+    console.log('🗑️ Deleting match event:', eventId, 'from match:', matchId);
+
     const supabase = createAdminClient();
 
-    // Check authentication - get token from Authorization header
+    // Check authentication
     const authHeader = request.headers.get('authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return NextResponse.json(
@@ -40,18 +46,35 @@ export async function DELETE(
       );
     }
 
-    // Get match service instance
-    const matchService = MatchService.getInstance(supabase);
+    // Get the event to check its type before deleting
+    const { data: event } = await supabase
+      .from('match_events')
+      .select('event_type, team_id')
+      .eq('id', eventId)
+      .eq('match_id', matchId)
+      .single();
 
-    // Delete match event
-    const result = await matchService.deleteMatchEvent(eventId);
+    // Delete the event
+    const { error: deleteError } = await supabase
+      .from('match_events')
+      .delete()
+      .eq('id', eventId)
+      .eq('match_id', matchId);
 
-    if (!result.success) {
+    if (deleteError) {
+      console.error('❌ Error deleting event:', deleteError);
       return NextResponse.json(
-        { success: false, data: null, error: result.error?.message || 'Failed to delete match event' },
+        { success: false, data: null, error: deleteError.message },
         { status: 500 }
       );
     }
+
+    // If it was a goal, recalculate match scores
+    if (event?.event_type === 'goal') {
+      await updateMatchScores(supabase, matchId);
+    }
+
+    console.log('✅ Event deleted successfully');
 
     const response = NextResponse.json({
       success: true,
@@ -68,5 +91,49 @@ export async function DELETE(
       { success: false, data: null, error: 'Internal server error' },
       { status: 500 }
     );
+  }
+}
+
+/**
+ * Helper function to update match scores based on goal events
+ */
+async function updateMatchScores(supabase: any, matchId: string) {
+  try {
+    // Get match details
+    const { data: match } = await supabase
+      .from('matches')
+      .select('home_team_id, away_team_id')
+      .eq('id', matchId)
+      .single();
+
+    if (!match) return;
+
+    // Count goals for each team
+    const { count: homeCount } = await supabase
+      .from('match_events')
+      .select('*', { count: 'exact', head: true })
+      .eq('match_id', matchId)
+      .eq('team_id', match.home_team_id)
+      .eq('event_type', 'goal');
+
+    const { count: awayCount } = await supabase
+      .from('match_events')
+      .select('*', { count: 'exact', head: true })
+      .eq('match_id', matchId)
+      .eq('team_id', match.away_team_id)
+      .eq('event_type', 'goal');
+
+    await supabase
+      .from('matches')
+      .update({
+        home_score: homeCount || 0,
+        away_score: awayCount || 0,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', matchId);
+
+    console.log(\`✅ Updated match scores: \${homeCount || 0} - \${awayCount || 0}\`);
+  } catch (error) {
+    console.error('Error updating match scores:', error);
   }
 }

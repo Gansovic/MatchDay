@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { Calendar, Clock, MapPin } from 'lucide-react';
 import { TeamLogo } from '@/components/common/team-logo';
+import MatchDetailsModal from './MatchDetailsModal';
 
 interface Match {
   id: string;
@@ -35,6 +37,9 @@ interface FixturesCalendarProps {
 }
 
 export default function FixturesCalendar({ matches, userTeamIds = [], showOnlyUpcoming = false }: FixturesCalendarProps) {
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
+
   // Filter matches if needed
   const filteredMatches = showOnlyUpcoming
     ? matches.filter(m => m.status === 'scheduled' && new Date(m.match_date) >= new Date())
@@ -74,6 +79,16 @@ export default function FixturesCalendar({ matches, userTeamIds = [], showOnlyUp
 
   const isUserTeamMatch = (match: Match) => {
     return userTeamIds.includes(match.home_team_id) || userTeamIds.includes(match.away_team_id);
+  };
+
+  const handleMatchClick = (matchId: string) => {
+    setSelectedMatchId(matchId);
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setSelectedMatchId(null);
   };
 
   if (filteredMatches.length === 0) {
@@ -120,10 +135,11 @@ export default function FixturesCalendar({ matches, userTeamIds = [], showOnlyUp
                 return (
                   <div
                     key={match.id}
-                    className={`border rounded-lg p-4 transition-colors ${
+                    onClick={() => handleMatchClick(match.id)}
+                    className={`border rounded-lg p-4 transition-all cursor-pointer hover:shadow-lg hover:scale-[1.02] ${
                       isMyTeam
-                        ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20'
-                        : 'border-gray-200 dark:border-gray-600'
+                        ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30'
+                        : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -214,6 +230,15 @@ export default function FixturesCalendar({ matches, userTeamIds = [], showOnlyUp
           </div>
         );
       })}
+
+      {/* Match Details Modal */}
+      {selectedMatchId && (
+        <MatchDetailsModal
+          matchId={selectedMatchId}
+          isOpen={showModal}
+          onClose={handleCloseModal}
+        />
+      )}
     </div>
   );
 }

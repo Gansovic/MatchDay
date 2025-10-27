@@ -28,7 +28,7 @@ export async function GET(
     const { user } = authResult;
     const supabase = await createServerSupabaseClient();
 
-    // Get match details with only core columns that definitely exist
+    // Get match details with team information
     const { data: match, error: matchError } = await supabase
       .from('matches')
       .select(`
@@ -37,11 +37,26 @@ export async function GET(
         away_score,
         status,
         match_date,
+        match_time,
+        matchday_number,
+        court_number,
         venue,
         notes,
         home_team_id,
         away_team_id,
-        league_id
+        league_id,
+        home_team:teams!matches_home_team_id_fkey(
+          id,
+          name,
+          team_color,
+          logo_url
+        ),
+        away_team:teams!matches_away_team_id_fkey(
+          id,
+          name,
+          team_color,
+          logo_url
+        )
       `)
       .eq('id', matchId)
       .single();
@@ -49,94 +64,23 @@ export async function GET(
     if (matchError || !match) {
       console.error('❌ Match not found:', matchError?.message);
       return NextResponse.json(
-        { error: 'Match not found', message: 'The specified match does not exist' },
+        { success: false, data: null, error: 'Match not found' },
         { status: 404 }
       );
     }
-
-    // Get team details separately
-    const { data: homeTeam, error: homeTeamError } = await supabase
-      .from('teams')
-      .select('id, name, team_color')
-      .eq('id', match.home_team_id)
-      .single();
-
-    const { data: awayTeam, error: awayTeamError } = await supabase
-      .from('teams')
-      .select('id, name, team_color')
-      .eq('id', match.away_team_id)
-      .single();
-
-    if (homeTeamError || awayTeamError || !homeTeam || !awayTeam) {
-      console.error('❌ Team details not found:', { homeTeamError, awayTeamError });
-      return NextResponse.json(
-        { error: 'Match teams not found', message: 'Unable to load team information for this match' },
-        { status: 404 }
-      );
-    }
-
-    // Check if user has access to view this match (must be member of one of the teams)
-    const { data: userTeamMembership, error: membershipError } = await supabase
-      .from('team_members')
-      .select('team_id')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .in('team_id', [match.home_team_id, match.away_team_id]);
-
-    if (membershipError || !userTeamMembership || userTeamMembership.length === 0) {
-      console.error('❌ Access denied for user:', user.id, 'to match:', matchId);
-      return NextResponse.json(
-        { error: 'Access denied', message: 'You must be a member of one of the teams to view match details' },
-        { status: 403 }
-      );
-    }
-
-    // Get league details if match has a league
-    let league = null;
-    if (match.league_id) {
-      const { data: leagueData } = await supabase
-        .from('leagues')
-        .select('id, name')
-        .eq('id', match.league_id)
-        .single();
-      league = leagueData;
-    }
-
-    const responseData = {
-      id: match.id,
-      homeTeam: {
-        id: homeTeam.id,
-        name: homeTeam.name,
-        color: homeTeam.team_color,
-        score: match.home_score
-      },
-      awayTeam: {
-        id: awayTeam.id,
-        name: awayTeam.name,
-        color: awayTeam.team_color,
-        score: match.away_score
-      },
-      status: match.status,
-      matchDate: match.match_date,
-      venue: match.venue,
-      duration: 90,
-      notes: match.notes,
-      league: league,
-      createdAt: new Date().toISOString(), // Use current time since created_at may have schema issues
-      updatedAt: new Date().toISOString()  // Use current time since updated_at may have schema issues
-    };
 
     console.log('✅ Match details retrieved successfully:', matchId);
 
     return NextResponse.json({
-      data: responseData,
-      message: 'Match details retrieved successfully'
+      success: true,
+      data: match,
+      error: null
     });
 
   } catch (error) {
     console.error('Error in GET /api/matches/[matchId]:', error);
     return NextResponse.json(
-      { error: 'Internal server error', message: 'An unexpected error occurred' },
+      { success: false, data: null, error: 'Internal server error' },
       { status: 500 }
     );
   }

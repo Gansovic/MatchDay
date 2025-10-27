@@ -91,22 +91,33 @@ export default function DashboardPage() {
   // Generate performance data for chart
   const { performanceData, loading: perfDataLoading } = usePerformanceData(matches, stats);
 
-  // Calculate recent form from matches
+  // Calculate recent form from last 5 completed matches (oldest to newest for left-to-right display)
   const recentForm = React.useMemo(() => {
-    if (!matches || matches.length === 0) return [];
+    if (!matches || !teams) return [];
 
-    const completedMatches = matches
-      .filter(m => m.status === 'completed' && m.homeScore !== undefined && m.awayScore !== undefined)
-      .sort((a, b) => new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime())
-      .slice(0, 5);
+    const userTeamIds = teams.map(t => t.team.id);
 
-    return completedMatches.map(match => {
-      // Simplified - determine win/loss/draw
-      if (match.homeScore > match.awayScore) return 'W';
-      if (match.homeScore < match.awayScore) return 'L';
+    const completedWithScores = matches
+      .filter(m =>
+        m.status === 'completed' &&
+        typeof m.homeScore === 'number' &&
+        typeof m.awayScore === 'number'
+      )
+      .sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime()) // Oldest first
+      .slice(-5); // Take last 5 (most recent)
+
+    return completedWithScores.map(match => {
+      const homeId = match.homeTeam?.id;
+      const awayId = match.awayTeam?.id;
+      const isHome = userTeamIds.includes(homeId);
+      const userScore = isHome ? match.homeScore : match.awayScore;
+      const oppScore = isHome ? match.awayScore : match.homeScore;
+
+      if (userScore > oppScore) return 'W';
+      if (userScore < oppScore) return 'L';
       return 'D';
     }) as ('W' | 'D' | 'L')[];
-  }, [matches]);
+  }, [matches, teams]);
 
   // Check if user is a team captain
   useEffect(() => {
@@ -300,7 +311,9 @@ export default function DashboardPage() {
                         </span>
                       </div>
                       {index === 0 && (
-                        <Trophy className="w-4 h-4 text-yellow-500" title="Best Performing Team" />
+                        <div title="Best Performing Team">
+                          <Trophy className="w-4 h-4 text-yellow-500" />
+                        </div>
                       )}
                     </div>
                   ))

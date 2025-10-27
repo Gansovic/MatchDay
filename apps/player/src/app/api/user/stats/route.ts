@@ -100,13 +100,24 @@ export async function GET(request: NextRequest) {
         // Continue with 0 win rate if calculation fails
       }
 
+      // IMPORTANT: Get goals and assists from NEW player_match_stats table
+      console.log('🔍 DEBUG: Querying player_match_stats for fresh goal/assist data...');
+      const { data: playerStatsData } = await supabase
+        .from('player_match_stats')
+        .select('goals, assists')
+        .eq('user_id', user.id);
+
+      const totalGoals = (playerStatsData || []).reduce((sum, s) => sum + (s.goals || 0), 0);
+      const totalAssists = (playerStatsData || []).reduce((sum, s) => sum + (s.assists || 0), 0);
+      console.log('📊 Fresh stats from player_match_stats:', { totalGoals, totalAssists, recordCount: playerStatsData?.length });
+
       const dashboardStats = {
         matchesPlayed: actualTotalGames || (dashboardData as any).matches_played || 0,
         teamsJoined: (dashboardData as any).teams_joined || 0,
         upcomingMatches: (dashboardData as any).upcoming_matches || 0,
         winRate: actualWinRate, // Use actual win rate from completed matches
-        goalsScored: (dashboardData as any).goals_scored || 0,
-        assists: (dashboardData as any).assists || 0,
+        goalsScored: totalGoals, // Use fresh data from player_match_stats
+        assists: totalAssists, // Use fresh data from player_match_stats
         leaguesParticipated: (dashboardData as any).leagues_participated || 0,
         avgTeamWinRate: actualWinRate // Use actual win rate here too
       };
@@ -129,20 +140,20 @@ export async function GET(request: NextRequest) {
         console.error('Error fetching player team stats:', playerTeamError);
       }
 
-      // Calculate performance metrics with multi-team context
-      const performance = dashboardData.matches_played > 0 ? {
-        overallRating: Math.min(95, 70 + (dashboardData.goals_scored + dashboardData.assists) * 2),
+      // Calculate performance metrics with multi-team context using fresh data
+      const performance = actualTotalGames > 0 ? {
+        overallRating: Math.min(95, 70 + (totalGoals + totalAssists) * 2),
         strengths: [
-          dashboardData.goals_scored > 3 ? 'Goal Scoring' : null,
-          dashboardData.assists > 2 ? 'Playmaking' : null,
-          dashboardData.matches_played > 5 ? 'Consistency' : null,
+          totalGoals > 3 ? 'Goal Scoring' : null,
+          totalAssists > 2 ? 'Playmaking' : null,
+          actualTotalGames > 5 ? 'Consistency' : null,
           actualWinRate > 50 ? 'Winning Mentality' : null,
-          dashboardData.teams_joined > 1 ? 'Team Versatility' : null
+          (dashboardData as any).teams_joined > 1 ? 'Team Versatility' : null
         ].filter((s): s is string => s !== null),
-        totalGoals: dashboardData.goals_scored,
-        totalAssists: dashboardData.assists,
-        totalMatches: dashboardData.matches_played,
-        avgTeamWinRate: dashboardData.avg_team_win_rate
+        totalGoals: totalGoals,
+        totalAssists: totalAssists,
+        totalMatches: actualTotalGames,
+        avgTeamWinRate: actualWinRate
       } : null;
 
       const response = NextResponse.json({
@@ -214,20 +225,20 @@ export async function GET(request: NextRequest) {
       count: teamMemberships?.length || 0
     });
 
-    // Get user's player stats
-    console.log('🔍 DEBUG: Querying player stats for user:', user.id);
+    // Get user's player stats from NEW player_match_stats table (one row per match)
+    console.log('🔍 DEBUG: Querying player_match_stats for user:', user.id);
     const { data: playerStatsData, error: playerStatsError } = await supabase
-      .from('player_stats')
-      .select('goals, assists, minutes_played')
+      .from('player_match_stats')
+      .select('goals, assists, season_id')
       .eq('user_id', user.id);
-    
-    console.log('🔍 DEBUG: Player stats result:', {
+
+    console.log('🔍 DEBUG: Player match stats result:', {
       data: playerStatsData,
       error: playerStatsError,
       count: playerStatsData?.length || 0
     });
 
-    // Calculate aggregated stats
+    // Calculate aggregated stats by summing across all matches
     const playerStats = playerStatsData || [];
     const totalMatches = playerStats.length;
     const totalGoals = playerStats.reduce((sum, s) => sum + (s.goals || 0), 0);

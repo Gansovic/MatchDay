@@ -81,11 +81,16 @@ export async function GET(request: NextRequest) {
     // Debug: Log raw matches data
     console.log('🔍 Raw matches from database:', matches?.length || 0);
     
-    // Additional security validation: ensure all returned matches involve user's teams
-    const filteredMatches = (matches || []).filter(match => 
-      teamIds.includes(match.home_team_id) || teamIds.includes(match.away_team_id)
-    );
-    
+    // Additional security validation and add user_team_id
+    const filteredMatches = (matches || [])
+      .filter(match =>
+        teamIds.includes(match.home_team_id) || teamIds.includes(match.away_team_id)
+      )
+      .map(match => ({
+        ...match,
+        user_team_id: teamIds.includes(match.home_team_id) ? match.home_team_id : match.away_team_id
+      }));
+
     if (matches && filteredMatches.length !== matches.length) {
       console.warn('⚠️ Some matches were filtered out due to team membership validation');
       console.warn('Original count:', matches.length, 'Filtered count:', filteredMatches.length);

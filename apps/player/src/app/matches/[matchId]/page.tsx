@@ -46,6 +46,18 @@ interface MatchData {
   updatedAt: string;
 }
 
+interface MatchEvent {
+  id: string;
+  event_type: string;
+  event_time: number | null;
+  team_id: string;
+  player?: {
+    id: string;
+    full_name: string | null;
+    email: string | null;
+  };
+}
+
 interface MatchParticipants {
   homeTeam: {
     id: string;
@@ -97,6 +109,7 @@ export default function MatchPage({ params }: { params: Promise<{ matchId: strin
   const router = useRouter();
   const [matchData, setMatchData] = useState<MatchData | null>(null);
   const [participants, setParticipants] = useState<MatchParticipants | null>(null);
+  const [matchEvents, setMatchEvents] = useState<MatchEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userTeamId, setUserTeamId] = useState<string | null>(null);
@@ -106,6 +119,7 @@ export default function MatchPage({ params }: { params: Promise<{ matchId: strin
     if (user && session?.access_token) {
       loadMatchData();
       loadParticipants();
+      loadMatchEvents();
     }
   }, [user, session?.access_token, resolvedParams.matchId]);
 
@@ -205,6 +219,44 @@ export default function MatchPage({ params }: { params: Promise<{ matchId: strin
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const loadMatchEvents = async () => {
+    try {
+      console.log('⚽ Loading match events:', resolvedParams.matchId);
+
+      const response = await fetch(`/api/matches/${resolvedParams.matchId}/events`, {
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`
+        }
+      });
+
+      if (!response.ok) {
+        console.log('No events found or access denied');
+        return;
+      }
+
+      const result = await response.json();
+      if (result.success && result.data) {
+        setMatchEvents(result.data);
+        console.log('✅ Match events loaded:', result.data.length);
+      }
+    } catch (err) {
+      console.error('Error loading match events:', err);
+      // Don't set error as events might not exist yet
+    }
+  };
+
+  const getEventIcon = (eventType: string) => {
+    const icons: Record<string, string> = {
+      goal: '⚽',
+      yellow_card: '🟨',
+      red_card: '🟥',
+      substitution: '🔄',
+      penalty: '🎯'
+    };
+    return icons[eventType] || '•';
   };
 
   const formatDate = (dateString: string) => {
@@ -569,6 +621,43 @@ export default function MatchPage({ params }: { params: Promise<{ matchId: strin
               <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
                 <h4 className="font-medium text-gray-900 dark:text-white mb-2">Match Notes</h4>
                 <p className="text-gray-700 dark:text-gray-300">{matchData.notes}</p>
+              </div>
+            )}
+
+            {/* Match Events */}
+            {matchEvents.length > 0 && (
+              <div className="mt-6">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-4">Match Events</h4>
+                <div className="space-y-2">
+                  {matchEvents.map((event) => (
+                    <div
+                      key={event.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{getEventIcon(event.event_type)}</span>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {event.player?.full_name || event.player?.email || 'Unknown'}
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 capitalize">
+                            {event.event_type.replace('_', ' ')}
+                            {event.event_time && ` • ${event.event_time}'`}
+                          </p>
+                        </div>
+                      </div>
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{
+                          backgroundColor:
+                            event.team_id === matchData.homeTeam.id
+                              ? matchData.homeTeam.color
+                              : matchData.awayTeam.color,
+                        }}
+                      ></div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

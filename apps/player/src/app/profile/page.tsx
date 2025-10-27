@@ -25,6 +25,7 @@ import { useAuth } from '@/components/auth/supabase-auth-provider';
 import { UserService } from '@matchday/services';
 import type { UserProfile } from '@matchday/database';
 import { ProfilePhotoUpload } from '@/components/media/profile-photo-upload';
+import { supabase } from '@/lib/supabase/client';
 
 interface ProfileFormData {
   display_name: string;
@@ -87,7 +88,7 @@ export default function ProfileSettingsPage() {
     
     try {
       console.log('📡 Profile - calling UserService.getUserProfile...');
-      const userService = UserService.getInstance();
+      const userService = UserService.getInstance(supabase);
       const result = await userService.getUserProfile(user.id);
       console.log('📡 Profile - getUserProfile result:', { success: result.success, hasData: !!result.data, error: result.error?.message });
       
@@ -179,7 +180,7 @@ export default function ProfileSettingsPage() {
     setSaveMessage(null);
     
     try {
-      const userService = UserService.getInstance();
+      const userService = UserService.getInstance(supabase);
       const result = await userService.updateUserProfile(user.id, {
         display_name: profile.display_name,
         preferred_position: profile.preferred_position,
@@ -223,7 +224,7 @@ export default function ProfileSettingsPage() {
     // Save the avatar URL to the user profile
     if (user) {
       try {
-        const userService = UserService.getInstance();
+        const userService = UserService.getInstance(supabase);
 
         // First, check if profile exists
         console.log('👤 Profile - Checking if profile exists...');

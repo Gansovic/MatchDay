@@ -1173,6 +1173,231 @@ export class StatsService {
   }
 
   /**
+   * Recalculate all player and team statistics for a season from match events
+   * This is an admin function to fix historical data or after bulk changes
+   */
+  async recalculateSeasonStats(seasonId: string): Promise<ServiceResponse<{
+    matches_processed: number;
+    players_updated: number;
+    teams_updated: number;
+  }>> {
+    try {
+      console.log('🔄 StatsService.recalculateSeasonStats:', seasonId);
+
+      const { data, error } = await this.supabase
+        .rpc('recalculate_season_stats', {
+          p_season_id: seasonId
+        })
+        .single();
+
+      if (error) throw error;
+
+      // Clear all stats caches
+      this.clearCache('getPlayerStats');
+      this.clearCache('getTeamStats');
+      this.clearCache('getLeagueAnalytics');
+
+      console.log('✅ Season stats recalculated:', data);
+
+      return {
+        data: {
+          matches_processed: data.matches_processed,
+          players_updated: data.players_updated,
+          teams_updated: data.teams_updated
+        },
+        error: null,
+        success: true
+      };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'recalculateSeasonStats'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Get player statistics for a specific season
+   */
+  async getPlayerSeasonStats(
+    playerId: string,
+    seasonYear: string
+  ): Promise<ServiceResponse<PlayerStats | null>> {
+    try {
+      const cacheKey = this.getCacheKey('getPlayerSeasonStats', { playerId, seasonYear });
+      const cached = this.getFromCache<PlayerStats>(cacheKey);
+
+      if (cached) {
+        return { data: cached, error: null, success: true };
+      }
+
+      const { data, error } = await this.supabase
+        .from('player_stats')
+        .select('*')
+        .eq('player_id', playerId)
+        .eq('season_year', seasonYear)
+        .single();
+
+      if (error) {
+        // No stats found is not an error, return null
+        if (error.code === 'PGRST116') {
+          return { data: null, error: null, success: true };
+        }
+        throw error;
+      }
+
+      // Cache for 5 minutes
+      this.setCache(cacheKey, data, 300);
+
+      return { data, error: null, success: true };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'getPlayerSeasonStats'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Get all player statistics for a season (leaderboard)
+   */
+  async getSeasonPlayerStats(
+    seasonYear: string,
+    options: {
+      limit?: number;
+      sortBy?: 'goals_scored' | 'assists' | 'games_played';
+      teamId?: string;
+      leagueId?: string;
+    } = {}
+  ): Promise<ServiceResponse<PlayerStats[]>> {
+    try {
+      const cacheKey = this.getCacheKey('getSeasonPlayerStats', { seasonYear, options });
+      const cached = this.getFromCache<PlayerStats[]>(cacheKey);
+
+      if (cached) {
+        return { data: cached, error: null, success: true };
+      }
+
+      let query = this.supabase
+        .from('player_stats')
+        .select('*')
+        .eq('season_year', seasonYear);
+
+      if (options.teamId) {
+        query = query.eq('team_id', options.teamId);
+      }
+
+      if (options.leagueId) {
+        query = query.eq('league_id', options.leagueId);
+      }
+
+      const sortBy = options.sortBy || 'goals_scored';
+      query = query.order(sortBy, { ascending: false });
+
+      if (options.limit) {
+        query = query.limit(options.limit);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      // Cache for 2 minutes
+      this.setCache(cacheKey, data || [], 120);
+
+      return { data: data || [], error: null, success: true };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'getSeasonPlayerStats'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Validate statistics consistency between match events and aggregated stats
+   * Useful for detecting data inconsistencies
+   */
+  async validateStatsConsistency(seasonId: string): Promise<ServiceResponse<{
+    isValid: boolean;
+    issues: string[];
+    details: any;
+  }>> {
+    try {
+      console.log('🔍 Validating stats consistency for season:', seasonId);
+
+      // Get season info
+      const { data: season, error: seasonError } = await this.supabase
+        .from('seasons')
+        .select('season_year, league_id')
+        .eq('id', seasonId)
+        .single();
+
+      if (seasonError) throw seasonError;
+
+      const issues: string[] = [];
+
+      // Count completed matches
+      const { count: matchCount } = await this.supabase
+        .from('matches')
+        .select('*', { count: 'exact', head: true })
+        .eq('season_id', seasonId)
+        .eq('status', 'completed');
+
+      // Count player stats records
+      const { count: statsCount } = await this.supabase
+        .from('player_stats')
+        .select('*', { count: 'exact', head: true })
+        .eq('season_year', season.season_year);
+
+      // Count match events
+      const { count: eventCount } = await this.supabase
+        .from('match_events')
+        .select('*', { count: 'exact', head: true })
+        .eq('match_id', 'in',
+          this.supabase
+            .from('matches')
+            .select('id')
+            .eq('season_id', seasonId)
+            .eq('status', 'completed')
+        );
+
+      if (matchCount && matchCount > 0 && statsCount === 0) {
+        issues.push(`Found ${matchCount} completed matches but no player stats`);
+      }
+
+      const isValid = issues.length === 0;
+
+      return {
+        data: {
+          isValid,
+          issues,
+          details: {
+            completedMatches: matchCount || 0,
+            playerStatsRecords: statsCount || 0,
+            matchEvents: eventCount || 0
+          }
+        },
+        error: null,
+        success: true
+      };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'validateStatsConsistency'),
+        success: false
+      };
+    }
+  }
+
+  /**
    * Clear cache
    */
   clearCache(pattern?: string): void {

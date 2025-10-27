@@ -1300,6 +1300,12 @@ export class MatchService {
         }
       }
 
+      // If match is completed, re-aggregate stats to reflect the new event
+      if (match.status === 'completed') {
+        console.log('🔄 Match already completed - re-aggregating stats after event...');
+        await this.aggregateMatchStats(data.matchId);
+      }
+
       // Clear cache
       this.clearCache('getMatchDetails');
       this.clearCache('getLiveMatchData');
@@ -1369,10 +1375,18 @@ export class MatchService {
 
       if (updateError) throw updateError;
 
-      // Clear cache
+      // Aggregate stats directly when match completes
+      if (updateData.status === 'completed') {
+        console.log('✅ Match completed - aggregating stats...');
+        await this.aggregateMatchStats(data.matchId);
+      }
+
+      // Clear cache for stats and matches
       this.clearCache('getPlayerMatches');
       this.clearCache('getMatchDetails');
       this.clearCache('getActiveMatches');
+      this.clearCache('getPlayerStats');
+      this.clearCache('getTeamStats');
 
       return { data: match, error: null, success: true };
 
@@ -1539,6 +1553,20 @@ export class MatchService {
         }
       }
 
+      // If match is completed and event was deleted, re-aggregate stats
+      if (event) {
+        const { data: matchStatus } = await this.supabase
+          .from('matches')
+          .select('status')
+          .eq('id', event.match_id)
+          .single();
+
+        if (matchStatus?.status === 'completed') {
+          console.log('🔄 Match completed - re-aggregating stats after deletion...');
+          await this.aggregateMatchStats(event.match_id);
+        }
+      }
+
       // Clear cache
       this.clearCache('getMatchDetails');
       this.clearCache('getMatchEvents');
@@ -1551,6 +1579,84 @@ export class MatchService {
         error: this.handleError(error, 'deleteMatchEvent'),
         success: false
       };
+    }
+  }
+
+  /**
+   * Aggregate match stats from events
+   */
+  private async aggregateMatchStats(matchId: string): Promise<void> {
+    try {
+      // Get match details
+      const { data: match } = await this.supabase
+        .from('matches')
+        .select('id, season_id, league_id, home_team_id, away_team_id, home_score, away_score')
+        .eq('id', matchId)
+        .single();
+
+      if (!match) return;
+
+      // Get all match events
+      const { data: events } = await this.supabase
+        .from('match_events')
+        .select('*')
+        .eq('match_id', matchId);
+
+      if (!events) return;
+
+      // Get team members for both teams
+      const { data: homeMembers } = await this.supabase
+        .from('team_members')
+        .select('user_id')
+        .eq('team_id', match.home_team_id)
+        .eq('is_active', true);
+
+      const { data: awayMembers } = await this.supabase
+        .from('team_members')
+        .select('user_id')
+        .eq('team_id', match.away_team_id)
+        .eq('is_active', true);
+
+      // Process each player
+      const allPlayers = [
+        ...(homeMembers || []).map(m => ({ userId: m.user_id, teamId: match.home_team_id })),
+        ...(awayMembers || []).map(m => ({ userId: m.user_id, teamId: match.away_team_id }))
+      ];
+
+      for (const player of allPlayers) {
+        const playerEvents = events.filter(e => e.player_id === player.userId);
+        const goals = playerEvents.filter(e => e.event_type === 'goal').length;
+        const assists = playerEvents.filter(e => e.event_type === 'assist').length;
+        const yellowCards = playerEvents.filter(e => e.event_type === 'yellow_card').length;
+        const redCards = playerEvents.filter(e => e.event_type === 'red_card').length;
+
+        // Insert into new simple player_match_stats table (one row per player per match)
+        const { data: upsertData, error: upsertError } = await this.supabase
+          .from('player_match_stats')
+          .upsert({
+            match_id: matchId,
+            user_id: player.userId,
+            team_id: player.teamId,
+            season_id: match.season_id,
+            goals,
+            assists,
+            yellow_cards: yellowCards,
+            red_cards: redCards,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'match_id,user_id'
+          });
+
+        if (upsertError) {
+          console.error('Error upserting player stats:', upsertError);
+        } else {
+          console.log(`✅ Upserted stats for player ${player.userId}: ${goals} goals, ${assists} assists`);
+        }
+      }
+
+      console.log(`✅ Aggregated stats for ${allPlayers.length} players`);
+    } catch (error) {
+      console.error('Error aggregating match stats:', error);
     }
   }
 
