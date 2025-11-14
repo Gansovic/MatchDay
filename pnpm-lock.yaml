@@ -159,6 +159,9 @@ importers:
       memoize-one:
         specifier: ^6.0.0
         version: 6.0.0
+      nullthrows:
+        specifier: ^1.1.1
+        version: 1.1.1
       react:
         specifier: 19.1.0
         version: 19.1.0
