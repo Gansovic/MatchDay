@@ -43,6 +43,7 @@
     "react-native": "0.81.5",
     "react-native-css-interop": "^0.2.1",
     "react-native-url-polyfill": "^2.0.0",
+    "regenerator-runtime": "^0.14.1",
     "scheduler": "^0.27.0",
     "stacktrace-parser": "^0.1.11",
     "use-sync-external-store": "^1.6.0",
