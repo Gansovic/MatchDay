@@ -168,9 +168,15 @@ importers:
       memoize-one:
         specifier: ^6.0.0
         version: 6.0.0
+      metro-runtime:
+        specifier: ^0.83.3
+        version: 0.83.3
       nullthrows:
         specifier: ^1.1.1
         version: 1.1.1
+      pretty-format:
+        specifier: ^30.2.0
+        version: 30.2.0
       promise:
         specifier: ^8.3.0
         version: 8.3.0
