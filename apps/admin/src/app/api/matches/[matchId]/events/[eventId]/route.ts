@@ -132,7 +132,7 @@ async function updateMatchScores(supabase: any, matchId: string) {
       })
       .eq('id', matchId);
 
-    console.log(\`✅ Updated match scores: \${homeCount || 0} - \${awayCount || 0}\`);
+    console.log(`✅ Updated match scores: ${homeCount || 0} - ${awayCount || 0}`);
   } catch (error) {
     console.error('Error updating match scores:', error);
   }

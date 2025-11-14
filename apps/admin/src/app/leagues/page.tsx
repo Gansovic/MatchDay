@@ -40,6 +40,7 @@ import { LeagueRequestService } from '@/lib/services/league-request.service';
 import { RequestActionModal } from '@/components/modals/request-action-modal';
 import { CreateLeagueModal } from '@/components/leagues/CreateLeagueModal';
 import { useRealtimeLeagues, usePageVisibility } from '@/lib/hooks/use-realtime-leagues';
+import { LeagueIcon } from '@/components/ui/league-icon';
 
 interface League {
   id: string;
@@ -347,17 +348,24 @@ export default function AdminLeaguesPage() {
                       className="block mb-4 hover:bg-gray-800/50 -m-6 p-6 rounded-lg transition-colors"
                     >
                       <div className="flex items-start justify-between">
-                        <div>
-                          <h3 className="text-lg font-semibold text-white mb-1">{league.name}</h3>
-                          <p className="text-gray-400 text-sm mb-2">{league.description}</p>
-                          <div className="flex items-center gap-4 text-sm text-gray-500">
-                            <span className="capitalize">{league.sport_type} • {league.league_type}</span>
-                            {league.location && (
-                              <span className="flex items-center gap-1">
-                                <MapPin className="w-3 h-3" />
-                                {league.location}
-                              </span>
-                            )}
+                        <div className="flex items-start gap-3">
+                          <LeagueIcon
+                            leagueId={league.id}
+                            leagueName={league.name}
+                            size="md"
+                          />
+                          <div>
+                            <h3 className="text-lg font-semibold text-white mb-1">{league.name}</h3>
+                            <p className="text-gray-400 text-sm mb-2">{league.description}</p>
+                            <div className="flex items-center gap-4 text-sm text-gray-500">
+                              <span className="capitalize">{league.sport_type} • {league.league_type}</span>
+                              {league.location && (
+                                <span className="flex items-center gap-1">
+                                  <MapPin className="w-3 h-3" />
+                                  {league.location}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">

@@ -211,3 +211,106 @@ export async function PATCH(
     return response;
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ teamId: string }> }
+) {
+  try {
+    const { teamId } = await params;
+
+    if (!teamId) {
+      return NextResponse.json(
+        { error: 'Team ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Get authenticated user
+    console.log('🗑️ Team Delete - Authenticating user');
+    const supabaseUserClient = createUserSupabaseClient(request);
+    const { data: { user }, error: userError } = await supabaseUserClient.auth.getUser();
+
+    if (userError || !user) {
+      console.log('❌ Team Delete - Authentication failed:', userError?.message || 'No user found');
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    const userId = user.id;
+    console.log('✅ Team Delete - Authenticated user:', userId);
+
+    // Get team to verify captain
+    const supabaseServerClient = await createServerSupabaseClient();
+    const { data: team, error: teamError } = await supabaseServerClient
+      .from('teams')
+      .select('captain_id, name')
+      .eq('id', teamId)
+      .single();
+
+    if (teamError || !team) {
+      console.error('❌ Team Delete - Team not found:', teamError);
+      return NextResponse.json(
+        { error: 'Team not found' },
+        { status: 404 }
+      );
+    }
+
+    // Verify user is the captain
+    if (team.captain_id !== userId) {
+      console.log('❌ Team Delete - User is not captain:', {
+        userId,
+        captainId: team.captain_id
+      });
+      return NextResponse.json(
+        { error: 'Only the team captain can delete the team' },
+        { status: 403 }
+      );
+    }
+
+    console.log('🗑️ Team Delete - Deleting team:', team.name);
+
+    // Delete team (cascade will handle team_members, team_stats, etc.)
+    const { error: deleteError } = await supabaseServerClient
+      .from('teams')
+      .delete()
+      .eq('id', teamId);
+
+    if (deleteError) {
+      console.error('❌ Team Delete - Delete failed:', deleteError);
+      return NextResponse.json(
+        { error: 'Failed to delete team', message: deleteError.message },
+        { status: 500 }
+      );
+    }
+
+    console.log('✅ Team Delete - Successfully deleted team:', team.name);
+
+    const response = NextResponse.json({
+      message: 'Team deleted successfully'
+    });
+
+    // Add CORS headers
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    return response;
+  } catch (error: any) {
+    console.error('❌ Team Delete - Unexpected error:', error?.message || error);
+
+    const response = NextResponse.json(
+      { error: 'Failed to delete team', message: error?.message || 'An unexpected error occurred' },
+      { status: 500 }
+    );
+
+    // Add CORS headers even for error responses
+    response.headers.set('Access-Control-Allow-Origin', '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    return response;
+  }
+}

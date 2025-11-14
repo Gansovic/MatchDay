@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Shield, Loader2, AlertCircle, CheckCircle, Save } from 'lucide-react';
+import { X, Shield, Loader2, AlertCircle, CheckCircle, Save, Trash2 } from 'lucide-react';
 import { TeamLogoUpload } from '../media/team-logo-upload';
 import { useAuth } from '../auth/supabase-auth-provider';
 
@@ -29,6 +29,8 @@ export const TeamSettingsModal: React.FC<TeamSettingsModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [formData, setFormData] = useState({
     name: team.name || '',
@@ -156,8 +158,47 @@ export const TeamSettingsModal: React.FC<TeamSettingsModalProps> = ({
     }
   };
 
+  const handleDeleteTeam = async () => {
+    if (!user?.id) {
+      setError('You must be logged in to delete a team');
+      return;
+    }
+
+    setIsDeleting(true);
+    setError(null);
+
+    try {
+      console.log('🗑️ Deleting team:', team.id);
+
+      const response = await fetch(`/api/teams/${team.id}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete team');
+      }
+
+      console.log('✅ Team deleted successfully');
+      setSuccess('Team deleted successfully!');
+
+      // Close modal and notify parent after short delay
+      setTimeout(() => {
+        onSuccess({ deleted: true, teamId: team.id });
+        handleClose();
+      }, 1500);
+    } catch (err) {
+      console.error('❌ Error deleting team:', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete team');
+      setShowDeleteConfirm(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleClose = () => {
-    if (!isSubmitting) {
+    if (!isSubmitting && !isDeleting) {
+      setShowDeleteConfirm(false);
       onClose();
     }
   };
@@ -292,6 +333,63 @@ export const TeamSettingsModal: React.FC<TeamSettingsModalProps> = ({
               disabled={isSubmitting}
               required
             />
+          </div>
+
+          {/* Danger Zone - Delete Team */}
+          <div className="border-t border-red-200 dark:border-red-900 pt-6">
+            <h3 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-3">
+              Danger Zone
+            </h3>
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+                Once you delete a team, there is no going back. This will permanently delete the team, all members, stats, and match history.
+              </p>
+              {!showDeleteConfirm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={isSubmitting || isDeleting}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete Team
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold text-red-900 dark:text-red-100">
+                    Are you absolutely sure? This action cannot be undone.
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(false)}
+                      disabled={isDeleting}
+                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeleteTeam}
+                      disabled={isDeleting}
+                      className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isDeleting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-4 h-4" />
+                          Yes, Delete Team
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Form Actions */}

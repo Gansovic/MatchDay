@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Trophy, Calendar, Users, Loader2, AlertCircle, Plus, Eye } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
 import { PendingRequestsCard } from '@/components/seasons/PendingRequestsCard';
@@ -28,6 +29,7 @@ interface Season {
 }
 
 export default function SeasonsPage() {
+  const router = useRouter();
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeason, setSelectedSeason] = useState<Season | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -249,7 +251,10 @@ export default function SeasonsPage() {
                   </div>
 
                   <div className="flex gap-3">
-                    <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+                    <button
+                      onClick={() => router.push(`/seasons/${selectedSeason.id}`)}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                    >
                       <Eye className="w-4 h-4" />
                       View Details
                     </button>

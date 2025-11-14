@@ -19,6 +19,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { LeagueIcon } from '@/components/ui/league-icon';
 
 interface UserLeagueData {
   leagueId: string;
@@ -126,13 +127,13 @@ export const MyLeaguesSection: React.FC<MyLeaguesSectionProps> = ({
             <div className="flex items-center gap-6">
               {/* Left: League Info & Team */}
               <div className="flex items-center gap-4 flex-1">
-                {/* Team Avatar */}
-                <div
-                  className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0"
-                  style={{ backgroundColor: league.teamColor || '#10B981' }}
-                >
-                  {league.teamName.charAt(0)}
-                </div>
+                {/* League Icon */}
+                <LeagueIcon
+                  leagueId={league.leagueId}
+                  leagueName={league.leagueName}
+                  size="lg"
+                  className="flex-shrink-0"
+                />
 
                 {/* League & Team Info */}
                 <div className="flex-1 min-w-0">

@@ -25,6 +25,7 @@ import {
   CheckCircle,
   PlayCircle
 } from 'lucide-react';
+import { LeagueIcon } from '@/components/ui/league-icon';
 
 export interface LeagueCardData {
   id: string;
@@ -156,29 +157,39 @@ export const LeagueCard: React.FC<LeagueCardProps> = ({
       {/* Main Card Content */}
       <div className="p-6">
         {/* Header Row */}
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                {league.name}
-              </h3>
-              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${statusConfig.color}`}>
-                <StatusIcon className="w-3 h-3" />
-                {statusConfig.label}
-              </span>
+        <div className="flex items-start gap-4 mb-4">
+          {/* League Icon */}
+          <LeagueIcon
+            leagueId={league.id}
+            leagueName={league.name}
+            size="lg"
+            className="flex-shrink-0"
+          />
+
+          <div className="flex items-start justify-between flex-1">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                  {league.name}
+                </h3>
+                <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${statusConfig.color}`}>
+                  <StatusIcon className="w-3 h-3" />
+                  {statusConfig.label}
+                </span>
+              </div>
+
+              {league.description && (
+                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                  {league.description}
+                </p>
+              )}
             </div>
 
-            {league.description && (
-              <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
-                {league.description}
-              </p>
-            )}
-          </div>
-
-          {/* League Type Badge */}
-          <div className={`ml-4 px-3 py-1 rounded-lg bg-gradient-to-r ${typeConfig.gradient} text-white text-sm font-medium flex items-center gap-1`}>
-            <span>{typeConfig.emoji}</span>
-            <span className="hidden sm:inline">{typeConfig.label}</span>
+            {/* League Type Badge */}
+            <div className={`ml-4 px-3 py-1 rounded-lg bg-gradient-to-r ${typeConfig.gradient} text-white text-sm font-medium flex items-center gap-1`}>
+              <span>{typeConfig.emoji}</span>
+              <span className="hidden sm:inline">{typeConfig.label}</span>
+            </div>
           </div>
         </div>
 
@@ -259,30 +270,26 @@ export const LeagueCard: React.FC<LeagueCardProps> = ({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
-          {/* Primary Action Button */}
-          {league.userIsInLeague || variant === 'active' ? (
+          {/* View Button - Always visible */}
+          <button
+            onClick={() => onView?.(league.id)}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors"
+          >
+            <Eye className="w-4 h-4" />
+            View League
+          </button>
+
+          {/* Join Button - Only show if user can join and not already in league */}
+          {!league.userIsInLeague && variant !== 'active' && league.userCanJoin && league.availableSpots > 0 && (
             <button
-              onClick={() => onView?.(league.id)}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 ${themeColors.primaryButton} text-white font-medium rounded-lg transition-colors`}
-            >
-              <Eye className="w-4 h-4" />
-              View League
-            </button>
-          ) : league.userCanJoin && league.availableSpots > 0 ? (
-            <button
-              onClick={() => onJoin?.(league.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onJoin?.(league.id);
+              }}
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 ${themeColors.primaryButton} text-white font-medium rounded-lg transition-colors`}
             >
               <UserPlus className="w-4 h-4" />
-              Join League
-            </button>
-          ) : (
-            <button
-              onClick={() => onView?.(league.id)}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors"
-            >
-              <Eye className="w-4 h-4" />
-              View Details
+              Join
             </button>
           )}
 

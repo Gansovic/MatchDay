@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     if (!result.success || !result.data) {
       return NextResponse.json(
-        { error: result.error || 'Upload failed' },
+        { error: result.error?.message || 'Upload failed' },
         { status: 500 }
       );
     }

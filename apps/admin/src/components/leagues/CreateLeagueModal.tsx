@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, Trophy, AlertCircle, Loader2 } from 'lucide-react';
+import { X, Trophy, AlertCircle, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { LeagueService } from '@matchday/services';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/components/auth/auth-provider';
+import { IconUpload } from '@/components/media/icon-upload';
 
 interface CreateLeagueModalProps {
   isOpen: boolean;
@@ -21,6 +22,9 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
   const [leagueName, setLeagueName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showIconUpload, setShowIconUpload] = useState(false);
+  const [createdLeagueId, setCreatedLeagueId] = useState<string | null>(null);
+  const [iconUploaded, setIconUploaded] = useState(false);
 
   const validateForm = (): string | null => {
     if (!leagueName.trim()) {
@@ -60,9 +64,14 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
         throw new Error(result.error?.message || 'Failed to create league');
       }
 
-      // Call the success callback with the new league ID
-      onLeagueCreated(result.data.id);
-      handleClose();
+      // Store the league ID for icon upload
+      setCreatedLeagueId(result.data.id);
+
+      // If icon upload section is not shown, complete the flow
+      if (!showIconUpload) {
+        onLeagueCreated(result.data.id);
+        handleClose();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create league');
     } finally {
@@ -73,7 +82,21 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
   const handleClose = () => {
     setLeagueName('');
     setError(null);
+    setShowIconUpload(false);
+    setCreatedLeagueId(null);
+    setIconUploaded(false);
     onClose();
+  };
+
+  const handleIconUploadComplete = () => {
+    setIconUploaded(true);
+  };
+
+  const handleFinish = () => {
+    if (createdLeagueId) {
+      onLeagueCreated(createdLeagueId);
+      handleClose();
+    }
   };
 
   if (!isOpen) return null;
@@ -118,38 +141,95 @@ export const CreateLeagueModal: React.FC<CreateLeagueModalProps> = ({
               required
               autoFocus
               minLength={3}
+              disabled={!!createdLeagueId}
             />
-            <p className="mt-2 text-sm text-gray-400">
-              You can edit all other details after creation
-            </p>
+            {!createdLeagueId && (
+              <p className="mt-2 text-sm text-gray-400">
+                You can edit all other details after creation
+              </p>
+            )}
           </div>
+
+          {/* Optional Icon Upload Section */}
+          {!createdLeagueId && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowIconUpload(!showIconUpload)}
+                className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-300 transition-colors"
+              >
+                {showIconUpload ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                <span>Add league icon (optional)</span>
+              </button>
+            </div>
+          )}
+
+          {/* Icon Upload (shown after league creation if enabled) */}
+          {createdLeagueId && showIconUpload && user && (
+            <div className="border border-gray-700 rounded-lg p-4">
+              <h3 className="text-sm font-medium text-gray-300 mb-4">Upload League Icon</h3>
+              <IconUpload
+                contextType="league_icon"
+                entityId={createdLeagueId}
+                leagueId={createdLeagueId}
+                entityName={leagueName}
+                onUploadComplete={handleIconUploadComplete}
+              />
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex gap-3 pt-4 border-t border-gray-700">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="flex-1 px-4 py-2 text-gray-300 bg-gray-800 hover:bg-gray-700 font-medium rounded-lg transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
+            {!createdLeagueId ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="flex-1 px-4 py-2 text-gray-300 bg-gray-800 hover:bg-gray-700 font-medium rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Trophy className="w-4 h-4" />
+                      {showIconUpload ? 'Create & Add Icon' : 'Create League'}
+                    </>
+                  )}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Skip icon upload and finish
+                    handleFinish();
+                  }}
+                  className="flex-1 px-4 py-2 text-gray-300 bg-gray-800 hover:bg-gray-700 font-medium rounded-lg transition-colors"
+                >
+                  Skip Icon
+                </button>
+                <button
+                  type="button"
+                  onClick={handleFinish}
+                  disabled={!iconUploaded}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   <Trophy className="w-4 h-4" />
-                  Create League
-                </>
-              )}
-            </button>
+                  Finish
+                </button>
+              </>
+            )}
           </div>
         </form>
       </div>

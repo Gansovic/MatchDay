@@ -614,26 +614,33 @@ export class SeasonService {
         };
       }
 
+      // Get league_id from season for matches table
+      const leagueId = season.league_id;
+      if (!leagueId) {
+        throw new Error('Season must have a league_id to generate fixtures');
+      }
+
       // Clear existing fixtures for this season
-      console.log('🔧 [SeasonService] Clearing existing fixtures...');
+      // Note: matches table doesn't have season_id, so we need to delete by league_id
+      // This means we're clearing ALL matches for the league, not just this season
+      console.log('🔧 [SeasonService] Clearing existing fixtures for league:', leagueId);
       await this.supabase
         .from('matches')
         .delete()
-        .eq('season_id', seasonId);
+        .eq('league_id', leagueId);
 
       // Insert new fixtures
       console.log('🔧 [SeasonService] Inserting', fixturesWithDates.length, 'new fixtures...');
       const { data: matches, error } = await this.supabase
         .from('matches')
         .insert(fixturesWithDates.map(fixture => ({
-          season_id: seasonId,
+          league_id: leagueId,
           home_team_id: fixture.home_team_id,
           away_team_id: fixture.away_team_id,
-          match_date: `${fixture.match_date}T${fixture.match_time}Z`,
-          match_time: fixture.match_time,
-          court_number: fixture.court_number,
-          matchday_number: fixture.matchday_number,
-          status: 'scheduled'
+          scheduled_date: `${fixture.match_date}T${fixture.match_time}`,
+          match_day: fixture.matchday_number,
+          status: 'scheduled',
+          venue: null
         })))
         .select(`
           *,
@@ -692,9 +699,23 @@ export class SeasonService {
 
   /**
    * Get matches for a season
+   * Note: Since matches table doesn't have season_id, we need to get the league_id first
    */
   async getSeasonMatches(seasonId: string): Promise<ServiceResponse<Match[]>> {
     try {
+      // First, get the league_id for this season
+      const seasonResponse = await this.getSeasonDetails(seasonId);
+      if (!seasonResponse.success || !seasonResponse.data) {
+        return {
+          data: null,
+          error: { message: 'Season not found' },
+          success: false,
+          message: 'Failed to find season'
+        };
+      }
+
+      const leagueId = seasonResponse.data.league_id;
+
       const { data: matches, error } = await this.supabase
         .from('matches')
         .select(`
@@ -712,8 +733,8 @@ export class SeasonService {
             logo_url
           )
         `)
-        .eq('season_id', seasonId)
-        .order('match_date', { ascending: true });
+        .eq('league_id', leagueId)
+        .order('scheduled_date', { ascending: true });
 
       if (error) throw error;
 

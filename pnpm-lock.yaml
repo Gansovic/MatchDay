@@ -317,12 +317,15 @@ importers:
 
   packages/ui:
     dependencies:
+      '@matchday/database':
+        specifier: workspace:*
+        version: link:../database
       '@matchday/shared':
         specifier: workspace:*
         version: link:../shared
       lucide-react:
-        specifier: ^0.294.0
-        version: 0.294.0(react@19.1.0)
+        specifier: ^0.400.0 || ^0.500.0
+        version: 0.500.0(react@19.1.0)
       next:
         specifier: ^15.0.0
         version: 15.4.6(@babel/core@7.28.4)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -2979,13 +2982,13 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@0.294.0:
-    resolution: {integrity: sha512-V7o0/VECSGbLHn3/1O67FUgBwWB+hmzshrgDVRJQhMh8uj5D3HBuIvhuAmQTtlupILSplwIZg5FTc4tTKMA2SA==}
-    peerDependencies:
-      react: ^16.5.1 || ^17.0.0 || ^18.0.0
-
   lucide-react@0.469.0:
     resolution: {integrity: sha512-28vvUnnKQ/dBwiCQtwJw7QauYnE7yd2Cyp4tTTJpvglX4EMpbflcdBgrgToX2j71B3YvugK/NH3BGUk+E/p/Fw==}
+    peerDependencies:
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  lucide-react@0.500.0:
+    resolution: {integrity: sha512-IyGvnYOSBKiF7rFI3p0tDw4ZI+TKnn1b5LPF2/q3NBmA7zYaDagevs1eMNyPRpKdFXxgma6rEu6+2ylJaaGnJA==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
@@ -7153,11 +7156,11 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@0.294.0(react@19.1.0):
+  lucide-react@0.469.0(react@19.1.0):
     dependencies:
       react: 19.1.0
 
-  lucide-react@0.469.0(react@19.1.0):
+  lucide-react@0.500.0(react@19.1.0):
     dependencies:
       react: 19.1.0
 

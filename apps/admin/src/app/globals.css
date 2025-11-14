@@ -1,44 +1,36 @@
 @import "tailwindcss";
 
 :root {
-  /* Dark theme colors (Admin default) */
-  --background: #020617;
-  --foreground: #f8fafc;
-  --card: #020617;
-  --card-foreground: #f8fafc;
-  --popover: #020617;
-  --popover-foreground: #f8fafc;
-
-  /* Admin branding - Orange/Red instead of Blue */
-  --primary: #f97316;
-  --primary-foreground: #0f172a;
-
-  --secondary: #1e293b;
-  --secondary-foreground: #f8fafc;
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
-  --accent: #1e293b;
-  --accent-foreground: #f8fafc;
-
-  /* Admin uses orange/red for destructive as well */
+  /* Light theme colors */
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #2563eb;
+  --primary-foreground: #f8fafc;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #f1f5f9;
+  --accent-foreground: #0f172a;
   --destructive: #ef4444;
   --destructive-foreground: #f8fafc;
-
-  --border: #1e293b;
-  --input: #1e293b;
-
-  /* Admin ring color - Orange */
-  --ring: #f97316;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #2563eb;
   --radius: 0.5rem;
 
-  /* Admin sports theme colors - Orange/Red accent */
-  --sports-primary: #f97316;
-  --sports-secondary: #ef4444;
+  /* Sports league theme colors */
+  --sports-primary: #1e40af;
+  --sports-secondary: #059669;
   --sports-accent: #dc2626;
-  --sports-success: #22c55e;
-  --sports-warning: #f59e0b;
-  --sports-field: #16a34a;
-  --sports-track: #ea580c;
+  --sports-success: #16a34a;
+  --sports-warning: #d97706;
+  --sports-field: #22c55e;
+  --sports-track: #f97316;
 }
 
 @theme inline {
@@ -71,6 +63,39 @@
   --radius: var(--radius);
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #020617;
+    --foreground: #f8fafc;
+    --card: #020617;
+    --card-foreground: #f8fafc;
+    --popover: #020617;
+    --popover-foreground: #f8fafc;
+    --primary: #3b82f6;
+    --primary-foreground: #0f172a;
+    --secondary: #1e293b;
+    --secondary-foreground: #f8fafc;
+    --muted: #1e293b;
+    --muted-foreground: #94a3b8;
+    --accent: #1e293b;
+    --accent-foreground: #f8fafc;
+    --destructive: #f87171;
+    --destructive-foreground: #0f172a;
+    --border: #1e293b;
+    --input: #1e293b;
+    --ring: #3b82f6;
+
+    /* Dark theme sports colors */
+    --sports-primary: #3b82f6;
+    --sports-secondary: #10b981;
+    --sports-accent: #f87171;
+    --sports-success: #22c55e;
+    --sports-warning: #f59e0b;
+    --sports-field: #16a34a;
+    --sports-track: #ea580c;
+  }
+}
+
 * {
   border-color: var(--border);
 }
@@ -84,24 +109,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Admin gradient - Orange to Red */
+/* Professional sports styling enhancements */
 .sports-gradient {
-  background: linear-gradient(135deg, #f97316 0%, #ef4444 100%);
-}
-
-.admin-gradient {
-  background: linear-gradient(135deg, #f97316 0%, #ef4444 100%);
+  background: linear-gradient(135deg, var(--sports-primary) 0%, var(--sports-secondary) 100%);
 }
 
 .sports-text-gradient {
-  background: linear-gradient(135deg, #f97316 0%, #ef4444 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.admin-text-gradient {
-  background: linear-gradient(135deg, #f97316 0%, #ef4444 100%);
+  background: linear-gradient(135deg, var(--sports-primary) 0%, var(--sports-secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -136,7 +150,7 @@ body {
 
 /* Focus styles for accessibility */
 .focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900;
+  @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900;
 }
 
 /* Animation utilities */
@@ -168,7 +182,7 @@ body {
   }
   to {
     opacity: 1;
-  }
+    }
 }
 
 .animate-slide-up {
@@ -190,7 +204,13 @@ body {
 
 .card-hover:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  .card-hover:hover {
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+  }
 }
 
 /* Loading skeleton animation */
@@ -205,13 +225,4 @@ body {
 
 .animate-pulse {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-/* Admin-specific utilities */
-.admin-card {
-  @apply bg-gray-900 border-gray-800 rounded-xl p-6 shadow-sm hover:shadow-md transition-all;
-}
-
-.admin-badge {
-  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300;
 }

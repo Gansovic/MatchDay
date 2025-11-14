@@ -295,7 +295,8 @@ export async function POST(request: NextRequest) {
       .insert({
         team_id: teamResult.id,
         user_id: captainId,
-        position: 'midfielder' // Captain will be indicated by captain_id field in teams table
+        position: 'midfielder', // Captain will be indicated by captain_id field in teams table
+        is_active: true // CRITICAL: Must be explicitly set to true, otherwise team won't appear in user's teams list
       })
       .select('*');
 

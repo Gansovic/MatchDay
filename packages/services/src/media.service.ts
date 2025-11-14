@@ -121,6 +121,16 @@ export class MediaService {
           bucket: 'season-media',
           path: `${userId}/${timestamp}-${sanitizedFilename}`
         };
+      case 'league_icon':
+        return {
+          bucket: 'league-icons',
+          path: `${userId}/${timestamp}-${sanitizedFilename}`
+        };
+      case 'season_icon':
+        return {
+          bucket: 'season-icons',
+          path: `${userId}/${timestamp}-${sanitizedFilename}`
+        };
       default:
         throw new Error(`Unknown context type: ${contextType}`);
     }
@@ -435,7 +445,246 @@ export class MediaService {
       case 'league_sponsor': return 'league-sponsors';
       case 'team_media': return 'team-media';
       case 'season_media': return 'season-media';
+      case 'league_icon': return 'league-icons';
+      case 'season_icon': return 'season-icons';
       default: throw new Error(`Unknown context type: ${contextType}`);
+    }
+  }
+
+  /**
+   * Get league icon
+   */
+  async getLeagueIcon(leagueId: string): Promise<ServiceResponse<MediaWithUrl | null>> {
+    try {
+      const { data: media, error } = await this.supabase
+        .from('media')
+        .select('*')
+        .eq('league_id', leagueId)
+        .eq('context_type', 'league_icon')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!media) {
+        return {
+          data: null,
+          error: null,
+          success: true
+        };
+      }
+
+      const bucket = this.getBucketFromContext(media.context_type);
+      const { data: urlData } = this.supabase.storage
+        .from(bucket)
+        .getPublicUrl(media.storage_path);
+
+      const mediaWithUrl: MediaWithUrl = {
+        ...media,
+        url: urlData.publicUrl
+      };
+
+      return {
+        data: mediaWithUrl,
+        error: null,
+        success: true
+      };
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'getLeagueIcon'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Get season icon with automatic fallback to league icon
+   */
+  async getSeasonIcon(seasonId: string, leagueId: string): Promise<ServiceResponse<MediaWithUrl | null>> {
+    try {
+      // First try to get season-specific icon
+      const { data: seasonMedia, error: seasonError } = await this.supabase
+        .from('media')
+        .select('*')
+        .eq('season_id', seasonId)
+        .eq('context_type', 'season_icon')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (seasonError) throw seasonError;
+
+      if (seasonMedia) {
+        const bucket = this.getBucketFromContext(seasonMedia.context_type);
+        const { data: urlData } = this.supabase.storage
+          .from(bucket)
+          .getPublicUrl(seasonMedia.storage_path);
+
+        return {
+          data: {
+            ...seasonMedia,
+            url: urlData.publicUrl
+          },
+          error: null,
+          success: true
+        };
+      }
+
+      // Fallback to league icon
+      return this.getLeagueIcon(leagueId);
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'getSeasonIcon'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Upload league icon
+   */
+  async uploadLeagueIcon(
+    file: File,
+    leagueId: string,
+    userId: string
+  ): Promise<ServiceResponse<MediaUploadResult>> {
+    try {
+      // Delete existing league icon if any
+      const existingIconResponse = await this.getLeagueIcon(leagueId);
+      if (existingIconResponse.success && existingIconResponse.data) {
+        await this.deleteMedia(existingIconResponse.data.id, userId);
+      }
+
+      // Upload new icon
+      return this.uploadMedia(
+        file,
+        {
+          context_type: 'league_icon',
+          league_id: leagueId,
+          is_public: true
+        },
+        userId
+      );
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'uploadLeagueIcon'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Upload season icon
+   */
+  async uploadSeasonIcon(
+    file: File,
+    seasonId: string,
+    leagueId: string,
+    userId: string
+  ): Promise<ServiceResponse<MediaUploadResult>> {
+    try {
+      // Delete existing season icon if any
+      const { data: existingMedia } = await this.supabase
+        .from('media')
+        .select('*')
+        .eq('season_id', seasonId)
+        .eq('context_type', 'season_icon')
+        .maybeSingle();
+
+      if (existingMedia) {
+        await this.deleteMedia(existingMedia.id, userId);
+      }
+
+      // Upload new icon
+      return this.uploadMedia(
+        file,
+        {
+          context_type: 'season_icon',
+          season_id: seasonId,
+          league_id: leagueId,
+          is_public: true
+        },
+        userId
+      );
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'uploadSeasonIcon'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Delete league icon
+   */
+  async deleteLeagueIcon(leagueId: string, userId: string): Promise<ServiceResponse<boolean>> {
+    try {
+      const iconResponse = await this.getLeagueIcon(leagueId);
+
+      if (!iconResponse.success || !iconResponse.data) {
+        return {
+          data: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'No league icon found',
+            timestamp: new Date().toISOString()
+          },
+          success: false
+        };
+      }
+
+      return this.deleteMedia(iconResponse.data.id, userId);
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'deleteLeagueIcon'),
+        success: false
+      };
+    }
+  }
+
+  /**
+   * Delete season icon
+   */
+  async deleteSeasonIcon(seasonId: string, userId: string): Promise<ServiceResponse<boolean>> {
+    try {
+      const { data: seasonMedia } = await this.supabase
+        .from('media')
+        .select('*')
+        .eq('season_id', seasonId)
+        .eq('context_type', 'season_icon')
+        .maybeSingle();
+
+      if (!seasonMedia) {
+        return {
+          data: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'No season icon found',
+            timestamp: new Date().toISOString()
+          },
+          success: false
+        };
+      }
+
+      return this.deleteMedia(seasonMedia.id, userId);
+
+    } catch (error) {
+      return {
+        data: null,
+        error: this.handleError(error, 'deleteSeasonIcon'),
+        success: false
+      };
     }
   }
 }

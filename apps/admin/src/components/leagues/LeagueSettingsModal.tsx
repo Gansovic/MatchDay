@@ -24,6 +24,9 @@ import {
   Lock,
   Trash2
 } from 'lucide-react';
+import { IconUpload } from '@/components/media/icon-upload';
+import { deleteLeagueIcon } from '@/lib/utils/icon-helpers';
+import { useAuth } from '@/components/auth/auth-provider';
 
 interface LeagueData {
   id: string;
@@ -54,6 +57,7 @@ export const LeagueSettingsModal: React.FC<LeagueSettingsModalProps> = ({
   onSuccess,
   onDeleted
 }) => {
+  const { user } = useAuth();
   const [formData, setFormData] = useState<LeagueData>(league);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,13 +65,22 @@ export const LeagueSettingsModal: React.FC<LeagueSettingsModalProps> = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [iconUrl, setIconUrl] = useState<string | undefined>(league.logo_url);
 
   // Reset form when league changes
   useEffect(() => {
     setFormData(league);
+    setIconUrl(league.logo_url);
     setError(null);
     setSuccessMessage(null);
   }, [league]);
+
+  const handleIconDelete = async () => {
+    const success = await deleteLeagueIcon(league.id);
+    if (success) {
+      setIconUrl(undefined);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,20 +239,25 @@ export const LeagueSettingsModal: React.FC<LeagueSettingsModalProps> = ({
               />
             </div>
 
-            {/* Logo URL */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2 flex items-center gap-2">
-                <ImageIcon className="w-4 h-4" />
-                Logo URL
-              </label>
-              <input
-                type="url"
-                value={formData.logo_url || ''}
-                onChange={(e) => handleChange('logo_url', e.target.value)}
-                className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="https://example.com/logo.png"
-              />
-            </div>
+            {/* League Icon */}
+            {user && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4" />
+                  League Icon
+                </label>
+                <IconUpload
+                  currentIconUrl={iconUrl}
+                  contextType="league_icon"
+                  entityId={league.id}
+                  leagueId={league.id}
+                  entityName={formData.name}
+                  onUploadComplete={(url) => setIconUrl(url)}
+                  onDelete={handleIconDelete}
+                  showDelete={!!iconUrl}
+                />
+              </div>
+            )}
 
             {/* Location */}
             <div>

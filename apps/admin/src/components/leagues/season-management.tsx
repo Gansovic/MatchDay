@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Season } from '@matchday/services';
+import { SeasonCard } from '@matchday/ui';
+import { SeasonIcon } from '@/components/ui/season-icon';
 
 export interface SeasonManagementProps {
   leagueId: string;
@@ -17,44 +19,6 @@ export default function SeasonManagement({
 }: SeasonManagementProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
-
-  const getStatusColor = (status: Season['status']) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-100 text-green-800';
-      case 'completed':
-        return 'bg-gray-100 text-gray-800';
-      case 'registration':
-        return 'bg-blue-100 text-blue-800';
-      case 'draft':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getFixturesStatusColor = (status: Season['fixtures_status']) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-800';
-      case 'generating':
-        return 'bg-blue-100 text-blue-800';
-      case 'error':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
 
   if (isLoading) {
     return (
@@ -103,73 +67,34 @@ export default function SeasonManagement({
         ) : (
           <div className="space-y-4">
             {seasons.map((season) => (
-              <div
+              <SeasonCard
                 key={season.id}
+                season={{
+                  id: season.id,
+                  name: season.name,
+                  display_name: season.display_name,
+                  start_date: season.start_date,
+                  end_date: season.end_date,
+                  is_current: season.is_current,
+                  status: season.status,
+                  stats: {
+                    completed_matches: season.total_matches_played || 0,
+                    total_matches: season.total_matches_planned || 0,
+                    registered_teams: season.registered_teams_count
+                  }
+                }}
+                leagueId={leagueId}
                 onClick={() => router.push(`/leagues/${leagueId}/seasons/${season.id}`)}
-                className="border border-gray-600 rounded-lg p-4 hover:border-gray-500 transition-colors bg-gray-800 cursor-pointer hover:bg-gray-750"
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h4 className="font-medium text-white">
-                      {season.display_name || season.name}
-                    </h4>
-                    <p className="text-sm text-gray-400">{season.season_year}</p>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(season.status)}`}>
-                      {season.status.charAt(0).toUpperCase() + season.status.slice(1)}
-                    </span>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getFixturesStatusColor(season.fixtures_status)}`}>
-                      Fixtures: {season.fixtures_status}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium text-gray-400">Format:</span>
-                    <p className="text-gray-200 capitalize">{season.tournament_format}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-400">Start Date:</span>
-                    <p className="text-gray-200">{formatDate(season.start_date)}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-400">End Date:</span>
-                    <p className="text-gray-200">{formatDate(season.end_date)}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium text-gray-400">Teams:</span>
-                    <p className="text-gray-200">
-                      {season.registered_teams_count || 0}
-                      {season.max_teams ? ` / ${season.max_teams}` : ''}
-                    </p>
-                  </div>
-                </div>
-
-                {season.total_matches_planned && (
-                  <div className="mt-3 pt-3 border-t border-gray-600">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-400">
-                        <strong>Matches:</strong> {season.total_matches_planned} planned
-                      </span>
-                      {season.fixtures_generated_at && (
-                        <span className="text-gray-400">
-                          Generated: {formatDate(season.fixtures_generated_at)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {season.registration_deadline && (
-                  <div className="mt-2 text-sm">
-                    <span className="text-gray-400">
-                      <strong>Registration Deadline:</strong> {formatDate(season.registration_deadline)}
-                    </span>
-                  </div>
-                )}
-              </div>
+                seasonIcon={
+                  <SeasonIcon
+                    seasonId={season.id}
+                    leagueId={leagueId}
+                    seasonName={season.display_name || season.name}
+                    size="md"
+                  />
+                }
+                variant="admin"
+              />
             ))}
           </div>
         )}

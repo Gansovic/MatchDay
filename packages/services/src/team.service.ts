@@ -505,10 +505,13 @@ export class TeamService {
     try {
       const cacheKey = this.getCacheKey('getUserTeams', { userId, options });
       const cached = this.getFromCache<TeamWithDetails[]>(cacheKey);
-      
+
       if (cached) {
+        console.log('🔍 getUserTeams - Returning cached data for user:', userId, 'cached teams:', cached.length);
         return { data: cached, error: null, success: true };
       }
+
+      console.log('🔍 getUserTeams - Querying team_members for user:', userId, 'includeInactive:', options.includeInactive);
 
       let memberQuery = this.supabase
         .from('team_members')
@@ -528,6 +531,12 @@ export class TeamService {
       const { data: memberships, error: memberError } = await memberQuery
         .order('joined_at', { ascending: false })
         .limit(options.limit || 50);
+
+      console.log('🔍 getUserTeams - Query result:', {
+        membershipsCount: memberships?.length || 0,
+        hasError: !!memberError,
+        error: memberError?.message
+      });
 
       if (memberError) throw memberError;
 

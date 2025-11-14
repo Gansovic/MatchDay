@@ -39,6 +39,7 @@ import SeasonManagement from '@/components/leagues/season-management';
 import { CreateSeasonModal } from '@/components/seasons/CreateSeasonModal';
 import { LeagueSettingsModal } from '@/components/leagues/LeagueSettingsModal';
 import { CreateTeamModal } from '@/components/teams/CreateTeamModal';
+import { LeagueIcon } from '@/components/ui/league-icon';
 
 interface LeagueDashboardPageProps {
   params: Promise<{
@@ -235,28 +236,35 @@ export default function LeagueDashboardPage({ params }: LeagueDashboardPageProps
         {/* League Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-white mb-2">
-                {leagueData.league.name}
-              </h1>
-              <p className="text-gray-400 mb-4">
-                {leagueData.league.description}
-              </p>
-              <div className="flex items-center gap-4 text-sm text-gray-500">
-                <span className="capitalize">{leagueData.league.sport_type} • {leagueData.league.league_type}</span>
-                {leagueData.league.location && (
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-3 h-3" />
-                    {leagueData.league.location}
+            <div className="flex items-start gap-4">
+              <LeagueIcon
+                leagueId={leagueData.league.id}
+                leagueName={leagueData.league.name}
+                size="xl"
+              />
+              <div>
+                <h1 className="text-3xl font-bold text-white mb-2">
+                  {leagueData.league.name}
+                </h1>
+                <p className="text-gray-400 mb-4">
+                  {leagueData.league.description}
+                </p>
+                <div className="flex items-center gap-4 text-sm text-gray-500">
+                  <span className="capitalize">{leagueData.league.sport_type} • {leagueData.league.league_type}</span>
+                  {leagueData.league.location && (
+                    <span className="flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      {leagueData.league.location}
+                    </span>
+                  )}
+                  <span className={`px-2 py-1 text-xs rounded-full ${
+                    leagueData.league.is_active
+                      ? 'bg-green-900/20 text-green-300'
+                      : 'bg-gray-700 text-gray-400'
+                  }`}>
+                    {leagueData.league.is_active ? 'Active' : 'Inactive'}
                   </span>
-                )}
-                <span className={`px-2 py-1 text-xs rounded-full ${
-                  leagueData.league.is_active 
-                    ? 'bg-green-900/20 text-green-300' 
-                    : 'bg-gray-700 text-gray-400'
-                }`}>
-                  {leagueData.league.is_active ? 'Active' : 'Inactive'}
-                </span>
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2">

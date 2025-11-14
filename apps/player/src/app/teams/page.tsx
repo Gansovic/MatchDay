@@ -70,6 +70,7 @@ interface CreateTeamForm {
   maxMembers: number;
   location: string;
   color: string;
+  icon?: File;
 }
 
 interface FormErrors {
@@ -119,9 +120,11 @@ export default function TeamsPage() {
     description: '',
     maxMembers: 22,
     location: '',
-    color: 'bg-blue-600'
+    color: 'bg-blue-600',
+    icon: undefined
   });
   const [formErrors, setFormErrors] = useState<FormErrors>({});
+  const [iconPreview, setIconPreview] = useState<string | null>(null);
   const [myTeams, setMyTeams] = useState<Team[]>([]);
   const [availableLeagues, setAvailableLeagues] = useState<{id: string, name: string}[]>([]);
   const [isLoadingLeagues, setIsLoadingLeagues] = useState(false);
@@ -385,7 +388,7 @@ export default function TeamsPage() {
 
   const validateForm = (): boolean => {
     const errors: FormErrors = {};
-    
+
     if (!formData.name.trim()) {
       errors.name = 'Team name is required';
     } else if (formData.name.trim().length < 2) {
@@ -393,24 +396,52 @@ export default function TeamsPage() {
     } else if (formData.name.trim().length > 50) {
       errors.name = 'Team name must be less than 50 characters';
     }
-    
+
     // League is now optional - teams can be created without being assigned to a league
-    
-    if (!formData.location.trim()) {
-      errors.location = 'Location is required';
-    }
-    
+    // Location is also optional - teams can be created without a specific location
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   const handleInputChange = (field: keyof CreateTeamForm, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    
+
     // Clear error when user starts typing
     if (formErrors[field as keyof FormErrors]) {
       setFormErrors(prev => ({ ...prev, [field]: undefined }));
     }
+  };
+
+  const handleIconChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setErrorMessage('Please select an image file');
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setErrorMessage('Image must be less than 5MB');
+        return;
+      }
+
+      setFormData(prev => ({ ...prev, icon: file }));
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setIconPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveIcon = () => {
+    setFormData(prev => ({ ...prev, icon: undefined }));
+    setIconPreview(null);
   };
 
   const handleCreateTeam = async () => {
@@ -453,10 +484,46 @@ export default function TeamsPage() {
 
       // Convert API response to local Team format
       const createdTeam = result.data;
+
+      // Upload icon if provided
+      if (formData.icon) {
+        try {
+          const iconFormData = new FormData();
+          iconFormData.append('file', formData.icon);
+          iconFormData.append('context_type', 'team_logo');
+          iconFormData.append('team_id', createdTeam.id);
+          if (createdTeam.league?.id) {
+            iconFormData.append('league_id', createdTeam.league.id);
+          }
+          iconFormData.append('uploaded_by', session.user.id);
+          iconFormData.append('is_public', 'true');
+          iconFormData.append('description', `Team icon for ${formData.name}`);
+
+          const iconResponse = await fetch('/api/media/upload', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: iconFormData
+          });
+
+          if (iconResponse.ok) {
+            const iconResult = await iconResponse.json();
+            createdTeam.logo_url = iconResult.media.url;
+            console.log('✅ Team icon uploaded successfully');
+          } else {
+            console.warn('⚠️ Team created but icon upload failed');
+          }
+        } catch (iconError) {
+          console.error('Error uploading team icon:', iconError);
+          // Don't fail the whole operation if icon upload fails
+        }
+      }
       const newTeam: Team = {
         id: createdTeam.id,
         name: createdTeam.name,
         league: createdTeam.league.name,
+        logo: createdTeam.logo_url,
         position: 'Captain', // Creator becomes captain
         isCaptain: true,
         memberCount: createdTeam.memberCount,
@@ -486,8 +553,10 @@ export default function TeamsPage() {
         description: '',
         maxMembers: 22,
         location: '',
-        color: 'bg-blue-600'
+        color: 'bg-blue-600',
+        icon: undefined
       });
+      setIconPreview(null);
       
       // Switch to "My Teams" tab to show the new team
       setActiveTab('my-teams');
@@ -642,12 +711,6 @@ export default function TeamsPage() {
         {/* My Teams Tab */}
         {activeTab === 'my-teams' && (
           <div className="space-y-6">
-            {/* DEBUG: Show current myTeams state */}
-            <div className="bg-yellow-100 border border-yellow-300 rounded p-4 text-sm">
-              <strong>DEBUG:</strong> myTeams.length = {myTeams.length} | 
-              Teams: {JSON.stringify(myTeams.map(t => ({id: t.id, name: t.name})), null, 2)}
-            </div>
-
             {/* Authentication Error Display */}
             {authError && (
               <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
@@ -1007,6 +1070,61 @@ export default function TeamsPage() {
                 )}
               </div>
 
+              {/* Team Icon */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Team Icon (Optional)
+                </label>
+                <div className="flex items-center gap-4">
+                  {/* Icon Preview */}
+                  <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-700 border-2 border-gray-300 dark:border-gray-600 flex-shrink-0">
+                    {iconPreview ? (
+                      <Image
+                        src={iconPreview}
+                        alt="Team icon preview"
+                        fill
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Palette className="w-8 h-8 text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Upload Button */}
+                  <div className="flex-1">
+                    <input
+                      type="file"
+                      id="team-icon-upload"
+                      accept="image/*"
+                      onChange={handleIconChange}
+                      className="hidden"
+                    />
+                    <label
+                      htmlFor="team-icon-upload"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg transition-colors cursor-pointer"
+                    >
+                      <Palette className="w-4 h-4" />
+                      {iconPreview ? 'Change Icon' : 'Upload Icon'}
+                    </label>
+                    {iconPreview && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveIcon}
+                        className="ml-2 inline-flex items-center gap-1 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium"
+                      >
+                        <X className="w-4 h-4" />
+                        Remove
+                      </button>
+                    )}
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Recommended: Square image, max 5MB
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* League Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -1036,13 +1154,13 @@ export default function TeamsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Location/Venue *
+                    Location/Venue
                   </label>
                   <input
                     type="text"
                     value={formData.location}
                     onChange={(e) => handleInputChange('location', e.target.value)}
-                    placeholder="Enter team location"
+                    placeholder="Enter team location (optional)"
                     className={`w-full px-4 py-3 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
                       formErrors.location ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                     }`}

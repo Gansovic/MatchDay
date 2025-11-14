@@ -1,15 +1,30 @@
+/**
+ * Season Detail Page (Admin)
+ *
+ * Admin interface for managing a specific season including:
+ * - Overview stats
+ * - Team registration management
+ * - Fixture generation
+ * - Season settings and icon upload
+ */
+
 'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { seasonService } from '@matchday/services'
-import type { 
-  SeasonOverview, 
-  SeasonTeam, 
+import { seasonService } from '@/lib/services/season.service'
+import type {
+  SeasonOverview,
+  SeasonTeam,
   Fixture,
   SeasonStatus,
-  TournamentFormat 
+  TournamentFormat
 } from '@matchday/database'
+import { SeasonDashboardLayout } from '@matchday/ui'
+import type { Season, League, TabConfig } from '@matchday/ui'
+import { Info, Users, Calendar, Settings } from 'lucide-react'
+import { SeasonIcon } from '@/components/ui/season-icon'
+import { SeasonIconSection } from '@/components/seasons/season-icon-section'
 
 interface SeasonDetailData extends SeasonOverview {
   league: {
@@ -54,11 +69,11 @@ export default function SeasonDetailPage() {
     try {
       setLoading(true)
       setError(null)
-      
+
       // Load season details
       const seasonData = await seasonService.getSeason(seasonId)
       setSeason(seasonData)
-      
+
       // Load fixtures if they exist
       if (seasonData.fixtures_status === 'completed') {
         const fixturesData = await seasonService.getFixtures(seasonId, {
@@ -107,10 +122,10 @@ export default function SeasonDetailPage() {
     }
   }
 
-  const handleUpdateTeamStatus = async (teamId: string, newStatus: string) => {
+  const handleUpdateTeamStatus = async (teamId: string, status: 'accepted' | 'declined') => {
     try {
       setActionLoading(`team_${teamId}`)
-      await seasonService.updateTeamRegistration(seasonId, teamId, { status: newStatus })
+      await seasonService.updateTeamStatus(seasonId, teamId, status)
       await loadSeasonData() // Reload data
     } catch (err) {
       console.error('Error updating team status:', err)
@@ -135,395 +150,274 @@ export default function SeasonDetailPage() {
     return colors[status] || 'bg-gray-100 text-gray-800'
   }
 
-  const getTournamentFormatIcon = (format: TournamentFormat) => {
-    switch (format) {
-      case 'league': return '🏆'
-      case 'knockout': return '⚔️'
-      case 'league_with_playoffs': return '🎯'
-      default: return '📅'
-    }
-  }
+  // Extract leagueId from season data (this route doesn't have it in URL)
+  const leagueId = season?.league_id || '';
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="animate-pulse space-y-6">
-            <div className="h-8 bg-gray-300 rounded w-64"></div>
-            <div className="h-64 bg-gray-300 rounded-lg"></div>
-            <div className="h-96 bg-gray-300 rounded-lg"></div>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // Prepare data for the shared layout
+  const seasonForLayout: Season | null = season ? {
+    id: season.id,
+    name: season.name,
+    display_name: season.display_name,
+    status: season.status,
+    start_date: season.start_date,
+    end_date: season.end_date,
+    is_current: season.is_current || false,
+    description: season.description,
+    registered_teams_count: season.registered_teams_count || season.team_registrations?.length || 0
+  } : null;
 
-  if (error || !season) {
-    return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">❌</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Error loading season</h3>
-            <p className="text-gray-600 mb-6">{error}</p>
-            <button
-              onClick={() => router.back()}
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Go Back
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const leagueForLayout: League | null = season?.league ? {
+    id: season.league.id,
+    name: season.league.name,
+    sport_type: season.league.sport_type,
+    description: '',
+    teamCount: season.team_registrations?.length || 0
+  } : null;
+
+  // Tab configuration
+  const tabs: TabConfig[] = [
+    { id: 'overview', label: 'Overview', icon: Info },
+    { id: 'teams', label: 'Teams', icon: Users },
+    { id: 'fixtures', label: 'Fixtures', icon: Calendar },
+    { id: 'settings', label: 'Settings', icon: Settings }
+  ];
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <button
-            onClick={() => router.push('/seasons')}
-            className="text-blue-600 hover:text-blue-800 mb-4 flex items-center space-x-2"
-          >
-            <span>←</span> <span>Back to Seasons</span>
-          </button>
-          
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <span className="text-4xl">{getTournamentFormatIcon(season.tournament_format)}</span>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">
-                  {season.display_name || season.name}
-                </h1>
-                <p className="text-gray-600">{season.league.name} • {season.season_year}</p>
+    <SeasonDashboardLayout
+      backLink={{
+        href: '/seasons',
+        label: 'Back to Seasons'
+      }}
+      season={seasonForLayout}
+      league={leagueForLayout}
+      isLoading={loading}
+      error={error}
+      tabs={tabs}
+      activeTab={activeTab}
+      onTabChange={(tab) => setActiveTab(tab as any)}
+      seasonIcon={
+        season && leagueId && (
+          <SeasonIcon
+            seasonId={season.id}
+            leagueId={leagueId}
+            seasonName={season.display_name || season.name}
+            size="xl"
+          />
+        )
+      }
+    >
+      {/* Overview Tab */}
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
+          {/* Progress Overview */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{season.registered_teams_count || 0}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Teams Registered</div>
+                <div className="text-xs text-gray-500">Min: {season.min_teams} / Max: {season.max_teams || '∞'}</div>
               </div>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(season.status)}`}>
-                {season.status.replace('_', ' ').toUpperCase()}
-              </span>
-              <button
-                onClick={() => router.push(`/seasons/${seasonId}/edit`)}
-                className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                Edit Season
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Progress Overview */}
-        <div className="bg-white rounded-lg shadow-sm border p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{season.registered_teams_count || 0}</div>
-              <div className="text-sm text-gray-600">Teams Registered</div>
-              <div className="text-xs text-gray-500">Min: {season.min_teams} / Max: {season.max_teams || '∞'}</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{season.total_matches_played || 0}</div>
-              <div className="text-sm text-gray-600">Matches Played</div>
-              <div className="text-xs text-gray-500">Total: {season.total_matches_scheduled || 0}</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">{season.current_matchday || 1}</div>
-              <div className="text-sm text-gray-600">Current Matchday</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">
-                {season.completion_percentage ? Math.round(season.completion_percentage) : 0}%
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{season.total_matches_played || 0}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Matches Played</div>
+                <div className="text-xs text-gray-500">Total: {season.total_matches_scheduled || 0}</div>
               </div>
-              <div className="text-sm text-gray-600">Complete</div>
-              <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                <div 
-                  className="bg-orange-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${season.completion_percentage || 0}%` }}
-                ></div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">{season.current_matchday || 1}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Current Matchday</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600">
+                  {season.completion_percentage ? Math.round(season.completion_percentage) : 0}%
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Complete</div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
+                  <div
+                    className="bg-orange-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${season.completion_percentage || 0}%` }}
+                  ></div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Action Buttons */}
-        {(season.status === 'fixtures_pending' || season.fixtures_status === 'needs_regeneration') && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-medium text-yellow-800">Fixtures Need Generation</h3>
-                <p className="text-sm text-yellow-700">
-                  {season.registered_teams_count >= season.min_teams 
-                    ? 'Ready to generate fixtures for this season.'
-                    : `Need ${season.min_teams - (season.registered_teams_count || 0)} more teams to generate fixtures.`
-                  }
-                </p>
+          {/* Action Buttons */}
+          {(season.status === 'fixtures_pending' || season.fixtures_status === 'needs_regeneration') && (
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-300">Fixtures Need Generation</h3>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-400">
+                    {season.registered_teams_count >= season.min_teams
+                      ? 'Ready to generate fixtures for this season.'
+                      : `Need ${season.min_teams - (season.registered_teams_count || 0)} more teams to generate fixtures.`
+                    }
+                  </p>
+                </div>
+                {season.registered_teams_count >= season.min_teams && (
+                  <button
+                    onClick={handleGenerateFixtures}
+                    disabled={actionLoading === 'generate_fixtures'}
+                    className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 disabled:opacity-50 transition-colors"
+                  >
+                    {actionLoading === 'generate_fixtures' ? 'Generating...' : 'Generate Fixtures'}
+                  </button>
+                )}
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Teams Tab */}
+      {activeTab === 'teams' && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Registered Teams</h3>
+          </div>
+
+          {season.team_registrations && season.team_registrations.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-900/50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Team</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Captain</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Registered</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {season.team_registrations.map((registration) => (
+                    <tr key={registration.team.id}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          {registration.team.logo_url && (
+                            <img
+                              className="h-10 w-10 rounded-full mr-3"
+                              src={registration.team.logo_url}
+                              alt={registration.team.name}
+                            />
+                          )}
+                          <div>
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                              {registration.team.name}
+                            </div>
+                            {registration.seeding && (
+                              <div className="text-sm text-gray-500">
+                                Seed #{registration.seeding}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
+                        {registration.team.captain.display_name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          registration.status === 'accepted'
+                            ? 'bg-green-100 text-green-800'
+                            : registration.status === 'pending'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {registration.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {new Date(registration.registered_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                        {registration.status === 'pending' && (
+                          <>
+                            <button
+                              onClick={() => handleUpdateTeamStatus(registration.team.id, 'accepted')}
+                              disabled={actionLoading === `team_${registration.team.id}`}
+                              className="text-green-600 hover:text-green-800 disabled:opacity-50"
+                            >
+                              ✓ Accept
+                            </button>
+                            <button
+                              onClick={() => handleUpdateTeamStatus(registration.team.id, 'declined')}
+                              disabled={actionLoading === `team_${registration.team.id}`}
+                              className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                            >
+                              ✗ Decline
+                            </button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="text-4xl mb-4">👥</div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No teams registered</h3>
+              <p className="text-gray-500 dark:text-gray-400">Teams will appear here once they register for this season.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Fixtures Tab */}
+      {activeTab === 'fixtures' && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Fixtures</h3>
+          </div>
+
+          {fixtures.length > 0 ? (
+            <div className="p-6">
+              <p className="text-center text-gray-500 dark:text-gray-400">Fixture display component would go here</p>
+              <p className="text-center text-sm text-gray-400 mt-2">
+                Found {fixtures.length} fixtures to display
+              </p>
+            </div>
+          ) : season.fixtures_status === 'completed' ? (
+            <div className="text-center py-12">
+              <div className="text-4xl mb-4">📅</div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No fixtures found</h3>
+              <p className="text-gray-500 dark:text-gray-400">There was an issue loading the fixtures.</p>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="text-4xl mb-4">⏳</div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Fixtures not generated</h3>
+              <p className="text-gray-500 dark:text-gray-400 mb-4">
+                Register teams and generate fixtures to see the match schedule.
+              </p>
               {season.registered_teams_count >= season.min_teams && (
                 <button
                   onClick={handleGenerateFixtures}
                   disabled={actionLoading === 'generate_fixtures'}
-                  className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 disabled:opacity-50 transition-colors"
+                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
-                  {actionLoading === 'generate_fixtures' ? 'Generating...' : 'Generate Fixtures'}
+                  {actionLoading === 'generate_fixtures' ? 'Generating...' : 'Generate Fixtures Now'}
                 </button>
               )}
             </div>
-          </div>
-        )}
-
-        {/* Tabs */}
-        <div className="border-b border-gray-200 mb-6">
-          <nav className="flex space-x-8">
-            {[
-              { id: 'overview', label: 'Overview', icon: '📊' },
-              { id: 'teams', label: `Teams (${season.team_registrations?.length || 0})`, icon: '👥' },
-              { id: 'fixtures', label: `Fixtures (${fixtures.length || 0})`, icon: '📅' },
-              { id: 'settings', label: 'Settings', icon: '⚙️' }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <span className="mr-2">{tab.icon}</span>
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {/* Tab Content */}
-        <div className="space-y-6">
-          {/* Overview Tab */}
-          {activeTab === 'overview' && (
-            <div className="grid gap-6 lg:grid-cols-2">
-              {/* Season Information */}
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Season Information</h3>
-                <dl className="space-y-3">
-                  <div className="flex justify-between">
-                    <dt className="text-sm text-gray-600">Tournament Format:</dt>
-                    <dd className="text-sm font-medium capitalize">
-                      {season.tournament_format.replace('_', ' ')}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-sm text-gray-600">Duration:</dt>
-                    <dd className="text-sm font-medium">
-                      {new Date(season.start_date).toLocaleDateString()} - {new Date(season.end_date).toLocaleDateString()}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-sm text-gray-600">Match Frequency:</dt>
-                    <dd className="text-sm font-medium">Every {season.match_frequency} days</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-sm text-gray-600">Scoring:</dt>
-                    <dd className="text-sm font-medium">
-                      {season.points_for_win}W - {season.points_for_draw}D - {season.points_for_loss}L
-                    </dd>
-                  </div>
-                  {season.tournament_format === 'league' && (
-                    <div className="flex justify-between">
-                      <dt className="text-sm text-gray-600">Rounds:</dt>
-                      <dd className="text-sm font-medium">
-                        {season.rounds === 1 ? 'Single' : 'Double'} Round Robin
-                      </dd>
-                    </div>
-                  )}
-                </dl>
-              </div>
-
-              {/* Quick Actions */}
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-                <div className="space-y-3">
-                  {season.fixtures_status === 'completed' && (
-                    <button
-                      onClick={handleDeleteFixtures}
-                      disabled={actionLoading === 'delete_fixtures'}
-                      className="w-full bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors text-left"
-                    >
-                      {actionLoading === 'delete_fixtures' ? 'Deleting...' : '🗑️ Delete All Fixtures'}
-                    </button>
-                  )}
-                  <button className="w-full bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors text-left">
-                    📊 Export Season Data
-                  </button>
-                  <button className="w-full bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors text-left">
-                    📧 Send Team Updates
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Teams Tab */}
-          {activeTab === 'teams' && (
-            <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold text-gray-900">Team Registrations</h3>
-                  <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm">
-                    Register Team
-                  </button>
-                </div>
-              </div>
-              
-              {season.team_registrations && season.team_registrations.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Team
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Captain
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Registered
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {season.team_registrations.map((registration) => (
-                        <tr key={registration.id}>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              {registration.team.logo_url && (
-                                <img
-                                  className="h-10 w-10 rounded-full mr-3"
-                                  src={registration.team.logo_url}
-                                  alt={registration.team.name}
-                                />
-                              )}
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">
-                                  {registration.team.name}
-                                </div>
-                                {registration.seeding && (
-                                  <div className="text-sm text-gray-500">
-                                    Seed #{registration.seeding}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {registration.team.captain.display_name}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              registration.status === 'accepted' 
-                                ? 'bg-green-100 text-green-800'
-                                : registration.status === 'pending'
-                                ? 'bg-yellow-100 text-yellow-800' 
-                                : 'bg-red-100 text-red-800'
-                            }`}>
-                              {registration.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {new Date(registration.registered_at).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                            {registration.status === 'pending' && (
-                              <>
-                                <button
-                                  onClick={() => handleUpdateTeamStatus(registration.team.id, 'accepted')}
-                                  disabled={actionLoading === `team_${registration.team.id}`}
-                                  className="text-green-600 hover:text-green-800 disabled:opacity-50"
-                                >
-                                  ✓ Accept
-                                </button>
-                                <button
-                                  onClick={() => handleUpdateTeamStatus(registration.team.id, 'declined')}
-                                  disabled={actionLoading === `team_${registration.team.id}`}
-                                  className="text-red-600 hover:text-red-800 disabled:opacity-50"
-                                >
-                                  ✗ Decline
-                                </button>
-                              </>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <div className="text-4xl mb-4">👥</div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No teams registered</h3>
-                  <p className="text-gray-500">Teams will appear here once they register for this season.</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Fixtures Tab */}
-          {activeTab === 'fixtures' && (
-            <div className="bg-white rounded-lg shadow-sm border">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">Fixtures</h3>
-              </div>
-              
-              {fixtures.length > 0 ? (
-                <div className="p-6">
-                  <p className="text-center text-gray-500">Fixture display component would go here</p>
-                  <p className="text-center text-sm text-gray-400 mt-2">
-                    Found {fixtures.length} fixtures to display
-                  </p>
-                </div>
-              ) : season.fixtures_status === 'completed' ? (
-                <div className="text-center py-12">
-                  <div className="text-4xl mb-4">📅</div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No fixtures found</h3>
-                  <p className="text-gray-500">There was an issue loading the fixtures.</p>
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <div className="text-4xl mb-4">⏳</div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Fixtures not generated</h3>
-                  <p className="text-gray-500 mb-4">
-                    Register teams and generate fixtures to see the match schedule.
-                  </p>
-                  {season.registered_teams_count >= season.min_teams && (
-                    <button
-                      onClick={handleGenerateFixtures}
-                      disabled={actionLoading === 'generate_fixtures'}
-                      className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                    >
-                      {actionLoading === 'generate_fixtures' ? 'Generating...' : 'Generate Fixtures'}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Settings Tab */}
-          {activeTab === 'settings' && (
-            <div className="bg-white rounded-lg shadow-sm border p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Season Settings</h3>
-              <p className="text-gray-500">Season configuration settings would go here</p>
-            </div>
           )}
         </div>
-      </div>
-    </div>
+      )}
+
+      {/* Settings Tab */}
+      {activeTab === 'settings' && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Season Settings</h3>
+          {season && (
+            <SeasonIconSection
+              seasonId={season.id}
+              leagueId={season.league_id}
+              seasonName={season.display_name || season.name}
+            />
+          )}
+        </div>
+      )}
+    </SeasonDashboardLayout>
   )
 }

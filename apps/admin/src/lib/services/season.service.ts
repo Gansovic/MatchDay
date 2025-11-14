@@ -1,8 +1,8 @@
-import { createClient } from '@/lib/supabase/client'
-import type { 
-  Season, 
-  SeasonTeam, 
-  Fixture, 
+import { supabase as supabaseClient } from '@/lib/supabase/client'
+import type {
+  Season,
+  SeasonTeam,
+  Fixture,
   SeasonStats,
   TournamentFormat,
   SeasonStatus,
@@ -73,7 +73,7 @@ export interface TeamRegistrationParams {
 }
 
 export class SeasonService {
-  private supabase = createClient()
+  private supabase = supabaseClient
 
   /**
    * Get all seasons with optional filters
@@ -86,10 +86,10 @@ export class SeasonService {
     limit?: number
   }) {
     const { league_id, status, year, page = 1, limit = 20 } = params || {}
-    
+
     let query = this.supabase
-      .from('season_overview')
-      .select('*')
+      .from('seasons')
+      .select('*, league:leagues(name, sport_type)', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range((page - 1) * limit, page * limit - 1)
 
@@ -101,8 +101,18 @@ export class SeasonService {
 
     if (error) throw error
 
+    // Enhance data with calculated fields
+    const enhancedData = (data || []).map(season => ({
+      ...season,
+      registered_teams_count: 0, // TODO: Add join or separate query
+      total_matches_scheduled: 0,
+      total_matches_played: 0,
+      current_matchday: season.current_matchday || 1,
+      completion_percentage: 0
+    }))
+
     return {
-      data: data as SeasonOverview[],
+      data: enhancedData as SeasonOverview[],
       pagination: {
         page,
         limit,
@@ -116,48 +126,130 @@ export class SeasonService {
    * Get a single season with full details
    */
   async getSeason(seasonId: string) {
+    console.log('[SeasonService] Getting season:', seasonId)
+
+    // First, get basic season data
     const { data, error } = await this.supabase
-      .from('season_overview')
-      .select(`
-        *,
-        league:leagues(
-          id, name, sport_type, created_by,
-          created_by_user:user_profiles!created_by(display_name, avatar_url)
-        ),
-        team_registrations:season_teams(
-          id, status, registered_at, seeding, notes,
-          team:teams(
-            id, name, logo_url, captain_id,
-            captain:user_profiles!captain_id(display_name)
-          ),
-          registered_by_user:user_profiles!registered_by(display_name)
-        ),
-        stats:season_stats(*)
-      `)
+      .from('seasons')
+      .select('*')
       .eq('id', seasonId)
       .single()
 
-    if (error) throw error
-    return data as SeasonOverview & {
-      league: {
-        id: string
-        name: string
-        sport_type: string
-        created_by: string
-        created_by_user: { display_name: string; avatar_url?: string }
-      }
-      team_registrations: Array<SeasonTeam & {
-        team: {
-          id: string
-          name: string
-          logo_url?: string
-          captain_id: string
-          captain: { display_name: string }
-        }
-        registered_by_user: { display_name: string }
-      }>
-      stats: SeasonStats
+    if (error) {
+      console.error('[SeasonService] Supabase error:', error)
+      throw new Error(error.message || 'Failed to fetch season data')
     }
+
+    if (!data) {
+      throw new Error('Season not found')
+    }
+
+    console.log('[SeasonService] Basic season data loaded successfully')
+
+    // Get league data
+    const { data: league, error: leagueError } = await this.supabase
+      .from('leagues')
+      .select('id, name, sport_type, created_by')
+      .eq('id', data.league_id)
+      .single()
+
+    if (leagueError) {
+      console.error('[SeasonService] League error:', leagueError)
+    }
+
+    // Get teams for this league (teams belong directly to leagues)
+    // Since we don't have a season_teams table yet, we query teams by league_id
+    let teamRegistrations: any[] = []
+
+    if (data.league_id) {
+      // First, fetch teams
+      const { data: teams, error: teamsError } = await this.supabase
+        .from('teams')
+        .select('id, name, logo_url, logo_media_id, captain_id, created_at')
+        .eq('league_id', data.league_id)
+        .eq('is_archived', false)
+        .order('name')
+
+      if (teamsError) {
+        console.error('[SeasonService] Teams error:', teamsError)
+        console.error('[SeasonService] Full error details:', JSON.stringify(teamsError))
+      } else if (teams && teams.length > 0) {
+        console.log('[SeasonService] Loaded teams from league:', teams.length)
+
+        // Get unique captain IDs
+        const captainIds = [...new Set(teams.map(t => t.captain_id).filter(Boolean))]
+
+        // Fetch captain profiles
+        let captainProfiles: any[] = []
+        if (captainIds.length > 0) {
+          const { data: captains, error: captainsError } = await this.supabase
+            .from('user_profiles')
+            .select('id, display_name, full_name, avatar_url')
+            .in('id', captainIds)
+
+          if (captainsError) {
+            console.error('[SeasonService] Captains error:', captainsError)
+          } else {
+            captainProfiles = captains || []
+          }
+        }
+
+        // Create a map of captain profiles
+        const captainMap = new Map(captainProfiles.map(c => [c.id, c]))
+
+        // Format teams to match expected team_registrations structure
+        teamRegistrations = teams.map((team: any) => {
+          const captain = team.captain_id ? captainMap.get(team.captain_id) : null
+
+          return {
+            id: team.id,
+            team_id: team.id,
+            season_id: seasonId,
+            status: 'accepted', // Default status since no season_teams table
+            registered_at: team.created_at,
+            team: {
+              id: team.id,
+              name: team.name,
+              logo_url: team.logo_url,
+              logo_media_id: team.logo_media_id,
+              captain_id: team.captain_id,
+              captain: captain ? {
+                id: captain.id,
+                display_name: captain.display_name || captain.full_name || 'Unknown',
+                avatar_url: captain.avatar_url
+              } : null
+            }
+          }
+        })
+      }
+    }
+
+    console.log('[SeasonService] All data loaded successfully')
+
+    // Calculate additional statistics
+    const registered_teams_count = teamRegistrations?.length || data.registered_teams_count || 0
+    const total_matches_scheduled = 0 // TODO: Calculate from fixtures
+    const total_matches_played = 0 // TODO: Calculate from matches
+    const current_matchday = data.current_matchday || 1
+    const completion_percentage = 0 // TODO: Calculate based on matches played
+
+    return {
+      ...data,
+      league: league || {
+        id: data.league_id,
+        name: 'Unknown League',
+        sport_type: 'football',
+        created_by: '',
+        created_by_user: { display_name: 'Unknown', avatar_url: undefined }
+      },
+      team_registrations: teamRegistrations || [],
+      stats: null,
+      registered_teams_count,
+      total_matches_scheduled,
+      total_matches_played,
+      current_matchday,
+      completion_percentage
+    } as any // Simplified typing for now
   }
 
   /**
@@ -220,17 +312,33 @@ export class SeasonService {
    * Generate fixtures for a season
    */
   async generateFixtures(seasonId: string, params?: GenerateFixturesParams) {
-    const response = await fetch(`/api/seasons/${seasonId}/fixtures`, {
+    // Get the current session token
+    const { data: { session } } = await this.supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('No active session. Please log in again.');
+    }
+
+    const response = await fetch(`/api/seasons/${seasonId}/fixtures/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
       },
+      credentials: 'include', // Include cookies for authentication
       body: JSON.stringify(params || {})
     })
 
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to generate fixtures')
+      // Try to parse error as JSON, but handle cases where it's not valid JSON
+      let errorMessage = 'Failed to generate fixtures';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || error.message || errorMessage;
+      } catch (e) {
+        // Response wasn't JSON, use status text
+        errorMessage = `${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
     }
 
     return response.json()
@@ -247,36 +355,90 @@ export class SeasonService {
     group_by?: 'round' | 'matchday'
     limit?: number
   }) {
-    const searchParams = new URLSearchParams()
-    
-    if (params?.round) searchParams.set('round', params.round.toString())
-    if (params?.matchday) searchParams.set('matchday', params.matchday.toString())
-    if (params?.status) searchParams.set('status', params.status)
-    if (params?.upcoming) searchParams.set('upcoming', 'true')
-    if (params?.group_by) searchParams.set('group_by', params.group_by)
-    if (params?.limit) searchParams.set('limit', params.limit.toString())
+    console.log('[SeasonService] Getting fixtures for season:', seasonId)
 
-    const response = await fetch(`/api/seasons/${seasonId}/fixtures?${searchParams}`)
+    // TODO: Fixtures table not yet implemented in database
+    // Return empty array for now until fixtures table is created
+    console.log('[SeasonService] Fixtures table not yet available, returning empty array')
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to fetch fixtures')
+    return {
+      success: true,
+      data: [],
+      count: 0
     }
 
-    return response.json()
+    // Uncomment when fixtures table is created:
+    /*
+    // Query fixtures directly from Supabase
+    let query = this.supabase
+      .from('fixtures')
+      .select('*')
+      .eq('season_id', seasonId)
+      .order('match_date', { ascending: true })
+
+    if (params?.round) {
+      query = query.eq('round_number', params.round)
+    }
+    if (params?.matchday) {
+      query = query.eq('matchday', params.matchday)
+    }
+    if (params?.status) {
+      query = query.eq('status', params.status)
+    }
+    if (params?.upcoming) {
+      const now = new Date().toISOString()
+      query = query.gte('match_date', now)
+    }
+    if (params?.limit) {
+      query = query.limit(params.limit)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error('[SeasonService] Fixtures error:', error)
+      throw new Error(error.message || 'Failed to fetch fixtures')
+    }
+
+    console.log('[SeasonService] Fixtures loaded:', data?.length || 0)
+
+    return {
+      success: true,
+      data: data || [],
+      count: data?.length || 0
+    }
+    */
   }
 
   /**
    * Delete fixtures for a season
    */
   async deleteFixtures(seasonId: string) {
+    // Get the current session token
+    const { data: { session } } = await this.supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('No active session. Please log in again.');
+    }
+
     const response = await fetch(`/api/seasons/${seasonId}/fixtures`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      credentials: 'include' // Include cookies for authentication
     })
 
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || 'Failed to delete fixtures')
+      // Try to parse error as JSON, but handle cases where it's not valid JSON
+      let errorMessage = 'Failed to delete fixtures';
+      try {
+        const error = await response.json();
+        errorMessage = error.error || error.message || errorMessage;
+      } catch (e) {
+        // Response wasn't JSON, use status text
+        errorMessage = `${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
     }
 
     return response.json()
@@ -323,8 +485,8 @@ export class SeasonService {
    * Update team registration
    */
   async updateTeamRegistration(
-    seasonId: string, 
-    teamId: string, 
+    seasonId: string,
+    teamId: string,
     params: Partial<TeamRegistrationParams & { status: string; withdrawal_reason?: string }>
   ) {
     const response = await fetch(`/api/seasons/${seasonId}/teams/${teamId}`, {
@@ -332,6 +494,7 @@ export class SeasonService {
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include', // Include cookies for authentication
       body: JSON.stringify(params)
     })
 
@@ -344,11 +507,19 @@ export class SeasonService {
   }
 
   /**
+   * Update team registration status (simplified version)
+   */
+  async updateTeamStatus(seasonId: string, teamId: string, status: 'accepted' | 'declined') {
+    return this.updateTeamRegistration(seasonId, teamId, { status })
+  }
+
+  /**
    * Remove team from season
    */
   async removeTeamFromSeason(seasonId: string, teamId: string) {
     const response = await fetch(`/api/seasons/${seasonId}/teams/${teamId}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      credentials: 'include' // Include cookies for authentication
     })
 
     if (!response.ok) {

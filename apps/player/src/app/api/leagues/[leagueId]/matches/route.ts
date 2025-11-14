@@ -57,36 +57,58 @@ export async function GET(
     
     try {
       // Build the Supabase query
-      let query = supabase
-        .from('matches')
-        .select(`
-          id,
-          season_id,
-          home_team_id,
-          away_team_id,
-          match_date,
-          venue,
-          status,
-          home_score,
-          away_score,
-          created_at,
-          updated_at,
-          home_team:home_team_id(id, name),
-          away_team:away_team_id(id, name),
-          seasons!inner(
-            league_id,
-            name,
-            display_name
-          )
-        `)
-        .eq('seasons.league_id', leagueId);
+      // If seasonId is provided, we need to get matches through the fixtures table
+      let query;
 
-      // Filter by season if provided
       if (seasonId) {
-        query = query.eq('season_id', seasonId);
+        // Query through fixtures to get season-specific matches
+        query = supabase
+          .from('fixtures')
+          .select(`
+            match_id,
+            matches:match_id(
+              id,
+              league_id,
+              home_team_id,
+              away_team_id,
+              scheduled_date,
+              venue,
+              status,
+              home_score,
+              away_score,
+              match_day,
+              created_at,
+              updated_at,
+              home_team:home_team_id(id, name),
+              away_team:away_team_id(id, name)
+            )
+          `)
+          .eq('season_id', seasonId)
+          .not('match_id', 'is', null);
+      } else {
+        // Query matches directly by league_id
+        query = supabase
+          .from('matches')
+          .select(`
+            id,
+            league_id,
+            home_team_id,
+            away_team_id,
+            scheduled_date,
+            venue,
+            status,
+            home_score,
+            away_score,
+            match_day,
+            created_at,
+            updated_at,
+            home_team:home_team_id(id, name),
+            away_team:away_team_id(id, name)
+          `)
+          .eq('league_id', leagueId);
       }
-      
-      query = query.order('match_date', { ascending: false });
+
+      query = query.order('scheduled_date', { ascending: false });
 
       const { data: matchesResult, error: matchesError } = await query;
 
@@ -94,36 +116,42 @@ export async function GET(
         throw new Error(`Failed to fetch matches: ${matchesError.message}`);
       }
 
-      const matches = (matchesResult || []).map((match: any) => ({
-        id: match.id,
-        season_id: match.season_id,
-        home_team_id: match.home_team_id,
-        home_team_name: match.home_team?.name || 'Unknown Team',
-        away_team_id: match.away_team_id,
-        away_team_name: match.away_team?.name || 'Unknown Team',
-        home_score: match.home_score,
-        away_score: match.away_score,
-        status: match.status,
-        match_date: match.match_date,
-        // Add date field for dashboard compatibility
-        date: match.match_date,
-        venue: match.venue,
-        created_at: match.created_at,
-        updated_at: match.updated_at,
-        // Add team objects for dashboard compatibility
-        home_team: {
-          id: match.home_team_id,
-          name: match.home_team?.name || 'Unknown Team'
-        },
-        away_team: {
-          id: match.away_team_id,
-          name: match.away_team?.name || 'Unknown Team'
-        },
-        // Season and league info derived through season relationship
-        league_id: match.seasons?.league_id,
-        season_name: match.seasons?.name,
-        season_display_name: match.seasons?.display_name
-      }));
+      // Handle different response formats based on whether we queried through fixtures or directly
+      const matches = (matchesResult || [])
+        .map((item: any) => {
+          // If we queried through fixtures, the match data is nested
+          const match = seasonId ? item.matches : item;
+          if (!match) return null;
+
+          return {
+            id: match.id,
+            league_id: match.league_id,
+            home_team_id: match.home_team_id,
+            home_team_name: match.home_team?.name || 'Unknown Team',
+            away_team_id: match.away_team_id,
+            away_team_name: match.away_team?.name || 'Unknown Team',
+            home_score: match.home_score,
+            away_score: match.away_score,
+            status: match.status,
+            scheduled_date: match.scheduled_date,
+            match_day: match.match_day,
+            // Add date field for dashboard compatibility
+            date: match.scheduled_date,
+            venue: match.venue,
+            created_at: match.created_at,
+            updated_at: match.updated_at,
+            // Add team objects for dashboard compatibility
+            home_team: {
+              id: match.home_team_id,
+              name: match.home_team?.name || 'Unknown Team'
+            },
+            away_team: {
+              id: match.away_team_id,
+              name: match.away_team?.name || 'Unknown Team'
+            }
+          };
+        })
+        .filter(Boolean); // Remove any null entries
 
       const response = NextResponse.json({
         success: true,

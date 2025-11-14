@@ -45,6 +45,8 @@ export async function GET(
         home_team_id,
         away_team_id,
         league_id,
+        created_at,
+        updated_at,
         home_team:teams!matches_home_team_id_fkey(
           id,
           name,
@@ -71,9 +73,33 @@ export async function GET(
 
     console.log('✅ Match details retrieved successfully:', matchId);
 
+    // Transform the data to match component expectations
+    const transformedMatch = {
+      id: match.id,
+      match_number: match.matchday_number,
+      homeTeam: {
+        id: match.home_team.id,
+        name: match.home_team.name,
+        color: match.home_team.team_color || '#6B7280', // Default to gray if no color
+        score: match.home_score || 0
+      },
+      awayTeam: {
+        id: match.away_team.id,
+        name: match.away_team.name,
+        color: match.away_team.team_color || '#6B7280', // Default to gray if no color
+        score: match.away_score || 0
+      },
+      status: match.status || 'scheduled',
+      matchDate: match.match_date,
+      venue: match.venue || 'TBD',
+      notes: match.notes,
+      createdAt: match.created_at,
+      updatedAt: match.updated_at
+    };
+
     return NextResponse.json({
       success: true,
-      data: match,
+      data: transformedMatch,
       error: null
     });
 

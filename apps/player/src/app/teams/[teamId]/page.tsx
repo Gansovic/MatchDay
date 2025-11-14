@@ -14,7 +14,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Users,
@@ -132,6 +132,7 @@ const getLeagueId = (leagueName: string): string => {
 
 export default function TeamDashboard() {
   const params = useParams();
+  const router = useRouter();
   const teamId = params.teamId as string;
   const [activeTab, setActiveTab] = useState<'overview' | 'roster' | 'matches' | 'media'>('overview');
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -638,8 +639,14 @@ export default function TeamDashboard() {
             onSuccess={(updatedTeam) => {
               console.log('Team updated:', updatedTeam);
               setShowSettingsModal(false);
-              // Reload team data
-              window.location.reload();
+
+              // If team was deleted, redirect to teams page
+              if (updatedTeam.deleted) {
+                router.push('/teams');
+              } else {
+                // Reload team data
+                window.location.reload();
+              }
             }}
           />
         )}

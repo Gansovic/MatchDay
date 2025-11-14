@@ -6,8 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createUserSupabaseClient } from '@/lib/supabase/server-client';
-import { isInvalidJWTError } from '@/lib/supabase/client';
+// import { createUserSupabaseClient } from '@/lib/supabase/server-client';
+import { createAdminClient, isInvalidJWTError } from '@/lib/supabase/client';
 
 export interface AuthValidationResult {
   success: boolean;
@@ -32,7 +32,7 @@ export async function validateApiAuth(request: NextRequest): Promise<AuthValidat
     console.log('🔍 Cookie header:', request.headers.get('cookie') ? 'Present' : 'Missing');
     
     // Create user-scoped Supabase client
-    const supabaseUserClient = createUserSupabaseClient(request);
+    const supabaseUserClient = createAdminClient();
     const { data: { user }, error: userError } = await supabaseUserClient.auth.getUser();
     
     if (userError) {

@@ -140,7 +140,7 @@ export async function POST(
           .from('team_invitations')
           .select('id')
           .eq('team_id', teamId)
-          .eq('invited_email', body.email.trim().toLowerCase())
+          .eq('email', body.email.trim().toLowerCase())
           .eq('status', 'pending')
           .gt('expires_at', new Date().toISOString())
           .limit(1);
@@ -183,32 +183,32 @@ export async function POST(
         }
       }
 
-      // Generate invitation code for shareable invitations
-      let invitationCode = null;
+      // Generate invitation token for shareable invitations
+      let invitationToken = null;
       if (isCodeInvite) {
         // Generate a 6-character code
-        invitationCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        invitationToken = Math.random().toString(36).substring(2, 8).toUpperCase();
       }
 
       // Create invitation
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 7); // 7 days from now
-      
-      
+
+
       const { data: invitation, error: invitationError } = await supabase
         .from('team_invitations')
         .insert({
           team_id: teamId,
           invited_by: userId,
-          invited_email: body.email ? body.email.trim().toLowerCase() : null,
-          invitation_code: invitationCode,
+          email: body.email ? body.email.trim().toLowerCase() : '',
+          token: invitationToken,
           position: body.position || null,
           jersey_number: body.jersey_number || null,
           message: body.message?.trim() || null,
           status: 'pending',
           expires_at: expiresAt.toISOString()
         })
-        .select('id, invitation_code, expires_at')
+        .select('id, token, expires_at')
         .single();
         
       if (invitationError || !invitation) {
@@ -229,29 +229,29 @@ export async function POST(
       const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3002';
       let invitationUrl;
       let whatsappMessage;
-      
-      if (invitation.invitation_code) {
+
+      if (invitation.token) {
         // Code-based invitation
-        invitationUrl = `${baseUrl}/join/${invitation.invitation_code}`;
+        invitationUrl = `${baseUrl}/join/${invitation.token}`;
         whatsappMessage = `🏆 Join my team "${teamName}" on MatchDay!\n\n⚽ Tap here to join: ${invitationUrl}\n\nMatchDay - Where teams are born! 🚀`;
       } else {
         // Token-based invitation (legacy support)
         invitationUrl = `${baseUrl}/invitations/${invitation.id}`;
         whatsappMessage = `Hi! You've been invited to join ${teamName} on MatchDay! Click the link to accept: ${invitationUrl}`;
       }
-      
+
       const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(whatsappMessage)}`;
 
       const response = NextResponse.json({
         data: {
           id: invitation.id,
-          code: invitation.invitation_code,
+          code: invitation.token,
           invitationUrl,
           whatsappUrl,
           whatsappMessage,
           expiresAt: invitation.expires_at,
           teamName,
-          invitationType: invitation.invitation_code ? 'code' : 'invited_email'
+          invitationType: invitation.token ? 'code' : 'email'
         },
         message: 'Invitation created successfully'
       });

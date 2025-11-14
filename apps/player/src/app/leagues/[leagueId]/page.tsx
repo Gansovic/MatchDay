@@ -35,6 +35,9 @@ import { supabase } from '@/lib/supabase/client';
 import { LeagueService } from '@matchday/services';
 import { LeagueDiscovery } from '@matchday/database';
 import { Season } from '@/components/leagues/season-selector';
+import { LeagueIcon } from '@/components/ui/league-icon';
+import { SeasonIcon } from '@/components/ui/season-icon';
+import { SeasonCard } from '@matchday/ui';
 
 interface LeagueDashboardData {
   league: LeagueDiscovery;
@@ -310,32 +313,40 @@ export default function LeagueDashboardPage() {
         {/* League Header */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 mb-8">
           <div className="flex items-start justify-between mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                {league.name}
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">
-                {league.description || 'Professional football league'}
-              </p>
-              <div className="flex items-center gap-6 text-sm text-gray-600 dark:text-gray-400">
-                <span className="flex items-center gap-1">
-                  <Trophy className="w-4 h-4" />
-                  {currentSeason ? currentSeason.display_name : `${new Date().getFullYear()} Season`}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Users className="w-4 h-4" />
-                  {league.teamCount} Teams
-                </span>
-                <span className="flex items-center gap-1">
-                  <Calendar className="w-4 h-4" />
-                  {seasons.length} Seasons
-                </span>
-                {league.location && (
+            <div className="flex items-start gap-6">
+              <LeagueIcon
+                leagueId={league.id}
+                leagueName={league.name}
+                size="xl"
+                className="flex-shrink-0"
+              />
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                  {league.name}
+                </h1>
+                <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">
+                  {league.description || 'Professional football league'}
+                </p>
+                <div className="flex items-center gap-6 text-sm text-gray-600 dark:text-gray-400">
                   <span className="flex items-center gap-1">
-                    <MapPin className="w-4 h-4" />
-                    {league.location}
+                    <Trophy className="w-4 h-4" />
+                    {currentSeason ? currentSeason.display_name : `${new Date().getFullYear()} Season`}
                   </span>
-                )}
+                  <span className="flex items-center gap-1">
+                    <Users className="w-4 h-4" />
+                    {league.teamCount} Teams
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Calendar className="w-4 h-4" />
+                    {seasons.length} Seasons
+                  </span>
+                  {league.location && (
+                    <span className="flex items-center gap-1">
+                      <MapPin className="w-4 h-4" />
+                      {league.location}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="text-right">
@@ -387,56 +398,11 @@ export default function LeagueDashboardPage() {
           </div>
         </div>
 
-        {/* Current Season Highlight */}
-        {currentSeason && (
-          <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 mb-8 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold mb-2">Current Season: {currentSeason.display_name}</h2>
-                <p className="opacity-90 mb-4">
-                  {formatDateOnly(currentSeason.start_date)} - {formatDateOnly(currentSeason.end_date)}
-                </p>
-                <div className="flex items-center gap-4 text-sm">
-                  {currentSeason.stats && (
-                    <>
-                      <span className="flex items-center gap-1">
-                        <Activity className="w-4 h-4" />
-                        {currentSeason.stats.completed_matches} of {currentSeason.stats.total_matches} matches
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <BarChart3 className="w-4 h-4" />
-                        {Math.round((currentSeason.stats.completed_matches / currentSeason.stats.total_matches) * 100)}% complete
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-              <Link
-                href={`/leagues/${leagueId}/seasons/${currentSeason.id}`}
-                className="bg-white/20 hover:bg-white/30 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2"
-              >
-                <Play className="w-4 h-4" />
-                View Season Details
-                <ChevronRight className="w-4 h-4" />
-              </Link>
-            </div>
-          </div>
-        )}
-
         {/* All Seasons */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">All Seasons</h2>
-            <div className="flex items-center gap-3">
-              <Link
-                href={`/leagues/${leagueId}/seasons`}
-                className="flex items-center gap-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
-              >
-                <Settings className="w-4 h-4" />
-                Manage Seasons
-              </Link>
-              <Trophy className="w-5 h-5 text-gray-400" />
-            </div>
+            <Trophy className="w-5 h-5 text-gray-400" />
           </div>
           
           {seasons.length === 0 ? (
@@ -447,35 +413,19 @@ export default function LeagueDashboardPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {seasons.map((season) => (
-                <Link
+                <SeasonCard
                   key={season.id}
-                  href={`/leagues/${leagueId}/seasons/${season.id}`}
-                  className="block p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors group"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                      {season.display_name}
-                    </h3>
-                    {season.is_current && (
-                      <span className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 text-xs px-2 py-1 rounded-full font-medium">
-                        Current
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                    {formatDateOnly(season.start_date)} - {formatDateOnly(season.end_date)}
-                  </p>
-                  {season.stats && (
-                    <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                      <span>{season.stats.completed_matches} matches</span>
-                      <span>{season.stats.total_matches} total</span>
-                    </div>
-                  )}
-                  <div className="mt-3 flex items-center text-blue-600 dark:text-blue-400 text-sm font-medium group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                    View Details
-                    <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
-                  </div>
-                </Link>
+                  season={season}
+                  leagueId={leagueId}
+                  seasonIcon={
+                    <SeasonIcon
+                      seasonId={season.id}
+                      leagueId={leagueId}
+                      seasonName={season.display_name || season.name}
+                      size="md"
+                    />
+                  }
+                />
               ))}
             </div>
           )}

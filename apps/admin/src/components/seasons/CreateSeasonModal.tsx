@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, Users, Trophy, AlertCircle, Loader2 } from 'lucide-react';
+import { X, Calendar, Users, Trophy, AlertCircle, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { SeasonService } from '@matchday/services';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/components/auth/auth-provider';
+import { IconUpload } from '@/components/media/icon-upload';
+import { getLeagueIconUrl } from '@/lib/utils/icon-helpers';
 
 interface CreateSeasonData {
   name: string;
@@ -36,6 +38,10 @@ export const CreateSeasonModal: React.FC<CreateSeasonModalProps> = ({
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showIconUpload, setShowIconUpload] = useState(false);
+  const [createdSeasonId, setCreatedSeasonId] = useState<string | null>(null);
+  const [iconUploaded, setIconUploaded] = useState(false);
+  const [leagueIconUrl, setLeagueIconUrl] = useState<string | null>(null);
 
   const currentYear = new Date().getFullYear();
 
@@ -53,10 +59,15 @@ export const CreateSeasonModal: React.FC<CreateSeasonModalProps> = ({
     status: 'draft'
   });
 
-  // Update league_id when selectedLeagueId changes
+  // Update league_id when selectedLeagueId changes and fetch league icon
   useEffect(() => {
     if (selectedLeagueId) {
       setFormData(prev => ({ ...prev, league_id: selectedLeagueId }));
+
+      // Fetch league icon as fallback
+      getLeagueIconUrl(selectedLeagueId).then(url => {
+        setLeagueIconUrl(url);
+      });
     }
   }, [selectedLeagueId]);
 
@@ -132,8 +143,14 @@ export const CreateSeasonModal: React.FC<CreateSeasonModalProps> = ({
         throw new Error(result.error?.message || 'Failed to create season');
       }
 
-      onSeasonCreated();
-      handleClose();
+      // Store the season ID for icon upload
+      setCreatedSeasonId(result.data.id);
+
+      // If icon upload section is not shown, complete the flow
+      if (!showIconUpload) {
+        onSeasonCreated();
+        handleClose();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create season');
     } finally {
@@ -156,7 +173,20 @@ export const CreateSeasonModal: React.FC<CreateSeasonModalProps> = ({
       status: 'draft'
     });
     setError(null);
+    setShowIconUpload(false);
+    setCreatedSeasonId(null);
+    setIconUploaded(false);
+    setLeagueIconUrl(null);
     onClose();
+  };
+
+  const handleIconUploadComplete = () => {
+    setIconUploaded(true);
+  };
+
+  const handleFinish = () => {
+    onSeasonCreated();
+    handleClose();
   };
 
   if (!isOpen) return null;
@@ -326,32 +356,94 @@ export const CreateSeasonModal: React.FC<CreateSeasonModalProps> = ({
             </select>
           </div>
 
+          {/* Optional Icon Upload Section */}
+          {!createdSeasonId && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowIconUpload(!showIconUpload)}
+                className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors"
+              >
+                {showIconUpload ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                <span>Add season icon (optional)</span>
+              </button>
+              {leagueIconUrl && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">
+                  League icon will be used by default if no season icon is added
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Icon Upload (shown after season creation if enabled) */}
+          {createdSeasonId && showIconUpload && user && formData.league_id && (
+            <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-800">
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">Upload Season Icon</h3>
+              <IconUpload
+                currentIconUrl={leagueIconUrl || undefined}
+                contextType="season_icon"
+                entityId={createdSeasonId}
+                leagueId={formData.league_id}
+                entityName={formData.name}
+                onUploadComplete={handleIconUploadComplete}
+              />
+              {leagueIconUrl && (
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-3">
+                  Showing league icon as fallback. Upload a custom icon to override it.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <button
-              type="button"
-              onClick={handleClose}
-              className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 font-medium rounded-lg transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                <>
+            {!createdSeasonId ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 font-medium rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Trophy className="w-4 h-4" />
+                      {showIconUpload ? 'Create & Add Icon' : 'Create Season'}
+                    </>
+                  )}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={handleFinish}
+                  className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 font-medium rounded-lg transition-colors"
+                >
+                  Skip Icon
+                </button>
+                <button
+                  type="button"
+                  onClick={handleFinish}
+                  disabled={!iconUploaded}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   <Trophy className="w-4 h-4" />
-                  Create Season
-                </>
-              )}
-            </button>
+                  Finish
+                </button>
+              </>
+            )}
           </div>
         </form>
       </div>

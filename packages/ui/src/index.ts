@@ -12,3 +12,16 @@ export * from './components/stats-card'
 export * from './components/progress-bar'
 export * from './components/status-badge'
 export * from './components/empty-state'
+
+// Layouts
+export { SeasonDashboardLayout } from './layouts/SeasonDashboardLayout'
+export type {
+  SeasonDashboardLayoutProps,
+  Season,
+  League,
+  TabConfig
+} from './layouts/SeasonDashboardLayout'
+
+// Season Components
+export { SeasonCard } from './components/season-card'
+export type { SeasonCardData, SeasonCardProps } from './components/season-card'
