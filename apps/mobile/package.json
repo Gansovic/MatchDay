@@ -46,6 +46,7 @@
     "scheduler": "^0.27.0",
     "stacktrace-parser": "^0.1.11",
     "use-sync-external-store": "^1.6.0",
+    "whatwg-fetch": "^3.6.20",
     "whatwg-url-without-unicode": "8.0.0-3"
   },
   "devDependencies": {
