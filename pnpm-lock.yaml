@@ -135,6 +135,9 @@ importers:
       abort-controller:
         specifier: ^3.0.0
         version: 3.0.0
+      anser:
+        specifier: ^2.3.2
+        version: 2.3.2
       base64-js:
         specifier: ^1.5.1
         version: 1.5.1
@@ -2313,6 +2316,9 @@ packages:
 
   anser@1.4.10:
     resolution: {integrity: sha512-hCv9AqTQ8ycjpSd3upOJd7vFwW1JaoYQ7tpham03GJ1ca8/65rqn0RpaWpItOAd6ylW9wAw6luXYPJIyPFVOww==}
+
+  anser@2.3.2:
+    resolution: {integrity: sha512-PMqBCBvrOVDRqLGooQb+z+t1Q0PiPyurUQeZRR5uHBOVZcW8B04KMmnT12USnhpNX2wCPagWzLVppQMUG3u0Dw==}
 
   ansi-escapes@4.3.2:
     resolution: {integrity: sha512-gKXj5ALrKWQLsYG9jlTRmR/xKluxHV+Z9QEwNIgCfM1/uwPMCuzVVnh5mwTd+OuBZcwSIMbqssNWRm1lE51QaQ==}
@@ -8503,6 +8509,8 @@ snapshots:
     optional: true
 
   anser@1.4.10: {}
+
+  anser@2.3.2: {}
 
   ansi-escapes@4.3.2:
     dependencies:
