@@ -40,6 +40,7 @@
     "pretty-format": "^30.2.0",
     "promise": "^8.3.0",
     "react": "19.1.0",
+    "react-devtools-core": "^7.0.1",
     "react-native": "0.81.5",
     "react-native-css-interop": "^0.2.1",
     "react-native-url-polyfill": "^2.0.0",
