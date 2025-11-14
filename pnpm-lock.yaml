@@ -177,6 +177,9 @@ importers:
       stacktrace-parser:
         specifier: ^0.1.11
         version: 0.1.11
+      whatwg-url-without-unicode:
+        specifier: 8.0.0-3
+        version: 8.0.0-3
     devDependencies:
       '@types/react':
         specifier: ~19.1.0
