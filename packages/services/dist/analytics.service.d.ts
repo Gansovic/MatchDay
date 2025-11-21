@@ -26,35 +26,7 @@ export interface GlobalPlayerRanking {
     topLeague: string;
     achievements: number;
 }
-export interface CrossLeagueComparison {
-    playerId: string;
-    playerStats: {
-        totalGoals: number;
-        totalAssists: number;
-        totalGames: number;
-        averageGoalsPerGame: number;
-        totalMinutes: number;
-    };
-    leagueBreakdown: Array<{
-        leagueId: string;
-        leagueName: string;
-        sportType: string;
-        goals: number;
-        assists: number;
-        games: number;
-        rank: number;
-        percentile: number;
-    }>;
-    globalComparison: {
-        betterThanPercent: number;
-        similarPlayers: Array<{
-            playerId: string;
-            displayName: string;
-            goals: number;
-            assists: number;
-        }>;
-    };
-}
+import { CrossLeagueComparison } from './stats.service';
 export interface GlobalLeaderboard {
     category: string;
     timeframe: string;

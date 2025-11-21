@@ -19,9 +19,15 @@ import type {
 } from '@matchday/database'
 import { SeasonDashboardLayout } from '@matchday/ui'
 import type { Season, League, TabConfig } from '@matchday/ui'
-import { Info, Users, Calendar, Settings } from 'lucide-react'
+import { Info, Users, Calendar, Settings, Trophy, Image } from 'lucide-react'
 import { SeasonIcon } from '@/components/ui/season-icon'
 import { SeasonIconSection } from '@/components/seasons/season-icon-section'
+import { SeasonSponsorsSection } from '@/components/seasons/SeasonSponsorsSection'
+import { SeasonDescriptionSection } from '@/components/seasons/SeasonDescriptionSection'
+import { FixtureGenerationModal } from '@/components/seasons/FixtureGenerationModal'
+import MatchResultsModal from '@/components/MatchResultsModal'
+import { LeaderboardsSection } from '@/components/seasons/LeaderboardsSection'
+import { SeasonMediaTab } from '@/components/media/season-media-tab'
 
 interface SeasonDetailData extends SeasonOverview {
   league: {
@@ -54,8 +60,10 @@ export default function SeasonDetailPage() {
   const [fixtures, setFixtures] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'overview' | 'teams' | 'fixtures' | 'settings'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'teams' | 'fixtures' | 'leaderboards' | 'media' | 'settings'>('overview')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [showFixtureModal, setShowFixtureModal] = useState(false)
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null)
 
   useEffect(() => {
     if (seasonId) {
@@ -93,13 +101,46 @@ export default function SeasonDetailPage() {
       setActionLoading('generate_fixtures')
       const result = await seasonService.generateFixtures(seasonId)
       await loadSeasonData() // Reload data
-      alert(`Successfully generated ${result.data.fixtures_generated} fixtures!`)
+      alert(`Successfully generated ${result.data?.fixtures?.length || 0} fixtures across ${result.data?.matchdays || 0} matchdays!`)
     } catch (err) {
       console.error('Error generating fixtures:', err)
       alert(err instanceof Error ? err.message : 'Failed to generate fixtures')
     } finally {
       setActionLoading(null)
     }
+  }
+
+  const handleFixturePreview = async (options: {
+    match_day: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
+    match_start_time: string
+    courts_available: number
+    games_per_court: number
+    rest_weeks_between_matches: number
+    tournament_format: 'single_round_robin' | 'double_round_robin'
+  }) => {
+    const result = await seasonService.generateFixtures(seasonId, {
+      preview: true,
+      schedulingOverride: options
+    })
+    return {
+      fixtures: result.data?.fixtures || [],
+      matchdays: result.data?.matchdays || 0
+    }
+  }
+
+  const handleFixtureGenerate = async (options: {
+    match_day: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
+    match_start_time: string
+    courts_available: number
+    games_per_court: number
+    rest_weeks_between_matches: number
+    tournament_format: 'single_round_robin' | 'double_round_robin'
+  }) => {
+    await seasonService.generateFixtures(seasonId, {
+      preview: false,
+      schedulingOverride: options
+    })
+    await loadSeasonData() // Reload data after successful generation
   }
 
   const handleDeleteFixtures = async () => {
@@ -128,6 +169,24 @@ export default function SeasonDetailPage() {
     } catch (err) {
       console.error('Error updating team status:', err)
       alert(err instanceof Error ? err.message : 'Failed to update team status')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleRemoveTeam = async (teamId: string, teamName: string) => {
+    if (!confirm(`Are you sure you want to remove "${teamName}" from this season? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      setActionLoading(`remove_${teamId}`)
+      await seasonService.removeTeamFromSeason(seasonId, teamId)
+      await loadSeasonData() // Reload data
+      alert(`${teamName} has been removed from the season.`)
+    } catch (err) {
+      console.error('Error removing team:', err)
+      alert(err instanceof Error ? err.message : 'Failed to remove team from season')
     } finally {
       setActionLoading(null)
     }
@@ -174,6 +233,8 @@ export default function SeasonDetailPage() {
     { id: 'overview', label: 'Overview', icon: Info },
     { id: 'teams', label: 'Teams', icon: Users },
     { id: 'fixtures', label: 'Fixtures', icon: Calendar },
+    { id: 'leaderboards', label: 'Leaderboards', icon: Trophy },
+    { id: 'media', label: 'Media', icon: Image },
     { id: 'settings', label: 'Settings', icon: Settings }
   ];
 
@@ -254,11 +315,10 @@ export default function SeasonDetailPage() {
                 </div>
                 {season.registered_teams_count >= season.min_teams && (
                   <button
-                    onClick={handleGenerateFixtures}
-                    disabled={actionLoading === 'generate_fixtures'}
+                    onClick={() => setShowFixtureModal(true)}
                     className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 disabled:opacity-50 transition-colors"
                   >
-                    {actionLoading === 'generate_fixtures' ? 'Generating...' : 'Generate Fixtures'}
+                    Generate Fixtures
                   </button>
                 )}
               </div>
@@ -346,6 +406,13 @@ export default function SeasonDetailPage() {
                             </button>
                           </>
                         )}
+                        <button
+                          onClick={() => handleRemoveTeam(registration.team.id, registration.team.name)}
+                          disabled={actionLoading === `remove_${registration.team.id}`}
+                          className="text-red-600 hover:text-red-800 disabled:opacity-50 font-medium"
+                        >
+                          {actionLoading === `remove_${registration.team.id}` ? 'Removing...' : 'Remove'}
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -374,12 +441,26 @@ export default function SeasonDetailPage() {
               {fixtures.map((fixture: any) => {
                 // Handle both match object directly or nested under matches property
                 const match = fixture.matches || fixture;
+                const formatTime = (timeStr: string) => {
+                  if (!timeStr) return '';
+                  const [hours, minutes] = timeStr.split(':');
+                  const hour = parseInt(hours);
+                  const ampm = hour >= 12 ? 'PM' : 'AM';
+                  const hour12 = hour % 12 || 12;
+                  return `${hour12}:${minutes} ${ampm}`;
+                };
                 return (
-                  <div key={fixture.id} className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <div
+                    key={fixture.id}
+                    className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
+                    onClick={() => setSelectedMatchId(match.id)}
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm text-gray-500 dark:text-gray-400">
-                        {match.match_day && `Match Day ${match.match_day}`}
-                        {match.scheduled_date && ` • ${new Date(match.scheduled_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
+                        {match.matchday_number && `Matchday ${match.matchday_number}`}
+                        {match.match_date && ` • ${new Date(match.match_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`}
+                        {match.match_time && ` • ${formatTime(match.match_time)}`}
+                        {match.court_number && ` • Court ${match.court_number}`}
                       </span>
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         match.status === 'completed'
@@ -439,11 +520,10 @@ export default function SeasonDetailPage() {
               </p>
               {season.registered_teams_count >= season.min_teams && (
                 <button
-                  onClick={handleGenerateFixtures}
-                  disabled={actionLoading === 'generate_fixtures'}
+                  onClick={() => setShowFixtureModal(true)}
                   className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
-                  {actionLoading === 'generate_fixtures' ? 'Generating...' : 'Generate Fixtures Now'}
+                  Generate Fixtures Now
                 </button>
               )}
             </div>
@@ -451,20 +531,97 @@ export default function SeasonDetailPage() {
         </div>
       )}
 
+      {/* Leaderboards Tab */}
+      {activeTab === 'leaderboards' && season && (
+        <LeaderboardsSection
+          seasonId={season.id}
+          leagueId={season.league_id}
+        />
+      )}
+
+      {/* Media Tab */}
+      {activeTab === 'media' && season && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+          <SeasonMediaTab
+            seasonId={season.id}
+            seasonName={season.display_name || season.name}
+            canUpload={true}
+          />
+        </div>
+      )}
+
       {/* Settings Tab */}
       {activeTab === 'settings' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Season Settings</h3>
-          {season && (
-            <SeasonIconSection
-              seasonId={season.id}
-              leagueId={season.league_id}
-              seasonName={season.display_name || season.name}
-            />
-          )}
+        <div className="space-y-6">
+          {/* Description Section */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+            {season && (
+              <SeasonDescriptionSection
+                seasonId={season.id}
+                currentDescription={season.description}
+                onUpdate={loadSeasonData}
+              />
+            )}
+          </div>
+
+          {/* Icon Section */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Season Settings</h3>
+            {season && (
+              <SeasonIconSection
+                seasonId={season.id}
+                leagueId={season.league_id}
+                seasonName={season.display_name || season.name}
+              />
+            )}
+          </div>
+
+          {/* Sponsors Section */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+            {season && (
+              <SeasonSponsorsSection
+                seasonId={season.id}
+                leagueId={season.league_id}
+              />
+            )}
+          </div>
         </div>
       )}
         </>
+      )}
+
+      {/* Fixture Generation Modal */}
+      {season && (
+        <FixtureGenerationModal
+          isOpen={showFixtureModal}
+          onClose={() => setShowFixtureModal(false)}
+          seasonId={season.id}
+          seasonName={season.display_name || season.name}
+          startDate={season.start_date}
+          endDate={season.end_date}
+          currentSettings={{
+            match_day: (season.match_day as any) || 'saturday',
+            match_start_time: season.match_start_time || '18:00:00',
+            courts_available: season.courts_available || 2,
+            games_per_court: season.games_per_court || 4,
+            rest_weeks_between_matches: season.rest_weeks_between_matches || 0,
+            tournament_format: (season.tournament_format as any) || 'single_round_robin'
+          }}
+          onPreview={handleFixturePreview}
+          onGenerate={handleFixtureGenerate}
+        />
+      )}
+
+      {/* Match Results Modal */}
+      {selectedMatchId && (
+        <MatchResultsModal
+          isOpen={!!selectedMatchId}
+          onClose={() => setSelectedMatchId(null)}
+          matchId={selectedMatchId}
+          onSaved={() => {
+            loadSeasonData() // Reload fixtures after saving
+          }}
+        />
       )}
     </SeasonDashboardLayout>
   )

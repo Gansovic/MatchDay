@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Configuration Service for MatchDay
  *

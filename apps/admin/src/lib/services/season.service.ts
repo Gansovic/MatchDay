@@ -60,6 +60,15 @@ export interface GenerateFixturesParams {
   start_date_override?: string
   match_time_override?: string
   venue_preferences?: Record<string, string>
+  preview?: boolean
+  schedulingOverride?: {
+    match_day: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
+    match_start_time: string
+    courts_available: number
+    games_per_court: number
+    rest_weeks_between_matches: number
+    tournament_format: 'single_round_robin' | 'double_round_robin'
+  }
 }
 
 export interface TeamRegistrationParams {
@@ -157,25 +166,33 @@ export class SeasonService {
       console.error('[SeasonService] League error:', leagueError)
     }
 
-    // Get teams for this league (teams belong directly to leagues)
-    // Since we don't have a season_teams table yet, we query teams by league_id
+    // Get teams registered for this season from season_teams table
     let teamRegistrations: any[] = []
 
-    if (data.league_id) {
-      // First, fetch teams
+    // First, fetch season team registrations
+    const { data: seasonTeams, error: seasonTeamsError } = await this.supabase
+      .from('season_teams')
+      .select('*')
+      .eq('season_id', seasonId)
+
+    if (seasonTeamsError) {
+      console.error('[SeasonService] Season teams error:', seasonTeamsError)
+      console.error('[SeasonService] Full error details:', JSON.stringify(seasonTeamsError))
+    } else if (seasonTeams && seasonTeams.length > 0) {
+      console.log('[SeasonService] Loaded season teams:', seasonTeams.length)
+
+      // Get team IDs to fetch team details
+      const teamIds = seasonTeams.map(st => st.team_id)
+
+      // Fetch team details
       const { data: teams, error: teamsError } = await this.supabase
         .from('teams')
         .select('id, name, logo_url, logo_media_id, captain_id, created_at')
-        .eq('league_id', data.league_id)
-        .eq('is_archived', false)
-        .order('name')
+        .in('id', teamIds)
 
       if (teamsError) {
         console.error('[SeasonService] Teams error:', teamsError)
-        console.error('[SeasonService] Full error details:', JSON.stringify(teamsError))
-      } else if (teams && teams.length > 0) {
-        console.log('[SeasonService] Loaded teams from league:', teams.length)
-
+      } else if (teams) {
         // Get unique captain IDs
         const captainIds = [...new Set(teams.map(t => t.captain_id).filter(Boolean))]
 
@@ -194,20 +211,23 @@ export class SeasonService {
           }
         }
 
-        // Create a map of captain profiles
+        // Create maps for teams and captains
+        const teamsMap = new Map(teams.map(t => [t.id, t]))
         const captainMap = new Map(captainProfiles.map(c => [c.id, c]))
 
-        // Format teams to match expected team_registrations structure
-        teamRegistrations = teams.map((team: any) => {
-          const captain = team.captain_id ? captainMap.get(team.captain_id) : null
+        // Format season team registrations
+        teamRegistrations = seasonTeams.map((seasonTeam: any) => {
+          const team = teamsMap.get(seasonTeam.team_id)
+          const captain = team?.captain_id ? captainMap.get(team.captain_id) : null
 
           return {
-            id: team.id,
-            team_id: team.id,
-            season_id: seasonId,
-            status: 'accepted', // Default status since no season_teams table
-            registered_at: team.created_at,
-            team: {
+            id: seasonTeam.id,
+            team_id: seasonTeam.team_id,
+            season_id: seasonTeam.season_id,
+            status: seasonTeam.status || 'accepted',
+            registered_at: seasonTeam.created_at || seasonTeam.registered_at || new Date().toISOString(),
+            seeding: seasonTeam.seeding || null,
+            team: team ? {
               id: team.id,
               name: team.name,
               logo_url: team.logo_url,
@@ -218,6 +238,13 @@ export class SeasonService {
                 display_name: captain.display_name || captain.full_name || 'Unknown',
                 avatar_url: captain.avatar_url
               } : null
+            } : {
+              id: seasonTeam.team_id,
+              name: 'Unknown Team',
+              logo_url: null,
+              logo_media_id: null,
+              captain_id: null,
+              captain: null
             }
           }
         })
@@ -226,12 +253,26 @@ export class SeasonService {
 
     console.log('[SeasonService] All data loaded successfully')
 
+    // Get match counts for statistics
+    const { count: scheduledCount } = await this.supabase
+      .from('matches')
+      .select('*', { count: 'exact', head: true })
+      .eq('season_id', seasonId)
+
+    const { count: playedCount } = await this.supabase
+      .from('matches')
+      .select('*', { count: 'exact', head: true })
+      .eq('season_id', seasonId)
+      .eq('status', 'completed')
+
     // Calculate additional statistics
     const registered_teams_count = teamRegistrations?.length || data.registered_teams_count || 0
-    const total_matches_scheduled = 0 // TODO: Calculate from fixtures
-    const total_matches_played = 0 // TODO: Calculate from matches
+    const total_matches_scheduled = scheduledCount || 0
+    const total_matches_played = playedCount || 0
     const current_matchday = data.current_matchday || 1
-    const completion_percentage = 0 // TODO: Calculate based on matches played
+    const completion_percentage = total_matches_scheduled > 0
+      ? Math.round((total_matches_played / total_matches_scheduled) * 100)
+      : 0
 
     return {
       ...data,
@@ -357,36 +398,34 @@ export class SeasonService {
   }) {
     console.log('[SeasonService] Getting fixtures for season:', seasonId)
 
-    // TODO: Fixtures table not yet implemented in database
-    // Return empty array for now until fixtures table is created
-    console.log('[SeasonService] Fixtures table not yet available, returning empty array')
-
-    return {
-      success: true,
-      data: [],
-      count: 0
-    }
-
-    // Uncomment when fixtures table is created:
-    /*
-    // Query fixtures directly from Supabase
+    // Query matches table (fixtures are stored in matches table)
     let query = this.supabase
-      .from('fixtures')
-      .select('*')
+      .from('matches')
+      .select(`
+        *,
+        home_team:teams!matches_home_team_id_fkey (
+          id,
+          name,
+          team_color
+        ),
+        away_team:teams!matches_away_team_id_fkey (
+          id,
+          name,
+          team_color
+        )
+      `)
       .eq('season_id', seasonId)
       .order('match_date', { ascending: true })
+      .order('match_time', { ascending: true })
 
-    if (params?.round) {
-      query = query.eq('round_number', params.round)
-    }
     if (params?.matchday) {
-      query = query.eq('matchday', params.matchday)
+      query = query.eq('matchday_number', params.matchday)
     }
     if (params?.status) {
       query = query.eq('status', params.status)
     }
     if (params?.upcoming) {
-      const now = new Date().toISOString()
+      const now = new Date().toISOString().split('T')[0]
       query = query.gte('match_date', now)
     }
     if (params?.limit) {
@@ -407,7 +446,6 @@ export class SeasonService {
       data: data || [],
       count: data?.length || 0
     }
-    */
   }
 
   /**

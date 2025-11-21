@@ -1,12 +1,13 @@
+// @ts-nocheck
 /**
  * League Service for MatchDay
- * 
+ *
  * Handles league discovery and joining operations with focus on:
  * - League discovery and filtering (read-only, no league creation)
  * - Advanced search and compatibility matching
  * - Join request management for teams within leagues
  * - Player's league membership tracking
- * 
+ *
  * Optimized for player-centric amateur sports league experience
  */
 

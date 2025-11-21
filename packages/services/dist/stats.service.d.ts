@@ -187,6 +187,37 @@ export declare class StatsService {
      */
     subscribeToStatsUpdates(userId: string, callback: (payload: any) => void, options?: RealtimeSubscriptionOptions): import("@supabase/supabase-js").RealtimeChannel;
     /**
+     * Recalculate all player and team statistics for a season from match events
+     * This is an admin function to fix historical data or after bulk changes
+     */
+    recalculateSeasonStats(seasonId: string): Promise<ServiceResponse<{
+        matches_processed: number;
+        players_updated: number;
+        teams_updated: number;
+    }>>;
+    /**
+     * Get player statistics for a specific season
+     */
+    getPlayerSeasonStats(playerId: string, seasonYear: string): Promise<ServiceResponse<PlayerStats | null>>;
+    /**
+     * Get all player statistics for a season (leaderboard)
+     */
+    getSeasonPlayerStats(seasonYear: string, options?: {
+        limit?: number;
+        sortBy?: 'goals_scored' | 'assists' | 'games_played';
+        teamId?: string;
+        leagueId?: string;
+    }): Promise<ServiceResponse<PlayerStats[]>>;
+    /**
+     * Validate statistics consistency between match events and aggregated stats
+     * Useful for detecting data inconsistencies
+     */
+    validateStatsConsistency(seasonId: string): Promise<ServiceResponse<{
+        isValid: boolean;
+        issues: string[];
+        details: any;
+    }>>;
+    /**
      * Clear cache
      */
     clearCache(pattern?: string): void;

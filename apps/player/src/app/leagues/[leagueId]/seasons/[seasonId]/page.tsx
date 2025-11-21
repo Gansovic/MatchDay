@@ -14,8 +14,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { SeasonDashboardLayout } from '@matchday/ui';
 import type { Season as SharedSeason, League as SharedLeague, TabConfig } from '@matchday/ui';
-import { Trophy, Calendar, Target, Info, Users } from 'lucide-react';
+import { Trophy, Calendar, Target, Info, Users, Image as ImageIcon } from 'lucide-react';
 import { LeagueStandings } from '@/components/leagues/league-standings';
+import { SeasonMediaTab } from '@/components/media/season-media-tab';
 import { supabase } from '@/lib/supabase/client';
 import { LeagueService } from '@matchday/services';
 import { LeagueDiscovery } from '@matchday/database';
@@ -26,7 +27,7 @@ export default function SeasonDetailPage() {
   const params = useParams();
   const leagueId = params.leagueId as string;
   const seasonId = params.seasonId as string;
-  const [activeTab, setActiveTab] = useState<'standings' | 'teams' | 'matches' | 'stats' | 'info'>('standings');
+  const [activeTab, setActiveTab] = useState<'standings' | 'teams' | 'matches' | 'media' | 'stats' | 'info'>('standings');
 
   // State for data
   const [leagueData, setLeagueData] = useState<LeagueDiscovery | null>(null);
@@ -190,6 +191,7 @@ export default function SeasonDetailPage() {
     { id: 'standings', label: 'Standings', icon: Trophy },
     { id: 'teams', label: 'Teams', icon: Users },
     { id: 'matches', label: 'Matches', icon: Calendar },
+    { id: 'media', label: 'Media', icon: ImageIcon },
     { id: 'stats', label: 'Statistics', icon: Target },
     { id: 'info', label: 'Season Info', icon: Info }
   ];
@@ -369,6 +371,16 @@ export default function SeasonDetailPage() {
             </div>
           )}
 
+          {activeTab === 'media' && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+              <SeasonMediaTab
+                seasonId={seasonId}
+                seasonName={currentSeason?.display_name || currentSeason?.name || 'Season'}
+                canUpload={false}
+              />
+            </div>
+          )}
+
           {activeTab === 'stats' && (
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Statistics</h3>
@@ -377,9 +389,76 @@ export default function SeasonDetailPage() {
           )}
 
           {activeTab === 'info' && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Season Information</h3>
-              <p className="text-gray-600 dark:text-gray-400">Season details coming soon...</p>
+            <div className="space-y-6">
+              {/* Description Section */}
+              {currentSeason?.description && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                    About This Season
+                  </h3>
+                  <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+                    {currentSeason.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Key Details Section */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Season Details
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {currentSeason?.start_date && (
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Start Date</p>
+                      <p className="text-gray-900 dark:text-white font-medium">
+                        {new Date(currentSeason.start_date).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </p>
+                    </div>
+                  )}
+                  {currentSeason?.end_date && (
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">End Date</p>
+                      <p className="text-gray-900 dark:text-white font-medium">
+                        {new Date(currentSeason.end_date).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Status</p>
+                    <p className="text-gray-900 dark:text-white font-medium capitalize">
+                      {currentSeason?.status?.replace(/_/g, ' ') || 'Active'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Teams</p>
+                    <p className="text-gray-900 dark:text-white font-medium">
+                      {teams.length} registered
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Empty state if no description */}
+              {!currentSeason?.description && (
+                <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-700 p-12 text-center">
+                  <Info className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                    No Description Available
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    The league admin hasn't added a description for this season yet.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </>

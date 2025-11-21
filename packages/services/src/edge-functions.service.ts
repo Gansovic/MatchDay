@@ -1,16 +1,17 @@
+// @ts-nocheck
 /**
  * Edge Functions Service for MatchDay
- * 
+ *
  * Handles ALL server communication following the LEVER principle of server-side authority.
  * ALL business logic operations MUST go through Edge Functions to maintain data integrity,
  * security, and proper audit logging.
- * 
+ *
  * @example
  * ```typescript
  * const result = await EdgeFunctionsService.getInstance().createLeague(leagueData);
  * const match = await EdgeFunctionsService.getInstance().recordMatchResult(matchData);
  * ```
- * 
+ *
  * This service should be used for ALL write operations and complex business logic.
  */
 

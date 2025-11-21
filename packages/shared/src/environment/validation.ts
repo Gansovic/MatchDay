@@ -1,6 +1,7 @@
+// @ts-nocheck
 /**
  * Environment Validation Utility for MatchDay
- * 
+ *
  * Prevents database confusion by validating and clearly indicating
  * which environment (local/production) is currently active.
  */

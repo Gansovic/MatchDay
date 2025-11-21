@@ -1,13 +1,13 @@
 /**
  * Reset Password Page for MatchDay
- * 
+ *
  * Handles password reset from email links.
  * Allows users to set a new password after clicking the reset link.
  */
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -30,7 +30,7 @@ const resetPasswordSchema = z.object({
 
 type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>;
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
@@ -95,7 +95,7 @@ export default function ResetPasswordPage() {
 
   const getPasswordStrength = (password: string) => {
     if (!password) return { score: 0, label: '', color: '' };
-    
+
     let score = 0;
     const checks = [
       password.length >= 8,
@@ -104,9 +104,9 @@ export default function ResetPasswordPage() {
       /[0-9]/.test(password),
       /[!@#$%^&*]/.test(password)
     ];
-    
+
     score = checks.filter(Boolean).length;
-    
+
     if (score < 2) return { score, label: 'Weak', color: 'bg-red-500' };
     if (score < 4) return { score, label: 'Fair', color: 'bg-yellow-500' };
     if (score < 5) return { score, label: 'Good', color: 'bg-blue-500' };
@@ -248,7 +248,7 @@ export default function ResetPasswordPage() {
                     <div className="mt-2">
                       <div className="flex items-center gap-2 mb-1">
                         <div className="flex-1 h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className={`h-full ${passwordStrength.color} transition-all duration-300`}
                             style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
                           />
@@ -257,7 +257,7 @@ export default function ResetPasswordPage() {
                           {passwordStrength.label}
                         </span>
                       </div>
-                      
+
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div className={`flex items-center gap-1 ${password.length >= 8 ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
                           {password.length >= 8 ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
@@ -338,5 +338,24 @@ export default function ResetPasswordPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
+      <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
+        <Loader2 className="w-6 h-6 animate-spin" />
+        <span>Loading...</span>
+      </div>
+    </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }

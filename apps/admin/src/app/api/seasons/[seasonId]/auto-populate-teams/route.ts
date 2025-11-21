@@ -171,7 +171,7 @@ export async function POST(
 
     console.log(`📋 ${availableTeams.length} teams available for registration`);
 
-    let teamsToRegister: any[] = [];
+    const teamsToRegister: any[] = [];
     let teamsCreated = 0;
     let teamsReused = 0;
 

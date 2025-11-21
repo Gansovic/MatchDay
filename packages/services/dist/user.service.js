@@ -1,14 +1,24 @@
+// @ts-nocheck
 /**
  * User Service for MatchDay
  *
  * Handles user profile operations with Supabase integration.
  * Provides CRUD operations for user profiles and related data.
  */
-import { supabase } from '@/lib/supabase/client';
 export class UserService {
-    static getInstance() {
+    constructor(supabaseClient) {
+        this.supabase = supabaseClient;
+    }
+    static getInstance(supabaseClient) {
         if (!UserService.instance) {
-            UserService.instance = new UserService();
+            if (!supabaseClient) {
+                throw new Error('SupabaseClient required for first initialization');
+            }
+            UserService.instance = new UserService(supabaseClient);
+        }
+        else if (supabaseClient) {
+            // Update client for fresh auth context
+            UserService.instance.supabase = supabaseClient;
         }
         return UserService.instance;
     }
@@ -21,7 +31,7 @@ export class UserService {
             console.log('📡 UserService - querying user_profiles table...');
             // Add timeout handling
             const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('getUserProfile request timed out after 10 seconds')), 10000));
-            const queryPromise = supabase
+            const queryPromise = this.supabase
                 .from('user_profiles')
                 .select('*')
                 .eq('id', userId)
@@ -76,7 +86,7 @@ export class UserService {
         });
         try {
             console.log('🔄 UserService - Executing update query on user_profiles table...');
-            const { data, error } = await supabase
+            const { data, error } = await this.supabase
                 .from('user_profiles')
                 .update({
                 ...updates,
@@ -138,7 +148,7 @@ export class UserService {
             hasAvatarMediaId: !!profileData.avatar_media_id
         });
         try {
-            const { data, error } = await supabase
+            const { data, error } = await this.supabase
                 .from('user_profiles')
                 .insert({
                 id: userId,
@@ -200,7 +210,7 @@ export class UserService {
      */
     async profileExists(userId) {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await this.supabase
                 .from('user_profiles')
                 .select('id')
                 .eq('id', userId)

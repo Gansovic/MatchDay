@@ -1,17 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Award, Users, Loader2 } from 'lucide-react';
+import { X, Plus, Trash2, Award, Users, Loader2, Trophy, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
+import { MatchMediaTab } from '@/components/media/match-media-tab';
 
 interface Player {
   id: string;
   user_id: string;
   position: string;
   jersey_number: number | null;
+  user_profiles: {
+    id: string;
+    display_name: string | null;
+    full_name: string | null;
+  };
   users: {
     id: string;
-    full_name: string | null;
     email: string | null;
   };
 }
@@ -81,6 +86,13 @@ export default function MatchResultsModal({
   const [awayScore, setAwayScore] = useState(0);
   const [manOfMatchId, setManOfMatchId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'results' | 'media'>('results');
+
+  // Player selection state
+  const [showPlayerSelect, setShowPlayerSelect] = useState(false);
+  const [pendingEvent, setPendingEvent] = useState<{ teamId: string; eventType: string } | null>(null);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [showAssistSelect, setShowAssistSelect] = useState(false);
 
   // Load match data, players, and events
   useEffect(() => {
@@ -152,39 +164,34 @@ export default function MatchResultsModal({
       return;
     }
 
-    // Show player selection
-    const playerName = prompt(
-      `Select player for ${eventType.replace('_', ' ')}:\n\n` +
-      players.map((p, i) => `${i + 1}. ${p.users.full_name || p.users.email || 'Unknown'}`).join('\n') +
-      '\n\nEnter player number:'
-    );
+    // Show player selection dialog
+    setPendingEvent({ teamId, eventType });
+    setSelectedPlayerId(null);
+    setShowPlayerSelect(true);
+  };
 
-    if (!playerName) return;
+  const handlePlayerSelected = (playerId: string) => {
+    setSelectedPlayerId(playerId);
+    setShowPlayerSelect(false);
 
-    const playerIndex = parseInt(playerName) - 1;
-    if (playerIndex < 0 || playerIndex >= players.length) {
-      alert('Invalid player number');
-      return;
+    // If it's a goal, show assist selection
+    if (pendingEvent?.eventType === 'goal') {
+      setShowAssistSelect(true);
+    } else {
+      // Submit the event directly
+      submitEvent(playerId, undefined);
     }
+  };
 
-    const selectedPlayer = players[playerIndex];
-    let assistPlayerId: string | undefined;
-
-    // If it's a goal, ask for assist
-    if (eventType === 'goal') {
-      const assistName = prompt(
-        'Assist by (optional):\n\n' +
-        players.map((p, i) => `${i + 1}. ${p.users.full_name || p.users.email || 'Unknown'}`).join('\n') +
-        '\n\nEnter player number or press Cancel for no assist:'
-      );
-
-      if (assistName) {
-        const assistIndex = parseInt(assistName) - 1;
-        if (assistIndex >= 0 && assistIndex < players.length) {
-          assistPlayerId = players[assistIndex].users.id;
-        }
-      }
+  const handleAssistSelected = (assistPlayerId: string | null) => {
+    setShowAssistSelect(false);
+    if (selectedPlayerId) {
+      submitEvent(selectedPlayerId, assistPlayerId || undefined);
     }
+  };
+
+  const submitEvent = async (playerId: string, assistPlayerId?: string) => {
+    if (!pendingEvent) return;
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -197,9 +204,9 @@ export default function MatchResultsModal({
           'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
-          teamId,
-          playerId: selectedPlayer.users.id,
-          eventType,
+          teamId: pendingEvent.teamId,
+          playerId,
+          eventType: pendingEvent.eventType,
           assistPlayerId
         })
       });
@@ -216,6 +223,9 @@ export default function MatchResultsModal({
     } catch (err) {
       console.error('Failed to add event:', err);
       alert(err instanceof Error ? err.message : 'Failed to add event');
+    } finally {
+      setPendingEvent(null);
+      setSelectedPlayerId(null);
     }
   };
 
@@ -292,7 +302,7 @@ export default function MatchResultsModal({
   const getPlayerName = (playerId: string) => {
     const allPlayers = [...homeTeamPlayers, ...awayTeamPlayers];
     const player = allPlayers.find(p => p.users.id === playerId);
-    return player?.users.full_name || player?.users.email || 'Unknown Player';
+    return player?.user_profiles?.full_name || player?.user_profiles?.display_name || player?.users.email || 'Unknown Player';
   };
 
   const getEventIcon = (eventType: string) => {
@@ -306,22 +316,50 @@ export default function MatchResultsModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
       <div className="bg-gray-900 rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-gray-700">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-700">
-          <div>
-            <h2 className="text-2xl font-bold text-white">Match Results</h2>
-            {match && (
-              <p className="text-sm text-gray-400 mt-1">
-                {new Date(match.scheduled_date).toLocaleDateString()} • {match.venue || 'TBD'}
-              </p>
-            )}
+        <div className="border-b border-gray-700">
+          <div className="flex items-center justify-between p-6">
+            <div>
+              <h2 className="text-2xl font-bold text-white">Match Details</h2>
+              {match && (
+                <p className="text-sm text-gray-400 mt-1">
+                  {match.home_team.name} vs {match.away_team.name}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-800 rounded-full transition-colors text-gray-400 hover:text-white"
+              disabled={saving}
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-800 rounded-full transition-colors text-gray-400 hover:text-white"
-            disabled={saving}
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          {/* Tabs */}
+          <div className="flex gap-1 px-6">
+            <button
+              onClick={() => setActiveTab('results')}
+              className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors border-b-2 ${
+                activeTab === 'results'
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              <Trophy className="w-4 h-4" />
+              Results & Events
+            </button>
+            <button
+              onClick={() => setActiveTab('media')}
+              className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors border-b-2 ${
+                activeTab === 'media'
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent text-gray-400 hover:text-gray-300'
+              }`}
+            >
+              <ImageIcon className="w-4 h-4" />
+              Media
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -331,7 +369,10 @@ export default function MatchResultsModal({
               <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
             </div>
           ) : match ? (
-            <div className="space-y-6">
+            <>
+              {/* Results Tab */}
+              {activeTab === 'results' && (
+                <div className="space-y-6">
               {/* Score Display */}
               <div className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 border border-gray-700 rounded-lg p-6">
                 <div className="flex items-center justify-between">
@@ -430,14 +471,14 @@ export default function MatchResultsModal({
                   <optgroup label={match.home_team.name}>
                     {homeTeamPlayers.map(player => (
                       <option key={player.users.id} value={player.users.id}>
-                        {player.users.full_name || player.users.email || 'Unknown'}
+                        {player.user_profiles?.full_name || player.user_profiles?.display_name || player.users.email || 'Unknown'}
                       </option>
                     ))}
                   </optgroup>
                   <optgroup label={match.away_team.name}>
                     {awayTeamPlayers.map(player => (
                       <option key={player.users.id} value={player.users.id}>
-                        {player.users.full_name || player.users.email || 'Unknown'}
+                        {player.user_profiles?.full_name || player.user_profiles?.display_name || player.users.email || 'Unknown'}
                       </option>
                     ))}
                   </optgroup>
@@ -449,7 +490,18 @@ export default function MatchResultsModal({
                   {error}
                 </div>
               )}
-            </div>
+                </div>
+              )}
+
+              {/* Media Tab */}
+              {activeTab === 'media' && (
+                <MatchMediaTab
+                  matchId={matchId}
+                  matchName={`${match.home_team.name} vs ${match.away_team.name}`}
+                  canUpload={true} // Admin users can always upload
+                />
+              )}
+            </>
           ) : (
             <div className="text-center text-gray-400 py-8">
               Match not found
@@ -458,24 +510,134 @@ export default function MatchResultsModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-700 bg-gray-800">
-          <button
-            onClick={onClose}
-            className="px-6 py-2 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors"
-            disabled={saving}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving || !match}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            Save Results
-          </button>
-        </div>
+        {activeTab === 'results' && (
+          <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-700 bg-gray-800">
+            <button
+              onClick={onClose}
+              className="px-6 py-2 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors"
+              disabled={saving}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving || !match}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              Save Results
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Player Selection Dialog */}
+      {showPlayerSelect && pendingEvent && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-md border border-gray-700">
+            <div className="p-4 border-b border-gray-700">
+              <h3 className="text-lg font-semibold text-white">
+                Select Player for {pendingEvent.eventType.replace('_', ' ')}
+              </h3>
+              <p className="text-sm text-gray-400">
+                {pendingEvent.teamId === match?.home_team_id ? match?.home_team.name : match?.away_team.name}
+              </p>
+            </div>
+            <div className="max-h-80 overflow-y-auto p-2">
+              {(pendingEvent.teamId === match?.home_team_id ? homeTeamPlayers : awayTeamPlayers).map(player => (
+                <button
+                  key={player.users.id}
+                  onClick={() => handlePlayerSelected(player.users.id)}
+                  className="w-full flex items-center gap-3 p-3 hover:bg-gray-700 rounded-lg transition-colors text-left"
+                >
+                  <div className="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center text-white font-medium">
+                    {player.jersey_number || '#'}
+                  </div>
+                  <div>
+                    <div className="font-medium text-white">
+                      {player.user_profiles?.full_name || player.user_profiles?.display_name || player.users?.email || 'Unknown'}
+                    </div>
+                    <div className="text-sm text-gray-400">
+                      {player.position || 'Player'}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div className="p-4 border-t border-gray-700">
+              <button
+                onClick={() => {
+                  setShowPlayerSelect(false);
+                  setPendingEvent(null);
+                }}
+                className="w-full px-4 py-2 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assist Selection Dialog */}
+      {showAssistSelect && pendingEvent && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-md border border-gray-700">
+            <div className="p-4 border-b border-gray-700">
+              <h3 className="text-lg font-semibold text-white">
+                Assist by (Optional)
+              </h3>
+              <p className="text-sm text-gray-400">
+                {pendingEvent.teamId === match?.home_team_id ? match?.home_team.name : match?.away_team.name}
+              </p>
+            </div>
+            <div className="max-h-80 overflow-y-auto p-2">
+              <button
+                onClick={() => handleAssistSelected(null)}
+                className="w-full flex items-center gap-3 p-3 hover:bg-gray-700 rounded-lg transition-colors text-left mb-2"
+              >
+                <div className="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center text-white">
+                  <X className="w-5 h-5" />
+                </div>
+                <div className="font-medium text-gray-300">No Assist</div>
+              </button>
+              {(pendingEvent.teamId === match?.home_team_id ? homeTeamPlayers : awayTeamPlayers)
+                .filter(p => p.users.id !== selectedPlayerId)
+                .map(player => (
+                  <button
+                    key={player.users.id}
+                    onClick={() => handleAssistSelected(player.users.id)}
+                    className="w-full flex items-center gap-3 p-3 hover:bg-gray-700 rounded-lg transition-colors text-left"
+                  >
+                    <div className="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center text-white font-medium">
+                      {player.jersey_number || '#'}
+                    </div>
+                    <div>
+                      <div className="font-medium text-white">
+                        {player.user_profiles?.full_name || player.user_profiles?.display_name || player.users?.email || 'Unknown'}
+                      </div>
+                      <div className="text-sm text-gray-400">
+                        {player.position || 'Player'}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+            </div>
+            <div className="p-4 border-t border-gray-700">
+              <button
+                onClick={() => {
+                  setShowAssistSelect(false);
+                  setPendingEvent(null);
+                  setSelectedPlayerId(null);
+                }}
+                className="w-full px-4 py-2 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

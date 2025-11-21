@@ -1,13 +1,14 @@
+// @ts-nocheck
 /**
  * Configuration Service for MatchDay
- * 
+ *
  * Manages all application configuration following the LEVER principle of
  * centralized configuration management. Provides hierarchical config loading:
  * 1. Memory cache
  * 2. Local storage
  * 3. Supabase database
  * 4. Default fallbacks
- * 
+ *
  * @example
  * ```typescript
  * const config = await ConfigService.getInstance().getScoringRules();

@@ -88,3 +88,5 @@ The application uses Geist font family with CSS variables for consistent typogra
 - Always code using inheretance in mind. to re use methods. giving you an example. to upload an icon or photo the logic is extremely similar, for regular media, team icons, etc so remember to do so
 - I will always run the migrations manually
 - player/team edit are always in the user app. league/season edit are always in the admin app
+- remember to never use emojies, but rather use icons
+- never use emojies, always icons

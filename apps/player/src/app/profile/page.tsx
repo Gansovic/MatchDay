@@ -8,23 +8,25 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  User, 
-  Settings, 
-  Shield, 
-  Bell, 
+import {
+  User,
+  Settings,
+  Shield,
+  Bell,
   Globe,
   Lock,
   Save,
   Edit,
   Camera,
   Trash2,
-  Loader2
+  Loader2,
+  Image as ImageIcon
 } from 'lucide-react';
 import { useAuth } from '@/components/auth/supabase-auth-provider';
 import { UserService } from '@matchday/services';
 import type { UserProfile } from '@matchday/database';
 import { ProfilePhotoUpload } from '@/components/media/profile-photo-upload';
+import { PlayerMediaTab } from '@/components/media/player-media-tab';
 import { supabase } from '@/lib/supabase/client';
 
 interface ProfileFormData {
@@ -56,7 +58,7 @@ interface PrivacySettings {
 
 export default function ProfileSettingsPage() {
   const { user, isLoading: authLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'privacy' | 'account'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'media' | 'notifications' | 'privacy' | 'account'>('profile');
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -292,6 +294,7 @@ export default function ProfileSettingsPage() {
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
+    { id: 'media', label: 'Media', icon: ImageIcon },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'privacy', label: 'Privacy', icon: Shield },
     { id: 'account', label: 'Account', icon: Settings }
@@ -345,7 +348,7 @@ export default function ProfileSettingsPage() {
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as 'profile' | 'notifications' | 'privacy' | 'account')}
+                    onClick={() => setActiveTab(tab.id as 'profile' | 'media' | 'notifications' | 'privacy' | 'account')}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors ${
                       activeTab === tab.id
                         ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
@@ -523,6 +526,17 @@ export default function ProfileSettingsPage() {
                       </button>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Media Tab */}
+              {activeTab === 'media' && (
+                <div className="p-6">
+                  <PlayerMediaTab
+                    playerId={user.id}
+                    playerName={profile.display_name || user.email?.split('@')[0] || 'Player'}
+                    isOwnProfile={true}
+                  />
                 </div>
               )}
 

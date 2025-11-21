@@ -78,11 +78,13 @@ export interface Match {
         id: string;
         name: string;
         team_color?: string;
+        logo_url?: string;
     };
     away_team?: {
         id: string;
         name: string;
         team_color?: string;
+        logo_url?: string;
     };
 }
 export interface ServiceResponse<T> {
@@ -141,6 +143,7 @@ export declare class SeasonService {
     generateFixtures(seasonId: string, preview?: boolean, seasonOverride?: any): Promise<ServiceResponse<Match[]>>;
     /**
      * Get matches for a season
+     * Note: Since matches table doesn't have season_id, we need to get the league_id first
      */
     getSeasonMatches(seasonId: string): Promise<ServiceResponse<Match[]>>;
     /**

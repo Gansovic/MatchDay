@@ -4,7 +4,7 @@ import { MediaService } from '@matchday/services';
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ mediaId: string }> }
 ) {
   try {
     // Get authenticated user
@@ -19,7 +19,7 @@ export async function DELETE(
     }
 
     // Get media ID from params
-    const { id } = await params;
+    const { mediaId: id } = await params;
 
     if (!id) {
       return NextResponse.json(
@@ -54,7 +54,7 @@ export async function DELETE(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ mediaId: string }> }
 ) {
   try {
     // Get authenticated user
@@ -69,7 +69,7 @@ export async function GET(
     }
 
     // Get media ID from params
-    const { id } = await params;
+    const { mediaId: id } = await params;
 
     if (!id) {
       return NextResponse.json(

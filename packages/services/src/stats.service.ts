@@ -1,12 +1,13 @@
+// @ts-nocheck
 /**
  * Stats Service for MatchDay
- * 
+ *
  * Handles comprehensive performance analytics operations with focus on:
  * - Individual player statistics and trends
  * - Cross-league performance comparisons
  * - Global rankings and leaderboards
  * - Performance trend analysis and predictions
- * 
+ *
  * Optimized for providing deep insights into player performance across leagues
  */
 

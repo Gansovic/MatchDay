@@ -10,6 +10,16 @@ export async function DELETE(
     // Use admin client - RLS policies will handle permissions
     const supabase = createAdminClient();
 
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     // Get media ID from params
     const { id } = await params;
 
@@ -50,7 +60,7 @@ export async function GET(
 ) {
   try {
     // Get authenticated user
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {

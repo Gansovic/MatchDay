@@ -26,6 +26,7 @@ import {
   CacheOptions,
   RealtimeSubscriptionOptions
 } from '@matchday/database';
+import { MatchService as SharedMatchService } from '@matchday/services';
 
 export interface MatchFilters {
   leagueId?: string;
@@ -268,31 +269,16 @@ export class MatchService {
 
           if (eventsError) throw eventsError;
 
-          // Get team players
-          const { data: homePlayers, error: homeError } = await this.supabase
-            .from('team_members')
-            .select(`
-              user_id,
-              position,
-              jersey_number,
-              user_profiles!inner(*)
-            `)
-            .eq('team_id', match.home_team_id)
-            .eq('is_active', true);
+          // Get team players - use shared service method
+          const matchService = SharedMatchService.getInstance(this.supabase);
+          const playersResult = await matchService.getTeamPlayersForMatch(match.id);
 
-          const { data: awayPlayers, error: awayError } = await this.supabase
-            .from('team_members')
-            .select(`
-              user_id,
-              position,
-              jersey_number,
-              user_profiles!inner(*)
-            `)
-            .eq('team_id', match.away_team_id)
-            .eq('is_active', true);
+          if (!playersResult.success || !playersResult.data) {
+            throw new Error(playersResult.error?.message || 'Failed to fetch team players');
+          }
 
-          if (homeError) throw homeError;
-          if (awayError) throw awayError;
+          const homePlayers = { data: playersResult.data.homeTeamPlayers };
+          const awayPlayers = { data: playersResult.data.awayTeamPlayers };
 
           // Calculate player stats if requested
           let playerStats;
@@ -306,8 +292,8 @@ export class MatchService {
             awayTeam: match.away_team,
             league: match.league,
             events: events || [],
-            homeTeamPlayers: (homePlayers || []).map(p => p.user_profiles),
-            awayTeamPlayers: (awayPlayers || []).map(p => p.user_profiles),
+            homeTeamPlayers: homePlayers || [],
+            awayTeamPlayers: awayPlayers || [],
             playerStats: playerStats ? [playerStats] : undefined
           };
         })
@@ -388,32 +374,16 @@ export class MatchService {
         throw matchError;
       }
 
-      // Get team players with profiles
-      const [homePlayers, awayPlayers] = await Promise.all([
-        this.supabase
-          .from('team_members')
-          .select(`
-            user_id,
-            position,
-            jersey_number,
-            user_profiles!inner(*)
-          `)
-          .eq('team_id', match.home_team_id)
-          .eq('is_active', true),
-        this.supabase
-          .from('team_members')
-          .select(`
-            user_id,
-            position,
-            jersey_number,
-            user_profiles!inner(*)
-          `)
-          .eq('team_id', match.away_team_id)
-          .eq('is_active', true)
-      ]);
+      // Get team players with profiles - use shared service method
+      const matchService = SharedMatchService.getInstance(this.supabase);
+      const playersResult = await matchService.getTeamPlayersForMatch(matchId);
 
-      if (homePlayers.error) throw homePlayers.error;
-      if (awayPlayers.error) throw awayPlayers.error;
+      if (!playersResult.success || !playersResult.data) {
+        throw new Error(playersResult.error?.message || 'Failed to fetch team players');
+      }
+
+      const homePlayers = { data: playersResult.data.homeTeamPlayers };
+      const awayPlayers = { data: playersResult.data.awayTeamPlayers };
 
       // Calculate player stats if userId provided
       let playerStats;

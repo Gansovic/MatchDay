@@ -12,12 +12,16 @@ import { MediaWithUrl } from '@matchday/database';
  */
 export async function getLeagueIcon(leagueId: string): Promise<MediaWithUrl | null> {
   try {
-    const response = await fetch(`/api/media/league/${leagueId}/icon`);
+    const response = await fetch(`/api/media/league/${leagueId}/icon`, {
+      cache: 'no-store'
+    });
+
+    // 204 No Content means no icon exists (not an error)
+    if (response.status === 204) {
+      return null;
+    }
 
     if (!response.ok) {
-      if (response.status === 404) {
-        return null;
-      }
       throw new Error('Failed to fetch league icon');
     }
 
@@ -34,12 +38,16 @@ export async function getLeagueIcon(leagueId: string): Promise<MediaWithUrl | nu
  */
 export async function getSeasonIcon(seasonId: string, leagueId: string): Promise<MediaWithUrl | null> {
   try {
-    const response = await fetch(`/api/media/season/${seasonId}/icon?leagueId=${leagueId}`);
+    const response = await fetch(`/api/media/season/${seasonId}/icon?leagueId=${leagueId}`, {
+      cache: 'no-store'
+    });
+
+    // 204 No Content means no icon exists (not an error)
+    if (response.status === 204) {
+      return null;
+    }
 
     if (!response.ok) {
-      if (response.status === 404) {
-        return null;
-      }
       throw new Error('Failed to fetch season icon');
     }
 

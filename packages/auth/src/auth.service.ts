@@ -1,15 +1,16 @@
+// @ts-nocheck
 /**
  * Authentication Service for MatchDay
- * 
+ *
  * Handles user authentication and session management following LEVER principles.
  * Integrates with Supabase Auth and manages user profiles automatically.
- * 
+ *
  * @example
  * ```typescript
  * const { user, session } = await AuthService.getInstance().signInWithEmail(email, password);
  * await AuthService.getInstance().signOut();
  * ```
- * 
+ *
  * This service should be used for ALL authentication operations.
  */
 

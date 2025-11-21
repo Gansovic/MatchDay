@@ -1,20 +1,20 @@
 /**
  * OAuth Callback Page for MatchDay
- * 
+ *
  * Handles OAuth authentication callbacks from providers like Google, GitHub, etc.
  * Processes the auth code exchange and redirects appropriately.
  */
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 type CallbackState = 'loading' | 'success' | 'error';
 
-export default function AuthCallbackPage() {
+function AuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [state, setState] = useState<CallbackState>('loading');
@@ -67,7 +67,7 @@ export default function AuthCallbackPage() {
         setTimeout(() => {
           // Check for return URL in the state parameter
           const returnUrl = searchParams.get('state');
-          
+
           if (returnUrl) {
             try {
               // Validate the return URL
@@ -156,10 +156,10 @@ export default function AuthCallbackPage() {
                   What you can do:
                 </h3>
                 <ul className="text-sm text-red-800 dark:text-red-200 space-y-1">
-                  <li>• Try signing in again</li>
-                  <li>• Check your internet connection</li>
-                  <li>• Clear your browser cache and cookies</li>
-                  <li>• Contact support if the problem persists</li>
+                  <li>- Try signing in again</li>
+                  <li>- Check your internet connection</li>
+                  <li>- Clear your browser cache and cookies</li>
+                  <li>- Contact support if the problem persists</li>
                 </ul>
               </div>
 
@@ -182,5 +182,24 @@ export default function AuthCallbackPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center">
+      <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
+        <Loader2 className="w-6 h-6 animate-spin" />
+        <span>Loading...</span>
+      </div>
+    </div>
+  );
+}
+
+export default function AuthCallbackPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <AuthCallbackContent />
+    </Suspense>
   );
 }

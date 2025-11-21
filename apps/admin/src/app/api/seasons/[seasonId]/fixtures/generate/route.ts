@@ -84,6 +84,7 @@ export async function POST(
       );
     }
     console.log('✅ Season found:', season.name);
+    console.log('📅 Season dates: start_date =', season.start_date, ', end_date =', season.end_date);
 
     // Check if user has permission (must be league creator)
     console.log('🔒 Checking permissions. Created by:', season.leagues?.created_by, 'User:', user.id);
@@ -115,7 +116,7 @@ export async function POST(
     }
 
     // Initialize SeasonService
-    const seasonService = new SeasonService(supabase);
+    const seasonService = SeasonService.getInstance(supabase);
     console.log('🎮 SeasonService initialized');
 
     // Generate fixtures

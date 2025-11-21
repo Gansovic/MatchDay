@@ -84,20 +84,15 @@ export class AdminDashboardService {
     try {
       console.log('[AdminDashboardService] Getting dashboard data for user:', adminUserId);
       
-      // Get admin profile info
+      // Get admin profile info from user_profiles table
       const { data: adminProfile, error: profileError } = await supabase
-        .from('users')
-        .select('full_name, role')
+        .from('user_profiles')
+        .select('display_name')
         .eq('id', adminUserId)
         .single();
 
       if (profileError) {
-        console.warn('[AdminDashboardService] Admin profile not found, using default values:', {
-          error: profileError,
-          errorMessage: profileError?.message || 'No message',
-          errorCode: profileError?.code || 'No code',
-          isEmpty: !profileError || Object.keys(profileError).length === 0
-        });
+        console.warn('[AdminDashboardService] Admin profile not found, using default values:', profileError);
       }
 
       // Get admin user email from auth
@@ -136,9 +131,9 @@ export class AdminDashboardService {
         pendingRequests: pendingRequests.data || [],
         recentActivity: recentActivity.data || [],
         adminInfo: {
-          displayName: adminProfile?.full_name || null,
+          displayName: adminProfile?.display_name || null,
           email: adminEmail,
-          role: adminProfile?.role || 'admin'
+          role: 'admin'
         }
       };
 
@@ -279,15 +274,31 @@ export class AdminDashboardService {
   }
 
   /**
-   * Get team count for a specific league using direct relationship
+   * Get team count for a specific league's current/active season
    */
   private async getLeagueTeamCount(leagueId: string): Promise<ServiceResponse<number>> {
     try {
-      const { count, error } = await supabase
-        .from('teams')
-        .select('*', { count: 'exact', head: true })
+      // First, get the current/active season for this league
+      const { data: currentSeason, error: seasonError } = await supabase
+        .from('seasons')
+        .select('id')
         .eq('league_id', leagueId)
-        .eq('is_archived', false);
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (seasonError || !currentSeason) {
+        // No active season found, return 0
+        return { data: 0, error: null, success: true };
+      }
+
+      // Count teams registered for the current season
+      const { count, error } = await supabase
+        .from('season_teams')
+        .select('*', { count: 'exact', head: true })
+        .eq('season_id', currentSeason.id)
+        .in('status', ['registered', 'confirmed']);
 
       if (error) throw error;
       return { data: count || 0, error: null, success: true };
@@ -351,27 +362,11 @@ export class AdminDashboardService {
       }
 
       // Step 2: Get pending join requests for these teams
-      const teamIds = teams.map(t => t.id);
-      const { data: joinRequests, error: requestsError } = await supabase
-        .from('team_join_requests')
-        .select(`
-          id,
-          team_id,
-          status,
-          created_at,
-          user_id
-        `)
-        .in('team_id', teamIds)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
-        .limit(10);
+      // Note: team_join_requests table doesn't exist yet, so we return empty array
+      // TODO: Implement team join requests functionality when table is created
+      const joinRequests: any[] = [];
 
-      if (requestsError) {
-        console.warn('Could not fetch join requests:', requestsError);
-        return { data: [], error: null, success: true };
-      }
-
-      if (!joinRequests || joinRequests.length === 0) {
+      if (joinRequests.length === 0) {
         return { data: [], error: null, success: true };
       }
 
@@ -518,19 +513,9 @@ export class AdminDashboardService {
       }
 
       // Step 2: Get count of pending requests for these teams
-      const teamIds = teams.map(t => t.id);
-      const { count, error } = await supabase
-        .from('team_join_requests')
-        .select('*', { count: 'exact', head: true })
-        .in('team_id', teamIds)
-        .eq('status', 'pending');
-
-      if (error) {
-        console.warn('Could not fetch pending requests count:', error);
-        return { data: 0, error: null, success: true };
-      }
-
-      return { data: count || 0, error: null, success: true };
+      // Note: team_join_requests table doesn't exist yet
+      // TODO: Implement when table is created
+      return { data: 0, error: null, success: true };
 
     } catch (error) {
       return { data: 0, error: null, success: true };

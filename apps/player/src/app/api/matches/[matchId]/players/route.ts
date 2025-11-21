@@ -42,7 +42,7 @@ export async function GET(
       );
     }
 
-    // Get home team players
+    // Get home team players with user_profiles
     const { data: homeTeamMembers, error: homeError } = await supabase
       .from('team_members')
       .select(`
@@ -50,7 +50,8 @@ export async function GET(
         user_id,
         position,
         jersey_number,
-        users!inner(id, full_name, email)
+        user_profiles!inner(id, display_name, full_name),
+        users!inner(id, email)
       `)
       .eq('team_id', match.home_team_id)
       .eq('is_active', true);
@@ -59,7 +60,7 @@ export async function GET(
       console.error('❌ Error fetching home team:', homeError);
     }
 
-    // Get away team players
+    // Get away team players with user_profiles
     const { data: awayTeamMembers, error: awayError } = await supabase
       .from('team_members')
       .select(`
@@ -67,7 +68,8 @@ export async function GET(
         user_id,
         position,
         jersey_number,
-        users!inner(id, full_name, email)
+        user_profiles!inner(id, display_name, full_name),
+        users!inner(id, email)
       `)
       .eq('team_id', match.away_team_id)
       .eq('is_active', true);

@@ -52,5 +52,58 @@ export declare class MediaService {
      * Get bucket name from context type
      */
     private getBucketFromContext;
+    /**
+     * Get league icon
+     */
+    getLeagueIcon(leagueId: string): Promise<ServiceResponse<MediaWithUrl | null>>;
+    /**
+     * Get season icon with automatic fallback to league icon
+     */
+    getSeasonIcon(seasonId: string, leagueId: string): Promise<ServiceResponse<MediaWithUrl | null>>;
+    /**
+     * Upload league icon
+     */
+    uploadLeagueIcon(file: File, leagueId: string, userId: string): Promise<ServiceResponse<MediaUploadResult>>;
+    /**
+     * Upload season icon
+     */
+    uploadSeasonIcon(file: File, seasonId: string, leagueId: string, userId: string): Promise<ServiceResponse<MediaUploadResult>>;
+    /**
+     * Delete league icon
+     */
+    deleteLeagueIcon(leagueId: string, userId: string): Promise<ServiceResponse<boolean>>;
+    /**
+     * Delete season icon
+     */
+    deleteSeasonIcon(seasonId: string, userId: string): Promise<ServiceResponse<boolean>>;
+    /**
+     * Get all media for a specific match
+     */
+    getMatchMedia(matchId: string, filters?: Partial<MediaFilters>): Promise<ServiceResponse<MediaWithUrl[]>>;
+    /**
+     * Upload media for a match (admin only - enforced by RLS)
+     */
+    uploadMatchMedia(file: File, matchId: string, userId: string, options?: {
+        description?: string;
+        tags?: string[];
+        is_public?: boolean;
+    }): Promise<ServiceResponse<MediaUploadResult>>;
+    /**
+     * Get all media for a specific player (personal uploads + reposts)
+     */
+    getPlayerMedia(playerId: string, filters?: Partial<MediaFilters>): Promise<ServiceResponse<MediaWithUrl[]>>;
+    /**
+     * Upload personal media for a player
+     */
+    uploadPlayerMedia(file: File, playerId: string, userId: string, options?: {
+        description?: string;
+        tags?: string[];
+        is_public?: boolean;
+    }): Promise<ServiceResponse<MediaUploadResult>>;
+    /**
+     * Repost existing media to player's gallery
+     * This creates a reference to the original media without duplicating the file
+     */
+    repostMedia(originalMediaId: string, playerId: string, userId: string): Promise<ServiceResponse<MediaWithUrl>>;
 }
 //# sourceMappingURL=media.service.d.ts.map

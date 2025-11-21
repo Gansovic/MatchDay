@@ -10,7 +10,7 @@
  * Optimized for player-centric match experience with comprehensive statistics
  */
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Database, MatchEvent, MatchWithDetails, LiveMatchData, ActiveMatch, ServiceResponse, PaginatedServiceResponse, MatchStatus, EventType, RealtimeSubscriptionOptions } from '@matchday/database';
+import { Database, Match, MatchEvent, MatchWithDetails, LiveMatchData, ActiveMatch, ServiceResponse, PaginatedServiceResponse, MatchStatus, EventType, RealtimeSubscriptionOptions } from '@matchday/database';
 export interface MatchFilters {
     leagueId?: string;
     teamId?: string;
@@ -209,6 +209,49 @@ export declare class MatchService {
      * Remove participant from match
      */
     removeMatchParticipant(participantId: string): Promise<ServiceResponse<void>>;
+    /**
+     * Record match event (goal, card, substitution, penalty)
+     */
+    recordMatchEvent(data: {
+        matchId: string;
+        teamId: string;
+        playerId?: string;
+        eventType: EventType;
+        eventTime?: number;
+        description?: string;
+        assistPlayerId?: string;
+    }): Promise<ServiceResponse<MatchEvent>>;
+    /**
+     * Update match with final result including man of the match and lineups
+     */
+    updateMatchResult(data: {
+        matchId: string;
+        homeScore: number;
+        awayScore: number;
+        manOfMatchId?: string;
+        homeLineup?: any;
+        awayLineup?: any;
+        status?: MatchStatus;
+    }): Promise<ServiceResponse<Match>>;
+    /**
+     * Get team players for match (for populating dropdowns)
+     */
+    getTeamPlayersForMatch(matchId: string): Promise<ServiceResponse<{
+        homeTeamPlayers: any[];
+        awayTeamPlayers: any[];
+    }>>;
+    /**
+     * Get match events for display
+     */
+    getMatchEvents(matchId: string): Promise<ServiceResponse<MatchEvent[]>>;
+    /**
+     * Delete match event
+     */
+    deleteMatchEvent(eventId: string): Promise<ServiceResponse<void>>;
+    /**
+     * Aggregate match stats from events
+     */
+    private aggregateMatchStats;
     /**
      * Clear cache
      */

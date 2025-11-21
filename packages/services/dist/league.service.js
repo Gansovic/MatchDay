@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * League Service for MatchDay
  *

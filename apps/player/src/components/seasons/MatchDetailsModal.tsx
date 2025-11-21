@@ -1,17 +1,22 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X, Trophy, AlertCircle, Clock } from 'lucide-react';
+import { X, Trophy, AlertCircle, Clock, Image as ImageIcon, Repeat2 } from 'lucide-react';
 import { TeamLogo } from '@/components/common/team-logo';
+import type { MediaWithUrl } from '@matchday/database';
 
 interface Player {
   id: string;
   user_id: string;
   position: string;
   jersey_number: number | null;
+  user_profiles: {
+    id: string;
+    display_name: string | null;
+    full_name: string | null;
+  };
   users: {
     id: string;
-    full_name: string | null;
     email: string | null;
   };
 }
@@ -71,7 +76,9 @@ export default function MatchDetailsModal({ matchId, isOpen, onClose }: MatchDet
   const [matchEvents, setMatchEvents] = useState<MatchEvent[]>([]);
   const [homePlayers, setHomePlayers] = useState<Player[]>([]);
   const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
+  const [matchMedia, setMatchMedia] = useState<MediaWithUrl[]>([]);
   const [loading, setLoading] = useState(true);
+  const [repostSuccess, setRepostSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && matchId) {
@@ -111,11 +118,44 @@ export default function MatchDetailsModal({ matchId, isOpen, onClose }: MatchDet
           setHomePlayers(playersResult.data.homePlayers || []);
           setAwayPlayers(playersResult.data.awayPlayers || []);
         }
+
+        // Load match media
+        const mediaResponse = await fetch(`/api/media?match_id=${matchId}`, {
+          credentials: 'include',
+        });
+
+        if (mediaResponse.ok) {
+          const mediaData = await mediaResponse.json();
+          setMatchMedia(mediaData || []);
+        }
       }
     } catch (error) {
       console.error('Error loading match data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRepost = async (mediaId: string) => {
+    try {
+      const response = await fetch(`/api/media/${mediaId}/repost`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to repost');
+      }
+
+      const { message } = await response.json();
+      setRepostSuccess(message || 'Media reposted to your profile!');
+
+      // Clear success message after 3 seconds
+      setTimeout(() => setRepostSuccess(null), 3000);
+    } catch (error) {
+      console.error('Repost error:', error);
+      alert('Failed to repost media. Please try again.');
     }
   };
 
@@ -330,6 +370,56 @@ export default function MatchDetailsModal({ matchId, isOpen, onClose }: MatchDet
                 </div>
               )}
 
+              {/* Match Media Gallery */}
+              {matchMedia.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <ImageIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    Match Media
+                  </h3>
+
+                  {repostSuccess && (
+                    <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                      <p className="text-sm text-green-700 dark:text-green-300">{repostSuccess}</p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {matchMedia.map((media) => (
+                      <div
+                        key={media.id}
+                        className="group relative aspect-square bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden"
+                      >
+                        {media.media_type === 'image' ? (
+                          <img
+                            src={media.url}
+                            alt={media.description || media.original_filename}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <video
+                            src={media.url}
+                            className="w-full h-full object-cover"
+                            preload="metadata"
+                          />
+                        )}
+
+                        {/* Overlay with Repost Button */}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/60 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                          <button
+                            onClick={() => handleRepost(media.id)}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 transition-colors shadow-lg"
+                          >
+                            <Repeat2 className="w-4 h-4" />
+                            Repost
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Team Rosters */}
               <div className="grid grid-cols-2 gap-6">
                 {/* Home Team Roster */}
@@ -358,7 +448,7 @@ export default function MatchDetailsModal({ matchId, isOpen, onClose }: MatchDet
                           )}
                           <div className="flex-1">
                             <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {player.users.full_name || player.users.email}
+                              {player.user_profiles?.full_name || player.user_profiles?.display_name || player.users.email}
                             </p>
                             {player.position && (
                               <p className="text-xs text-gray-600 dark:text-gray-400 capitalize">
@@ -400,7 +490,7 @@ export default function MatchDetailsModal({ matchId, isOpen, onClose }: MatchDet
                           )}
                           <div className="flex-1">
                             <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {player.users.full_name || player.users.email}
+                              {player.user_profiles?.full_name || player.user_profiles?.display_name || player.users.email}
                             </p>
                             {player.position && (
                               <p className="text-xs text-gray-600 dark:text-gray-400 capitalize">

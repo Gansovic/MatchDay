@@ -145,6 +145,28 @@ export function SeasonMediaTab({
     }
   };
 
+  const handleRepost = async (mediaId: string) => {
+    try {
+      const response = await fetch(`/api/media/${mediaId}/repost`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to repost');
+      }
+
+      const { message } = await response.json();
+
+      // Show success message (you could use a toast here)
+      console.log('Repost successful:', message);
+      setError(null);
+    } catch (err) {
+      console.error('Repost error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to repost media');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -220,7 +242,9 @@ export function SeasonMediaTab({
       <MediaGallery
         media={media}
         onDelete={canUpload ? handleDelete : undefined}
+        onRepost={handleRepost}
         canDelete={canUpload}
+        canRepost={true}
         emptyMessage="No media uploaded for this season yet"
       />
 

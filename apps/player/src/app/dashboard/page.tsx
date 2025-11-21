@@ -10,8 +10,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/components/auth/supabase-auth-provider';
-import { Loader2, Star, TrendingUp, Users, Trophy } from 'lucide-react';
+import { Loader2, Star, TrendingUp, Users, Trophy, ImageIcon } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 
 // Import new Playtomic-style components
@@ -46,6 +47,7 @@ export default function DashboardPage() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isTeamCaptain, setIsTeamCaptain] = useState(false);
+  const [hasNewReposts, setHasNewReposts] = useState(false);
 
   // Fetch user profile
   useEffect(() => {
@@ -76,6 +78,30 @@ export default function DashboardPage() {
       return () => {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
       };
+    }
+  }, [user?.id]);
+
+  // Check for new reposts (< 7 days old)
+  useEffect(() => {
+    if (user?.id) {
+      const checkNewReposts = async () => {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        const { data, error } = await supabase
+          .from('media')
+          .select('id')
+          .eq('player_id', user.id)
+          .eq('is_repost', true)
+          .gte('created_at', sevenDaysAgo.toISOString())
+          .limit(1);
+
+        if (!error && data && data.length > 0) {
+          setHasNewReposts(true);
+        }
+      };
+
+      checkNewReposts();
     }
   }, [user?.id]);
 
@@ -185,6 +211,46 @@ export default function DashboardPage() {
           recentForm={recentForm}
           isLoading={statsLoading}
         />
+
+        {/* My Gallery Button */}
+        <Link
+          href="/profile?tab=media"
+          className="block bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-2xl shadow-xl p-6 mb-8 transition-all duration-200 transform hover:scale-[1.02]"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
+                <ImageIcon className="w-7 h-7 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white mb-1">My Gallery</h3>
+                <p className="text-blue-100 text-sm">
+                  View your uploaded photos and reposted media
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {hasNewReposts && (
+                <span className="px-3 py-1 bg-green-500 text-white text-xs font-semibold rounded-full animate-pulse">
+                  New
+                </span>
+              )}
+              <svg
+                className="w-6 h-6 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </div>
+          </div>
+        </Link>
 
         {/* Performance Chart */}
         <PerformanceChart

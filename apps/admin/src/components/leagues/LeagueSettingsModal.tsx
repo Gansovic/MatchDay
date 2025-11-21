@@ -128,6 +128,11 @@ export const LeagueSettingsModal: React.FC<LeagueSettingsModalProps> = ({
   };
 
   const handleDelete = async () => {
+    console.log('Delete button clicked');
+    console.log('deleteConfirmText:', deleteConfirmText);
+    console.log('league.name:', league.name);
+    console.log('Match:', deleteConfirmText === league.name);
+
     if (deleteConfirmText !== league.name) {
       setError('Please type the league name exactly to confirm deletion');
       return;
@@ -137,19 +142,23 @@ export const LeagueSettingsModal: React.FC<LeagueSettingsModalProps> = ({
     setError(null);
 
     try {
+      console.log('Sending DELETE request to:', `/api/leagues/${league.id}`);
       const response = await fetch(`/api/leagues/${league.id}`, {
         method: 'DELETE'
       });
 
       const result = await response.json();
+      console.log('Delete response:', result);
 
       if (!response.ok) {
         throw new Error(result.message || 'Failed to delete league');
       }
 
+      console.log('Delete successful, calling onDeleted callback');
       onDeleted?.();
       onClose();
     } catch (err) {
+      console.error('Delete error:', err);
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
       setIsDeleting(false);
     }

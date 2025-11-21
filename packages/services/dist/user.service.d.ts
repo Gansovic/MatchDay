@@ -4,10 +4,13 @@
  * Handles user profile operations with Supabase integration.
  * Provides CRUD operations for user profiles and related data.
  */
+import { SupabaseClient } from '@supabase/supabase-js';
 import type { UserProfile, UpdateUserProfile, ServiceResponse } from '@matchday/database';
 export declare class UserService {
     private static instance;
-    static getInstance(): UserService;
+    private supabase;
+    private constructor();
+    static getInstance(supabaseClient?: SupabaseClient): UserService;
     /**
      * Get user profile by ID
      */

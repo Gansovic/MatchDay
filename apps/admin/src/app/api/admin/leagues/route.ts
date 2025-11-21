@@ -49,16 +49,7 @@ export async function GET(request: NextRequest) {
     const { data: leagues, error, count } = await adminClient
       .from('leagues')
       .select(`
-        *,
-        teams (
-          id,
-          name,
-          team_color,
-          captain_id,
-          max_players,
-          min_players,
-          is_recruiting
-        )
+        *
       `, { count: 'exact' })
       .eq('is_active', true)
       .order('created_at', { ascending: false })
@@ -79,26 +70,60 @@ export async function GET(request: NextRequest) {
     // Transform to discovery format
     const discoveryLeagues = await Promise.all(
       (leagues || []).map(async (league) => {
-        const teams = league.teams || [];
-        let playerCount = 0;
+        // Get the current/active season for this league
+        const { data: currentSeason } = await adminClient
+          .from('seasons')
+          .select('id')
+          .eq('league_id', league.id)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
 
-        // Count players across all teams (only if there are teams)
-        if (teams.length > 0) {
-          const teamIds = teams.map(t => t.id).filter(Boolean);
-          if (teamIds.length > 0) {
-            const { count } = await adminClient
-              .from('team_members')
-              .select('*', { count: 'exact', head: true })
-              .eq('is_active', true)
-              .in('team_id', teamIds);
-            playerCount = count || 0;
+        let teamCount = 0;
+        let playerCount = 0;
+        let teams: any[] = [];
+
+        // Only count teams if there's an active season
+        if (currentSeason) {
+          // Get teams registered for the current season
+          const { data: seasonTeams } = await adminClient
+            .from('season_teams')
+            .select(`
+              team:teams (
+                id,
+                name,
+                team_color,
+                captain_id,
+                max_players,
+                min_players,
+                is_recruiting
+              )
+            `)
+            .eq('season_id', currentSeason.id)
+            .in('status', ['registered', 'confirmed']);
+
+          teams = (seasonTeams || []).map(st => st.team).filter(Boolean);
+          teamCount = teams.length;
+
+          // Count players across teams in current season
+          if (teams.length > 0) {
+            const teamIds = teams.map(t => t.id).filter(Boolean);
+            if (teamIds.length > 0) {
+              const { count } = await adminClient
+                .from('team_members')
+                .select('*', { count: 'exact', head: true })
+                .eq('is_active', true)
+                .in('team_id', teamIds);
+              playerCount = count || 0;
+            }
           }
         }
 
         return {
           ...league,
           teams,
-          teamCount: teams.length,
+          teamCount,
           playerCount,
           availableSpots: 0,
           isUserMember: false

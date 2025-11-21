@@ -52,11 +52,17 @@ export async function createServerSupabaseClient() {
 
 /**
  * Create a Supabase client for API Routes with request/response handling
- * 
+ *
  * This version can modify cookies in the response, necessary for auth operations
  * like login/logout in API routes.
+ *
+ * Also supports Authorization Bearer tokens for mobile app requests.
  */
 export function createUserSupabaseClient(request: NextRequest, response?: NextResponse) {
+  // Check for Authorization header (for mobile app requests)
+  const authHeader = request.headers.get('authorization')
+  const accessToken = authHeader?.replace('Bearer ', '')
+
   return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -84,6 +90,11 @@ export function createUserSupabaseClient(request: NextRequest, response?: NextRe
         domain: undefined,
         path: '/',
         sameSite: 'lax',
+      },
+      global: {
+        headers: accessToken ? {
+          Authorization: `Bearer ${accessToken}`,
+        } : {},
       },
     }
   )

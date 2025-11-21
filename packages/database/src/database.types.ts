@@ -1332,47 +1332,23 @@ export type Database = {
       }
       users: {
         Row: {
-          avatar_url: string | null
-          bio: string | null
           created_at: string
-          date_of_birth: string | null
-          display_name: string | null
           email: string
-          full_name: string | null
           id: string
-          location: string | null
-          phone: string | null
-          preferred_position: string | null
           role: Database["public"]["Enums"]["user_role"]
           updated_at: string
         }
         Insert: {
-          avatar_url?: string | null
-          bio?: string | null
           created_at?: string
-          date_of_birth?: string | null
-          display_name?: string | null
           email: string
-          full_name?: string | null
           id: string
-          location?: string | null
-          phone?: string | null
-          preferred_position?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
         }
         Update: {
-          avatar_url?: string | null
-          bio?: string | null
           created_at?: string
-          date_of_birth?: string | null
-          display_name?: string | null
           email?: string
-          full_name?: string | null
           id?: string
-          location?: string | null
-          phone?: string | null
-          preferred_position?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
         }
@@ -1550,785 +1526,403 @@ export const Constants = {
     },
   },
 } as const
-export type LeagueStanding = Database['public']['Views']['league_standings']['Row'];
-export type PlayerLeaderboard = Database['public']['Views']['player_leaderboard']['Row'];
-export type PlayerCrossLeagueStats = Database['public']['Views']['player_cross_league_stats']['Row'];
-export type ActiveMatch = Database['public']['Views']['active_matches']['Row'];
 
-// Enums for type safety
-export enum SportType {
-  FOOTBALL = 'football'
+// Convenience type exports for Media
+export type Media = Database['public']['Tables']['media']['Row'] & {
+  match_id?: string | null
+  player_id?: string | null
+  original_media_id?: string | null
+  is_repost?: boolean | null
+}
+export type MediaInsert = Database['public']['Tables']['media']['Insert'] & {
+  match_id?: string | null
+  player_id?: string | null
+  original_media_id?: string | null
+  is_repost?: boolean | null
+}
+export type MediaUpdate = Database['public']['Tables']['media']['Update'] & {
+  match_id?: string | null
+  player_id?: string | null
+  original_media_id?: string | null
+  is_repost?: boolean | null
 }
 
-export enum LeagueType {
-  COMPETITIVE = 'competitive',
-  CASUAL = 'casual',
-  TOURNAMENT = 'tournament',
-  FRIENDLY = 'friendly'
+// Convenience type exports for other commonly used tables
+export type User = Database['public']['Tables']['users']['Row']
+export type Match = Database['public']['Tables']['matches']['Row']
+export type Team = Database['public']['Tables']['teams']['Row']
+export type League = Database['public']['Tables']['leagues']['Row']
+export type Season = Database['public']['Tables']['seasons']['Row']
+
+// Media-related types
+export type MediaContextType =
+  | 'team_logo'
+  | 'user_profile'
+  | 'league_sponsor'
+  | 'team_media'
+  | 'season_media'
+  | 'league_icon'
+  | 'season_icon'
+  | 'match_media'
+  | 'player_media'
+
+export type MediaType = 'image' | 'video'
+
+export interface MediaUploadOptions {
+  context_type: MediaContextType
+  team_id?: string | null
+  league_id?: string | null
+  season_id?: string | null
+  match_id?: string | null
+  player_id?: string | null
+  is_public?: boolean
+  tags?: string[]
+  description?: string | null
 }
 
-export enum MatchStatus {
-  SCHEDULED = 'scheduled',
-  LIVE = 'live',
-  COMPLETED = 'completed',
-  POSTPONED = 'postponed',
-  CANCELLED = 'cancelled'
+export interface MediaFilters {
+  team_id?: string
+  league_id?: string
+  season_id?: string
+  match_id?: string
+  player_id?: string
+  context_type?: MediaContextType
+  media_type?: MediaType
+  is_public?: boolean
+  tags?: string[]
+  limit?: number
+  offset?: number
 }
 
-export enum EventType {
-  GOAL = 'goal',
-  ASSIST = 'assist',
-  YELLOW_CARD = 'yellow_card',
-  RED_CARD = 'red_card',
-  SUBSTITUTION = 'substitution',
-  INJURY = 'injury',
-  TIMEOUT = 'timeout'
+export interface MediaWithUrl extends Media {
+  url: string
+  created_at: string
+  updated_at: string
 }
 
-export enum AchievementCategory {
-  GOALS = 'goals',
-  ASSISTS = 'assists',
-  MATCHES = 'matches',
-  TEAM_PLAY = 'team_play',
-  CONSISTENCY = 'consistency',
-  MILESTONES = 'milestones',
-  LEADERSHIP = 'leadership'
+export interface MediaUploadResult {
+  media: MediaWithUrl
+  storageUrl: string
 }
 
-export enum AchievementDifficulty {
-  BRONZE = 'bronze',
-  SILVER = 'silver',
-  GOLD = 'gold',
-  PLATINUM = 'platinum'
+// Service response types
+export interface ServiceError {
+  code: string
+  message: string
+  details?: any
+  timestamp: string
+  operation?: string
 }
 
-export enum JoinRequestStatus {
-  PENDING = 'pending',
-  APPROVED = 'approved',
-  REJECTED = 'rejected',
-  WITHDRAWN = 'withdrawn'
+export interface ServiceResponse<T> {
+  data: T | null
+  error: ServiceError | null
+  success: boolean
 }
 
-// Complex types for forms and API responses
-export interface PlayerProfile extends UserProfile {
-  teams?: Array<{
-    team: Team;
-    league: League;
-    position?: string;
-    jersey_number?: number;
-    is_active?: boolean;
-  }>;
-  stats?: PlayerStats[];
-  achievements?: Array<{
-    achievement: Achievement;
-    earned_at: string;
-    context?: any;
-  }>;
+// Additional types needed by services
+export interface PaginatedServiceResponse<T> {
+  data: T[] | null
+  error: ServiceError | null
+  success: boolean
+  total?: number
+  page?: number
+  pageSize?: number
+  pagination?: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+    hasNext: boolean
+    hasPrevious: boolean
+  }
 }
 
-export interface LeagueWithDetails extends League {
-  teams?: Team[];
-  matches?: Match[];
-  creator?: UserProfile;
-  stats?: {
-    total_teams: number;
-    total_players: number;
-    total_matches: number;
-    completed_matches: number;
-  };
+export interface UserProfile {
+  id: string
+  user_id: string
+  display_name?: string | null
+  avatar_url?: string | null
+  bio?: string | null
+  created_at?: string
+  updated_at?: string
 }
 
-export interface MatchWithDetails extends Match {
-  home_team: Team;
-  away_team: Team;
-  league: League;
-  events?: MatchEvent[];
-  players?: {
-    home_players: UserProfile[];
-    away_players: UserProfile[];
-  };
+export type UpdateUserProfile = Partial<UserProfile>
+
+export interface TeamMember {
+  id: string
+  team_id: string
+  user_id: string
+  joined_at?: string
+  role?: string | null
+  user?: UserProfile
 }
 
-// Form validation schemas (for use with react-hook-form + zod)
-export interface CreateLeagueForm {
-  name: string;
-  description?: string;
-  sport_type: SportType;
-  league_type: LeagueType;
-  location?: string;
-  season_start?: string;
-  season_end?: string;
-  max_teams?: number;
-  entry_fee?: number;
-}
+export type InsertTeam = Database['public']['Tables']['teams']['Insert']
+export type UpdateTeam = Database['public']['Tables']['teams']['Update']
 
 export interface CreateTeamForm {
-  name: string;
-  league_id?: string;  // Optional - teams can be created without a league
-  sport: string;
-  description?: string;
-  max_players?: number;
-  min_players?: number;
-  location?: string;
-  team_color?: string;
+  name: string
+  description?: string
+  team_color?: string
+  team_bio?: string
+  max_players?: number
+  league_id?: string
+  captain_id?: string
 }
 
-export interface JoinTeamForm {
-  team_id: string;
-  position?: string;
-  jersey_number?: number;
+export interface TeamJoinRequest {
+  id: string
+  team_id: string
+  user_id: string
+  status: JoinRequestStatus
+  created_at?: string
+  updated_at?: string
+  user?: UserProfile
 }
 
-export interface UpdateProfileForm {
-  display_name: string;
-  bio?: string;
-  preferred_position?: string;
-  location?: string;
-  date_of_birth?: string;
-}
+export type JoinRequestStatus = 'pending' | 'accepted' | 'declined' | 'cancelled'
 
-// Team Invitation types
-export type InvitationStatus = 'pending' | 'accepted' | 'declined' | 'expired';
-
-// Team League Request types
-export type TeamLeagueRequestStatus = 'pending' | 'approved' | 'rejected' | 'withdrawn';
-
-// User Role types
-export type UserRole = 'player' | 'captain' | 'admin' | 'league_admin' | 'app_admin';
-
-export interface TeamInvitation {
-  id: string;
-  team_id: string;
-  invited_by: string;
-  invited_email: string;
-  invited_user_id?: string;
-  position?: string;
-  jersey_number?: number;
-  message?: string;
-  status: InvitationStatus;
-  expires_at: string;
-  created_at: string;
-  responded_at?: string;
-}
-
-export interface TeamInvitationWithDetails extends TeamInvitation {
-  team: {
-    id: string;
-    name: string;
-    location?: string;
-    team_color?: string;
-    team_bio?: string;
-    max_players?: number;
-    captain?: {
-      display_name?: string;
-      email: string;
-    };
-  };
-  invited_by_user: {
-    display_name?: string;
-    email: string;
-  };
-}
-
-export interface SendInvitationForm {
-  email: string;
-  position?: string;
-  jersey_number?: number;
-  message?: string;
-}
-
-export interface InvitationResponseForm {
-  action: 'accept' | 'decline';
-}
-
-// Team Leagues Junction Table
-export interface TeamLeagues {
-  id: string;
-  team_id: string;
-  league_id: string;
-  joined_at: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-// Team League Request interfaces
-export interface TeamLeagueRequest {
-  id: string;
-  team_id: string;
-  league_id: string;
-  requested_by: string;
-  message?: string;
-  status: TeamLeagueRequestStatus;
-  reviewed_by?: string;
-  reviewed_at?: string;
-  review_message?: string;
-  created_at: string;
-  expires_at: string;
-}
-
-export interface TeamLeagueRequestWithDetails extends TeamLeagueRequest {
-  teams: {
-    id: string;
-    name: string;
-    team_color?: string;
-    team_bio?: string;
-    max_players?: number;
-    min_players?: number;
-    captain_id: string;
-    member_count: number;
-  };
-  leagues: {
-    id: string;
-    name: string;
-    description?: string;
-    location?: string;
-    sport_type: string;
-    league_type: string;
-    entry_fee?: number;
-  };
-  requested_by_user: {
-    email: string;
-    user_profiles?: {
-      display_name?: string;
-      full_name?: string;
-    };
-  };
-  reviewed_by_user?: {
-    email: string;
-    user_profiles?: {
-      display_name?: string;
-      full_name?: string;
-    };
-  };
-}
-
-export interface CreateLeagueRequestForm {
-  league_id: string;
-  message?: string;
-}
-
-export interface LeagueRequestResponseForm {
-  action: 'approve' | 'reject';
-  review_message?: string;
-}
-
-// API Response types
-export interface ApiResponse<T = any> {
-  data: T;
-  error?: string;
-  message?: string;
-}
-
-export interface PaginatedResponse<T = any> {
-  data: T[];
-  count: number;
-  page: number;
-  per_page: number;
-  total_pages: number;
-}
-
-// Real-time types for live features
-export interface LiveMatchUpdate {
-  match_id: string;
-  event_type: EventType;
-  event_time: number;
-  player_id?: string;
-  team_id?: string;
-  description?: string;
-  score_update?: {
-    home_score: number;
-    away_score: number;
-  };
-}
-
-export interface PlayerStatsSummary {
-  player_id: string;
-  total_goals: number;
-  total_assists: number;
-  total_matches: number;
-  total_minutes: number;
-  goals_per_game: number;
-  current_league_stats?: PlayerStats;
-}
-
-// Cross-league comparison types
-export interface CrossLeaguePlayerStats {
-  player_id: string;
-  player_name: string;
-  leagues: Array<{
-    league: League;
-    stats: PlayerStats;
-    team: Team;
-  }>;
-  overall_stats: PlayerStatsSummary;
-}
-
-// Service Response Types
-export interface ServiceResponse<T = any> {
-  data: T | null;
-  error: ServiceError | null;
-  success: boolean;
-  message?: string;
-}
-
-export interface ServiceError {
-  code: string;
-  message: string;
-  details?: any;
-  timestamp: string;
-  operation?: string;
-}
-
-export interface PaginatedServiceResponse<T = any> extends ServiceResponse<T[]> {
-  pagination?: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-    hasNext: boolean;
-    hasPrevious: boolean;
-  };
-}
-
-// Player Service Types
-export interface PlayerProfileExtended extends UserProfile {
-  teams: Array<{
-    team: Team & { league: League };
-    membership: TeamMember;
-  }>;
-  achievements: Array<{
-    achievement: Achievement;
-    userAchievement: UserAchievement;
-  }>;
-  crossLeagueStats: PlayerCrossLeagueStats | null;
-  globalRankings: {
-    goals: { rank: number; total: number; percentile: number } | null;
-    assists: { rank: number; total: number; percentile: number } | null;
-    matches: { rank: number; total: number; percentile: number } | null;
-  };
-}
-
-// League Service Types
-export interface LeagueDiscovery extends League {
-  teams: Team[];
-  teamCount: number;
-  playerCount: number;
-  availableSpots: number;
-  joinRequests?: TeamJoinRequest[];
-  isUserMember: boolean;
-  compatibilityScore?: number;
+export interface LeagueDiscovery {
+  id: string
+  name: string
+  description?: string | null
+  sport_type: SportType | string
+  league_type: LeagueType | string
+  is_public: boolean | null
+  member_count?: number
+  team_count?: number
+  teamCount?: number
+  playerCount?: number
+  icon_url?: string | null
+  teams?: any[]
+  availableSpots?: number
+  isUserMember?: boolean
+  compatibilityScore?: number
+  joinRequests?: TeamJoinRequest[]
+  isOpenForTeams?: boolean
+  hasActiveTeams?: boolean
+  averagePlayersPerTeam?: number
+  location?: string | null
+  entry_fee?: number | null
+  season_start?: string | null
+  season_end?: string | null
+  max_teams?: number | null
+  is_active?: boolean | null
+  created_at?: string
+  updated_at?: string
+  created_by?: string | null
 }
 
 export interface LeagueFilters {
-  sportType?: SportType;
-  leagueType?: LeagueType;
-  location?: string;
-  maxDistance?: number;
-  entryFeeMax?: number;
-  hasAvailableSpots?: boolean;
-  seasonActive?: boolean;
-  search?: string;
+  sport_type?: SportType
+  sportType?: SportType | string
+  league_type?: LeagueType
+  leagueType?: LeagueType | string
+  is_public?: boolean
+  search?: string
+  limit?: number
+  offset?: number
+  location?: string
+  entryFeeMax?: number
+  seasonActive?: boolean
 }
 
-// Match Service Types
+export type SportType = 'football' | 'basketball' | 'volleyball' | 'cricket' | 'other' | string
+export type LeagueType = 'competitive' | 'casual' | 'tournament' | 'friendly' | string
+
+export interface CacheOptions {
+  ttl?: number
+  key?: string
+  invalidate?: boolean
+}
+
+export interface RealtimeSubscriptionOptions {
+  channel?: string
+  event?: string
+  schema?: string
+  table?: string
+  filter?: string
+}
+
+export type InsertLeague = Database['public']['Tables']['leagues']['Insert']
+
+// Cross-league statistics types
+export interface CrossLeagueStats {
+  user_id: string
+  total_goals: number
+  total_assists: number
+  total_appearances: number
+  total_wins: number
+  total_draws: number
+  total_losses: number
+  leagues_played: number
+  current_teams: number
+  achievements: string[]
+  last_updated: string
+}
+
+export interface CrossLeagueComparison {
+  user_id: string
+  display_name: string
+  avatar_url?: string | null
+  stats: {
+    goals: number
+    assists: number
+    appearances: number
+    win_rate: number
+    goals_per_game: number
+    assists_per_game: number
+  }
+  ranking: {
+    overall: number
+    goals: number
+    assists: number
+    appearances: number
+  }
+}
+
+// Team-related types - don't extend Team to avoid conflicts
+export interface TeamWithDetails {
+  // Base team fields from Team type
+  id: string
+  name: string
+  description: string | null
+  team_color: string
+  team_bio: string
+  max_players: number
+  min_players: number | null
+  league_id: string | null
+  captain_id: string | null
+  logo_url: string | null
+  logo_media_id: string | null
+  is_active: boolean | null
+  is_recruiting: boolean | null
+  created_at: string
+  updated_at: string
+  founded_date: string | null
+  home_ground: string | null
+  is_archived: boolean | null
+  website: string | null
+  social_links: Json | null
+
+  // Extended fields
+  captain?: UserProfile
+  members?: TeamMember[]
+  memberCount?: number
+  availableSpots?: number
+  leagues?: League[]
+  league?: League | null
+  stats?: {
+    wins: number
+    draws: number
+    losses: number
+    goals_for: number
+    goals_against: number
+    points: number
+    position: number
+    total_teams: number
+  }
+  joinRequests?: TeamJoinRequest[]
+  isOrphaned?: boolean
+  previousLeagueName?: string
+  achievements?: string[]
+}
+
+// Match-related extended types
+export type MatchStatus = Database['public']['Enums']['match_status']
+export type EventType = 'goal' | 'yellow_card' | 'red_card' | 'substitution' | 'assist' | 'own_goal' | 'penalty' | 'penalty_miss'
+
+export type MatchEvent = Database['public']['Tables']['match_events']['Row']
+
 export interface MatchWithDetails extends Match {
-  homeTeam: Team;
-  awayTeam: Team;
-  league: League;
-  events: MatchEvent[];
-  homeTeamPlayers: UserProfile[];
-  awayTeamPlayers: UserProfile[];
-  playerStats?: Array<{
-    player: UserProfile;
-    stats: {
-      goals: number;
-      assists: number;
-      cards: number;
-      minutesPlayed: number;
-    };
-  }>;
+  homeTeam?: Team
+  awayTeam?: Team
+  league?: League | null
+  events?: MatchEvent[]
+  homeTeamPlayers?: UserProfile[]
+  awayTeamPlayers?: UserProfile[]
+  playerStats?: PlayerMatchStats[]
+  analytics?: MatchAnalytics
+  home_team?: Team
+  away_team?: Team
+  match_events?: MatchEvent[]
 }
 
 export interface LiveMatchData {
-  match: MatchWithDetails;
-  recentEvents: MatchEvent[];
+  match: MatchWithDetails
+  recentEvents: MatchEvent[]
   liveStats: {
-    homeTeamStats: { [key: string]: number };
-    awayTeamStats: { [key: string]: number };
-    playerStats: { [playerId: string]: any };
-  };
+    homeTeamStats: Record<string, unknown>
+    awayTeamStats: Record<string, unknown>
+    playerStats: Record<string, unknown>
+  }
 }
 
-// Achievement Service Types
-export interface PlayerAchievementProgress {
-  achievement: Achievement;
-  currentProgress: number;
-  targetValue: number;
-  progressPercentage: number;
-  isCompleted: boolean;
-  estimatedCompletion?: string;
-  nextMilestone?: number;
+export interface ActiveMatch extends Match {
+  homeTeam?: Team
+  awayTeam?: Team
+  league?: League | null
+  elapsedMinutes?: number
+  currentScore?: { home: number; away: number }
 }
 
-export interface AchievementBadge {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  category: AchievementCategory;
-  difficulty: AchievementDifficulty;
-  earnedAt?: string;
-  context?: any;
-  rarity: {
-    totalEarned: number;
-    totalPlayers: number;
-    rarityPercentage: number;
-  };
+export interface PlayerMatchStats {
+  matchId: string
+  playerId: string
+  playerName: string
+  goals: number
+  assists: number
+  yellowCards: number
+  redCards: number
+  minutesPlayed: number
+  position?: string
+  events?: MatchEvent[]
+  performance?: {
+    rating: number
+    keyPasses: number
+    successfulPasses: number
+    totalPasses: number
+    tackles: number
+    saves?: number
+  }
 }
 
-// Stats Service Types
-export interface PerformanceTrend {
-  period: string; // YYYY-MM or YYYY-WW
-  goals: number;
-  assists: number;
-  matches: number;
-  performance: number;
+export interface MatchAnalytics {
+  matchId: string
+  duration: number
+  totalEvents: number
+  goalsByPeriod: {
+    firstHalf: { home: number; away: number }
+    secondHalf: { home: number; away: number }
+    extraTime?: { home: number; away: number }
+  }
+  cardsByTeam: {
+    home: { yellow: number; red: number }
+    away: { yellow: number; red: number }
+  }
+  topPerformers: {
+    home: PlayerMatchStats[]
+    away: PlayerMatchStats[]
+  }
+  matchMomentum: Array<{
+    minute: number
+    homeScore: number
+    awayScore: number
+    eventType: EventType
+    momentum: number
+  }>
 }
 
-export interface GlobalRanking {
-  playerId: string;
-  displayName: string;
-  avatarUrl?: string;
-  rank: number;
-  statValue: number;
-  trend: 'up' | 'down' | 'stable';
-  previousRank?: number;
-}
-
-export interface LeagueComparison {
-  league: League;
-  playerStats: PlayerStats;
-  teamRank: number;
-  leagueRank: number;
-  performance: {
-    goalsPerGame: number;
-    assistsPerGame: number;
-    winRate: number;
-    consistency: number;
-  };
-}
-
-// Real-time Subscription Types
-export interface RealtimeSubscriptionOptions {
-  table: string;
-  filter?: string;
-  event?: 'INSERT' | 'UPDATE' | 'DELETE' | '*';
-  schema?: string;
-}
-
-export interface CacheOptions {
-  ttl?: number; // Time to live in seconds
-  key?: string;
-  tags?: string[];
-  revalidateOnBackground?: boolean;
-}
-
-// One-Team-One-League Architecture Types
-// =====================================
-
-/**
- * Team with direct league relationship (simplified from junction table)
- */
-export interface TeamWithLeague extends Team {
-  league: League;
-}
-
-/**
- * League with directly associated teams (no junction table)
- */
-export interface LeagueWithTeams extends League {
-  teams: Team[];
-  teamCount: number;
-}
-
-/**
- * Migration helper types for team league operations
- */
-export interface TeamLeagueOperation {
-  teamId: string;
-  currentLeagueId?: string;
-  newLeagueId: string;
-  operationType: 'assign' | 'transfer' | 'create_and_assign';
-}
-
-/**
- * Simplified team creation for one-league-per-team model
- */
-export interface CreateTeamRequest {
-  name: string;
-  leagueId: string; // Required - team must join a league immediately
-  captainId: string;
-  teamColor?: string;
-  teamBio?: string;
-  maxPlayers?: number;
-  minPlayers?: number;
-  isRecruiting?: boolean;
-}
-
-/**
- * Team league request with simplified assignment
- */
-export interface SimpleTeamLeagueRequest {
-  id: string;
-  teamId: string;
-  leagueId: string;
-  requestedBy: string;
-  message?: string;
-  status: 'pending' | 'approved' | 'rejected';
-  createdAt: string;
-  reviewedAt?: string;
-  reviewedBy?: string;
-  responseMessage?: string;
-}
-
-/**
- * Direct team league assignment result
- */
-export interface TeamLeagueAssignmentResult {
-  success: boolean;
-  teamId: string;
-  leagueId: string;
-  previousLeagueId?: string;
-  message: string;
-  error?: string;
-}
-
-/**
- * League team statistics using direct relationship
- */
-export interface LeagueTeamStats {
-  leagueId: string;
-  leagueName: string;
-  totalTeams: number;
-  totalPlayers: number;
-  averagePlayersPerTeam: number;
-  recruitingTeams: number;
-  archivedTeams: number;
-}
-
-/**
- * @deprecated Legacy TeamLeagueRequestWithDetails - use SimpleTeamLeagueRequest instead
- * Keeping for backward compatibility during migration
- */
-export interface TeamLeagueRequestWithDetails {
-  id: string;
-  teamId: string;
-  leagueId: string;
-  requestedBy: string;
-  message?: string;
-  status: 'pending' | 'approved' | 'rejected';
-  createdAt: string;
-  reviewedAt?: string;
-  reviewedBy?: string;
-  responseMessage?: string;
-  team: Team;
-  league: League;
-  requested_by_user: {
-    email: string;
-    full_name?: string;
-    display_name?: string;
-  };
-}
-
-// ===================================================================
-// SEASON MANAGEMENT TYPES
-// ===================================================================
-
-export type TournamentFormat = 'league' | 'knockout' | 'league_with_playoffs';
-export type SeasonStatus = 'draft' | 'registration' | 'fixtures_pending' | 'fixtures_generated' | 'active' | 'playoffs' | 'completed' | 'suspended' | 'cancelled';
-export type FixtureGenerationStatus = 'pending' | 'generating' | 'completed' | 'failed' | 'needs_regeneration';
-
-/**
- * Season entity
- */
-export interface Season {
-  id: string;
-  name: string;
-  league_id: string;
-  season_year: number;
-  display_name?: string;
-  status: SeasonStatus;
-  tournament_format: TournamentFormat;
-  start_date: string;
-  end_date: string;
-  registration_deadline?: string;
-  match_frequency: number;
-  preferred_match_time: string;
-  min_teams: number;
-  max_teams?: number;
-  registered_teams_count: number;
-  rounds: number;
-  points_for_win: number;
-  points_for_draw: number;
-  points_for_loss: number;
-  knockout_legs: number;
-  third_place_playoff: boolean;
-  playoff_teams_count: number;
-  playoff_format: string;
-  fixtures_status: FixtureGenerationStatus;
-  fixtures_generated_at?: string;
-  fixtures_generation_error?: string;
-  total_matches_planned: number;
-  allow_draws: boolean;
-  home_away_balance: boolean;
-  venue_conflicts_check: boolean;
-  bye_week_handling: string;
-  rules: Record<string, any>;
-  settings: Record<string, any>;
-  metadata: Record<string, any>;
-  created_at: string;
-  updated_at: string;
-  created_by?: string;
-  updated_by?: string;
-  deleted_at?: string;
-  deleted_by?: string;
-}
-
-/**
- * Season team registration
- */
-export interface SeasonTeam {
-  id: string;
-  season_id: string;
-  team_id: string;
-  registered_at: string;
-  registered_by?: string;
-  preferred_home_venue?: string;
-  unavailable_dates: string[];
-  preferred_match_times?: string[];
-  seeding?: number;
-  group_assignment?: string;
-  status: 'pending' | 'accepted' | 'declined';
-  confirmed_at?: string;
-  withdrawal_reason?: string;
-  notes?: string;
-  metadata: Record<string, any>;
-}
-
-/**
- * Fixture entity
- */
-export interface Fixture {
-  id: string;
-  season_id: string;
-  match_id?: string;
-  round_number: number;
-  match_day?: number;
-  group_name?: string;
-  leg_number: number;
-  scheduled_date?: string;
-  venue?: string;
-  fixture_type: string;
-  generation_batch?: string;
-  depends_on_fixtures?: string[];
-  is_generated_fixture: boolean;
-  generation_notes?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-/**
- * Season statistics cache
- */
-export interface SeasonStats {
-  id: string;
-  season_id: string;
-  total_matches_scheduled: number;
-  total_matches_played: number;
-  total_matches_cancelled: number;
-  total_goals: number;
-  total_cards_yellow: number;
-  total_cards_red: number;
-  current_matchday: number;
-  current_round: number;
-  matches_remaining: number;
-  average_goals_per_match?: number;
-  highest_scoring_match_goals?: number;
-  most_goals_in_matchday?: number;
-  total_attendance: number;
-  average_attendance?: number;
-  last_updated: string;
-  auto_refresh: boolean;
-}
-
-/**
- * Fixture generation log
- */
-export interface FixtureGenerationLog {
-  id: string;
-  season_id: string;
-  generation_type: string;
-  status: FixtureGenerationStatus;
-  parameters: Record<string, any>;
-  fixtures_created: number;
-  fixtures_updated: number;
-  fixtures_deleted: number;
-  error_message?: string;
-  error_details?: Record<string, any>;
-  started_at: string;
-  completed_at?: string;
-  duration_seconds?: number;
-  triggered_by?: string;
-  metadata: Record<string, any>;
-}
-// ===================================================================
-// MEDIA MANAGEMENT TYPES
-// ===================================================================
-
-export type MediaType = 'image' | 'video';
-export type MediaContextType = 'team_logo' | 'user_profile' | 'league_sponsor' | 'team_media' | 'season_media';
-
-/**
- * Media with public URL included (for displaying in UI)
- */
-export interface MediaWithUrl extends Media {
-  url: string;
-  thumbnail_url?: string;
-}
-
-/**
- * Options for uploading media
- */
-export interface MediaUploadOptions {
-  context_type: MediaContextType;
-  team_id?: string;
-  league_id?: string;
-  season_id?: string;
-  is_public?: boolean;
-  tags?: string[];
-  description?: string;
-}
-
-/**
- * Filters for querying media
- */
-export interface MediaFilters {
-  team_id?: string;
-  league_id?: string;
-  season_id?: string;
-  context_type?: MediaContextType;
-  media_type?: MediaType;
-  tags?: string[];
-  is_public?: boolean;
-  limit?: number;
-  offset?: number;
-}
-
-/**
- * Result of media upload operation
- */
-export interface MediaUploadResult {
-  media: MediaWithUrl;
-  storageUrl: string;
+// Team availability type for league discovery
+export interface TeamAvailability {
+  teamId: string
+  teamName: string
+  currentPlayers: number
+  maxPlayers: number
+  availableSpots: number
+  isRecruiting: boolean
+  requiredPositions: string[]
+  captainContact?: { name: string; id: string }
 }

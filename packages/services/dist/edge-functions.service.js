@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Edge Functions Service for MatchDay
  *

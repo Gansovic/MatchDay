@@ -15,6 +15,8 @@ export async function POST(request: NextRequest) {
     const team_id = formData.get('team_id') as string | null;
     const league_id = formData.get('league_id') as string | null;
     const season_id = formData.get('season_id') as string | null;
+    const match_id = formData.get('match_id') as string | null;
+    const player_id = formData.get('player_id') as string | null;
     const uploaded_by = formData.get('uploaded_by') as string;
     const is_public = formData.get('is_public') === 'true';
     const description = formData.get('description') as string | null;
@@ -51,6 +53,8 @@ export async function POST(request: NextRequest) {
       team_id: team_id || undefined,
       league_id: league_id || undefined,
       season_id: season_id || undefined,
+      match_id: match_id || undefined,
+      player_id: player_id || undefined,
       is_public,
       tags,
       description: description || undefined,

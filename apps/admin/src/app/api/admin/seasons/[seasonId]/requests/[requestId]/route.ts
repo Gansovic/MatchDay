@@ -5,9 +5,10 @@ import { cookies } from 'next/headers';
 // PATCH /api/admin/seasons/[seasonId]/requests/[requestId] - Update a join request (approve/reject)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { seasonId: string; requestId: string } }
+  { params }: { params: Promise<{ seasonId: string; requestId: string }> }
 ) {
   try {
+    const { seasonId, requestId } = await params;
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -22,8 +23,6 @@ export async function PATCH(
         { status: 401 }
       );
     }
-
-    const { seasonId, requestId } = params;
     const body = await request.json();
     const { status, response_message } = body;
 

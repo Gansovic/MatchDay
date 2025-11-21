@@ -2,20 +2,24 @@
 
 import React, { useState } from 'react';
 import { MediaWithUrl } from '@matchday/database';
-import { X, Download, Trash2, Eye, Calendar, Tag, Lock, Globe } from 'lucide-react';
+import { X, Download, Trash2, Eye, Calendar, Tag, Lock, Globe, Repeat2 } from 'lucide-react';
 import Image from 'next/image';
 
 interface MediaGalleryProps {
   media: MediaWithUrl[];
   onDelete?: (mediaId: string) => void;
+  onRepost?: (mediaId: string) => void;
   canDelete?: boolean;
+  canRepost?: boolean;
   emptyMessage?: string;
 }
 
 export function MediaGallery({
   media,
   onDelete,
+  onRepost,
   canDelete = false,
+  canRepost = false,
   emptyMessage = 'No media uploaded yet'
 }: MediaGalleryProps) {
   const [selectedMedia, setSelectedMedia] = useState<MediaWithUrl | null>(null);
@@ -116,8 +120,16 @@ export function MediaGallery({
               <Eye className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
 
-            {/* Privacy Badge */}
-            <div className="absolute top-2 right-2">
+            {/* Badges */}
+            <div className="absolute top-2 right-2 flex flex-col gap-1">
+              {/* Repost Badge */}
+              {item.is_repost && (
+                <div className="bg-white/90 dark:bg-gray-900/90 rounded-full p-1.5">
+                  <Repeat2 className="w-3 h-3 text-blue-600" />
+                </div>
+              )}
+
+              {/* Privacy Badge */}
               {item.is_public ? (
                 <div className="bg-white/90 dark:bg-gray-900/90 rounded-full p-1.5">
                   <Globe className="w-3 h-3 text-green-600" />
@@ -181,6 +193,12 @@ export function MediaGallery({
                     {formatDate(selectedMedia.created_at)}
                   </span>
                   <span>{formatFileSize(selectedMedia.file_size)}</span>
+                  {selectedMedia.is_repost && (
+                    <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                      <Repeat2 className="w-4 h-4" />
+                      Reposted
+                    </span>
+                  )}
                   <span className="flex items-center gap-1">
                     {selectedMedia.is_public ? (
                       <>
@@ -222,6 +240,19 @@ export function MediaGallery({
                   <Download className="w-4 h-4" />
                   Download
                 </a>
+
+                {canRepost && onRepost && !selectedMedia.is_repost && (
+                  <button
+                    onClick={() => {
+                      onRepost(selectedMedia.id);
+                      setSelectedMedia(null);
+                    }}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center gap-2 transition-colors"
+                  >
+                    <Repeat2 className="w-4 h-4" />
+                    Repost
+                  </button>
+                )}
 
                 {canDelete && onDelete && (
                   <button

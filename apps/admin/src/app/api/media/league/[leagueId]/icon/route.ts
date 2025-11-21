@@ -24,10 +24,8 @@ export async function GET(
     }
 
     if (!result.data) {
-      return NextResponse.json(
-        { error: 'Icon not found' },
-        { status: 404 }
-      );
+      // Return 204 No Content instead of 404 - no icon is a valid state
+      return new NextResponse(null, { status: 204 });
     }
 
     return NextResponse.json({ icon: result.data });

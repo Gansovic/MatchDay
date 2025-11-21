@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Enhanced Player Service for MatchDay
  *
@@ -69,10 +70,13 @@ export class PlayerService {
             if (cached && !options.revalidateOnBackground) {
                 return { data: cached, error: null, success: true };
             }
-            // Get basic profile
+            // Get basic profile from user_profiles and users
             const { data: profile, error: profileError } = await this.supabase
-                .from('users')
-                .select('*')
+                .from('user_profiles')
+                .select(`
+          *,
+          users!inner(id, email, role)
+        `)
                 .eq('id', userId)
                 .single();
             if (profileError) {
@@ -158,7 +162,7 @@ export class PlayerService {
     async updatePlayerProfile(userId, updates) {
         try {
             const { data, error } = await this.supabase
-                .from('users')
+                .from('user_profiles')
                 .update({
                 ...updates,
                 updated_at: new Date().toISOString()

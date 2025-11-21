@@ -127,5 +127,24 @@ export declare class TeamService {
      * Archive an orphaned team
      */
     archiveTeam(teamId: string, userId: string): Promise<ServiceResponse<Team>>;
+    /**
+     * Remove a team member (captain only, soft delete with archival)
+     *
+     * @param teamId - The ID of the team
+     * @param memberId - The ID of the team_members record to remove
+     * @param captainId - The ID of the user performing the removal (must be captain)
+     * @param reason - Optional reason for removal
+     * @returns ServiceResponse with the removed member data
+     */
+    removeTeamMember(teamId: string, memberId: string, captainId: string, reason?: string): Promise<ServiceResponse<TeamMember>>;
+    /**
+     * Transfer team captaincy to another active member
+     *
+     * @param teamId - The ID of the team
+     * @param currentCaptainId - The ID of the current captain
+     * @param newCaptainId - The ID of the new captain (must be active member)
+     * @returns ServiceResponse with the updated team data
+     */
+    transferCaptaincy(teamId: string, currentCaptainId: string, newCaptainId: string): Promise<ServiceResponse<Team>>;
 }
 //# sourceMappingURL=team.service.d.ts.map
